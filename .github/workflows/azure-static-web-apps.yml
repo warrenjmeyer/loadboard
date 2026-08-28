@@ -1,0 +1,51 @@
+# ---------------------------------------------------------------------------
+# Build and deploy to Azure Static Web Apps on every push to main.
+#
+# The deployment token is the app's own credential, stored as the repository
+# secret AZURE_STATIC_WEB_APPS_API_TOKEN. It is not tied to anyone's az login,
+# which is why this works in CI with nobody signed in.
+#
+# Pull requests get a *preview* environment on their own URL, torn down when
+# the PR closes -- that is what the second job is for. It is the main reason
+# to deploy from CI rather than from your laptop.
+# ---------------------------------------------------------------------------
+name: Azure Static Web Apps
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+    branches: [main]
+
+jobs:
+  build_and_deploy:
+    if: github.event_name == 'push' || github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    name: Build and deploy
+    steps:
+      - uses: actions/checkout@v4
+
+      # No npm install / npm run build step here on purpose: the action runs
+      # Oryx, which detects the Vite app at app_location, installs and builds
+      # it, and builds api/ as a Node Functions app separately.
+      - name: Build and deploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          repo_token: ${{ secrets.GITHUB_TOKEN }}
+          action: upload
+          app_location: "/"
+          api_location: "api"
+          output_location: "dist"
+
+  close_pull_request:
+    if: github.event_name == 'pull_request' && github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    name: Close pull request preview
+    steps:
+      - name: Close
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN }}
+          action: close

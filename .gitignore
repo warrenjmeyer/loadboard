@@ -1,0 +1,15 @@
+node_modules
+dist
+.vite
+
+# swa CLI working dirs and downloaded deploy engine
+.swa
+
+# *.local does NOT match *.local.sql -- spell both out. rotate_password.local.sql
+# holds only placeholders today, but the name says "local" and a future edit
+# could paste a real password into it.
+*.local
+*.local.sql
+
+# Function App settings: this is where the SQL password lives during local dev.
+api/local.settings.json

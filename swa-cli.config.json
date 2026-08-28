@@ -1,0 +1,12 @@
+{
+  "$schema": "https://aka.ms/azure/static-web-apps-cli/schema",
+  "configurations": {
+    "loadboard": {
+      "appDevserverUrl": "http://localhost:5173",
+      "apiLocation": "api",
+      "run": "npm run dev",
+      "outputLocation": "dist",
+      "appLocation": "."
+    }
+  }
+}
