@@ -36,6 +36,17 @@ export default function App() {
     fetch('/api/loads')
       .then((res) => {
         if (!res.ok) throw new Error(`HTTP ${res.status}`)
+
+        // A 200 is not proof you got what you asked for. When /api is not
+        // reachable, the dev server answers with index.html -- the SPA
+        // fallback -- and that is a perfectly good 200. Calling res.json() on
+        // it fails with "Unexpected token '<'", which describes the symptom
+        // and hides the cause. Check what came back before trusting it.
+        const type = res.headers.get('content-type') || ''
+        if (!type.includes('application/json')) {
+          throw new Error('the API did not respond. Restart the dev server, then reload.')
+        }
+
         return res.json()
       })
       .then((data) => {

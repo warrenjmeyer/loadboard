@@ -14,23 +14,49 @@ Node 20+ required (`node -v`).
 
 ```
 npm install
-npm run dev          # UI only, http://localhost:5173
+npm run dev          # http://localhost:5173
 ```
 
-Hot module replacement means edits appear without a reload and without losing
-your form state. But `npm run dev` serves **only** the front end — `/api/loads`
-404s, so the load table will show an error. To run the API too:
+That is the whole local setup. Hot module replacement means edits appear without
+a reload and without losing your form state.
+
+Vite has no `/api` of its own, so `vite.config.js` **proxies `/api` to the
+deployed Azure Function**. `App.jsx` therefore calls the same same-origin
+`/api/loads` in dev as in production — no separate code path, no CORS, nothing
+to install.
+
+Two consequences worth holding onto:
+
+- **Dev reads the production database.** There is one `dbo.Loads` and your dev
+  session is querying it. That is fine while the API is read-only, which it is
+  today. Revisit it before you add a POST route, or you will be writing to live
+  data from your laptop.
+- **Config changes need a restart.** Vite does not hot-reload `vite.config.js`.
+  If `/api` suddenly returns the app shell instead of JSON, your dev server
+  predates the proxy — stop it and start it again.
+
+To point the proxy somewhere else without editing code:
 
 ```
-npm install -g @azure/functions-core-tools@4 --unsafe-perm true   # one time
-cp api/local.settings.json.example api/local.settings.json        # then add the password
-npx swa start                                                     # http://localhost:4280
+$env:VITE_API_TARGET = 'http://localhost:7071'   # e.g. a local Functions host
+npm run dev
 ```
 
-`swa start` runs the Vite dev server and the Functions host together behind one
-origin on port **4280**, which is the arrangement Azure actually serves. Use
-4280, not 5173, whenever you are touching the API. `api/local.settings.json`
-holds the SQL password and is gitignored — it must never be committed.
+### Running the API locally instead
+
+Only needed when you are editing `api/src/functions/loads.js` itself and want
+breakpoints. **This is not set up** — Azure Functions Core Tools is not
+installed on this machine:
+
+```
+npm install -g @azure/functions-core-tools@4 --unsafe-perm true
+Copy-Item api\local.settings.json.example api\local.settings.json   # add the password
+npx swa start                                                       # http://localhost:4280
+```
+
+`swa start` runs Vite and the Functions host behind one origin on port 4280,
+mirroring Azure's routing. `api/local.settings.json` holds the SQL password and
+is gitignored — it must never be committed.
 
 ## Deploy
 
@@ -145,7 +171,8 @@ public/staticwebapp.config.json   routing, SPA fallback, /api passthrough
 api/src/functions/loads.js        GET /api/loads — reads dbo.Loads live
 api/package.json        the Function App's own dependencies (mssql)
 .github/workflows/      builds and deploys on push to main
-swa-cli.config.json     lets `swa start` run the UI and API together locally
+vite.config.js          dev server config — proxies /api to the deployed app
+swa-cli.config.json     for `swa start`; unused until Core Tools is installed
 ```
 
 ## Exercises, roughly in order
