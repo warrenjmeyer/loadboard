@@ -8,30 +8,51 @@ Stack: React 19.2 + Vite 8.2. No framework, no state library, no TypeScript —
 those come later, and adding them yourself is a better lesson than inheriting
 them.
 
-## Run it
+## Run it locally
 
-Node 20+ required (`node -v`). Then in the VS Code terminal:
+Node 20+ required (`node -v`).
 
 ```
 npm install
-npm run dev
+npm run dev          # UI only, http://localhost:5173
 ```
 
-Open http://localhost:5173. Edit any file and save — the browser updates
-without a reload and without losing your form state. That's Vite's hot module
-replacement, and it's the main reason nobody uses Create React App anymore.
-
-## Build and deploy
+Hot module replacement means edits appear without a reload and without losing
+your form state. But `npm run dev` serves **only** the front end — `/api/loads`
+404s, so the load table will show an error. To run the API too:
 
 ```
-.\deploy.ps1 -Provision   # first time only: create the Azure resources
-.\deploy.ps1              # every time after: build + deploy
+npm install -g @azure/functions-core-tools@4 --unsafe-perm true   # one time
+cp api/local.settings.json.example api/local.settings.json        # then add the password
+npx swa start                                                     # http://localhost:4280
 ```
 
-The site is hosted on **Azure Static Web Apps**, Free tier. `deploy.ps1` has
-the one-time setup commented at the top. The short version: `-Provision`
-creates a resource group and a Static Web App; every deploy after that builds
-`dist/` and pushes it using the app's own deployment token.
+`swa start` runs the Vite dev server and the Functions host together behind one
+origin on port **4280**, which is the arrangement Azure actually serves. Use
+4280, not 5173, whenever you are touching the API. `api/local.settings.json`
+holds the SQL password and is gitignored — it must never be committed.
+
+## Deploy
+
+**Push to `main`.** That is the whole workflow:
+
+```
+git add -A
+git commit -m "what changed"
+git push
+```
+
+GitHub Actions builds the app and the API and deploys them
+(`.github/workflows/azure-static-web-apps.yml`). Open a pull request instead
+and you get a **preview environment on its own URL**, torn down automatically
+when the PR closes — the main reason to deploy from CI rather than a laptop.
+
+The site is hosted on **Azure Static Web Apps**, Free tier:
+<https://wonderful-tree-0a929e80f.7.azurestaticapps.net>
+
+`deploy.ps1` still works and pushes straight from your machine, bypassing git
+entirely. Keep it for emergencies, but prefer pushing: a laptop deploy makes
+the live site something no commit describes.
 
 Free really is free here — no compute charge, managed HTTPS included, a custom
 domain at no extra cost. The reason to pick it over dumping files in a blob
@@ -39,10 +60,22 @@ container is `/api`: Static Web Apps hosts Azure Functions next to the site for
 nothing, which is the only way this app ever gets a login or a working
 `AddLoadForm`. A blob container can only ever serve files.
 
-Two things that trip people up. The Free SKU exists in only a handful of
-regions (`eastus2` is the default here); pick another and `create` fails with
-an error that never mentions the SKU. And `az login` has to be the account that
-owns the subscription — **warrenjmeyer@live.com**, not your GitHub/git email.
+### Setup notes, if you ever rebuild this
+
+`.\deploy.ps1 -Provision` creates the resource group and the app. The Free SKU
+exists in only a handful of regions (`eastus2` here); pick another and `create`
+fails with an error that never mentions the SKU. `az login` has to be the
+account that owns the subscription — **warrenjmeyer@live.com**, not the git
+email. CI authenticates with the app's deployment token, stored as the repo
+secret `AZURE_STATIC_WEB_APPS_API_TOKEN`; refresh it with:
+
+```
+az staticwebapp secrets list --name loadboard-wjm --resource-group loadboard-rg --query properties.apiKey -o tsv
+gh secret set AZURE_STATIC_WEB_APPS_API_TOKEN --body <that value>
+```
+
+Use `--body`, not a pipe: piping in PowerShell appends a newline and the token
+is then rejected as invalid.
 
 ## Where the load data comes from
 
@@ -111,6 +144,8 @@ src/components/
 public/staticwebapp.config.json   routing, SPA fallback, /api passthrough
 api/src/functions/loads.js        GET /api/loads — reads dbo.Loads live
 api/package.json        the Function App's own dependencies (mssql)
+.github/workflows/      builds and deploys on push to main
+swa-cli.config.json     lets `swa start` run the UI and API together locally
 ```
 
 ## Exercises, roughly in order
