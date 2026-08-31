@@ -7,7 +7,17 @@
 -- never existed as loads. For a settlement -- a document whose job is to be
 -- checkable -- that is the wrong shape.
 --
--- Run before loads_03_delivered.sql. Safe to re-run: every change is guarded.
+-- ORDER MATTERS:
+--   1. loads_02_data.sql          (board loads set to current freight only)
+--   2. settlement_05_link.sql     (this file)
+--   3. loads_03_delivered.sql     (the loads the settlements reference)
+--   4. settlement_02/03/04        (routes now carrying load_id)
+--
+-- Step 1 first because CK_Loads_delivered validates existing rows: a load
+-- marked Delivered with no driver -- which the board had five of -- makes this
+-- script fail rather than silently accepting bad data.
+--
+-- Safe to re-run: every change is guarded.
 
 SET NOCOUNT ON;
 
