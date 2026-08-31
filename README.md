@@ -161,6 +161,68 @@ the same way, and use a parameterised `pool.request().input(...)` query.
 **Never** interpolate values into the SQL string. That route is also where the
 `auth` schema in `Millstream` finally earns its keep, because at that point
 you need to know who is adding the load.
+## The driver settlement
+
+`?id=JSMITH` opens a company driver's pay statement; the load board is what you
+get without an `id`. That mirrors the ColdFusion original this was ported from,
+which was reached as `coDrvSettlement.cfm?id=<employee code>` with the check
+date chosen from a dropdown. There is no router — see the comment in
+`src/main.jsx` for why two pages and one query parameter do not need one.
+
+Drivers are the two Drive Users from the Millstream GeoTab account (James Smith
+`JSMITH`, Sherman Oaks `SOAKS`). Their names and the company address are real;
+every dollar figure is invented.
+
+### What the statement computes
+
+Net pay is a plain sum, because deductions are **stored negative**:
+
+```
+netPay = routePay + revenue + perDiem + reimbursements + deductions
+```
+
+The original negated amounts at query time in three different places, and
+negated reimbursements too — which looks like an accident of the source data
+rather than intent. Putting the sign in the column means nothing downstream has
+to remember which way to flip a number, and `CK_Lines_deduction_sign` stops a
+positive deduction being inserted at all.
+
+Rate per mile is `payAmount / totalMiles`. A line with no miles — a layover, a
+breakdown — has no rate to divide out. The original printed the flat dollar
+amount in the rate column, so $150 of layover pay displayed as a rate of "150";
+this shows an em dash instead.
+
+### Tables
+
+Created by `settlement_01_ddl.sql`, seeded by `settlement_02_data.sql`:
+
+| Table | Came from | Holds |
+|---|---|---|
+| `dbo.Drivers` | `EMPLOYEE_MASTER` | name, address, pay rate, pay group |
+| `dbo.Settlements` | one row per check | the pay period and document number |
+| `dbo.SettlementRoutes` | `COMPANY_ROUTE` | earnings by load: miles and pay |
+| `dbo.SettlementLines` | `CODRIVERS_REVENUE` + `_DEDUCTIONS` + `_REIMBURSMENTS` | every adjustment, with a type |
+
+Three source tables collapse into `SettlementLines` because the original
+immediately UNIONed them back together and then filtered by type. One table
+with a discriminator says the same thing without the union.
+
+`SettlementRoutes.pay_rate` is stored rather than read from the driver: a
+settlement is a historical record, and re-rating a driver must not silently
+rewrite what they were paid last March. For the same reason net pay is *not* a
+column — it is computed, so a stored total can never disagree with its own
+detail.
+
+### Endpoints
+
+```
+GET /api/drivers/{driverCode}/settlements              # check dates, newest first
+GET /api/drivers/{driverCode}/settlements/{checkDate}  # one full statement
+```
+
+Both bind their parameters. The original interpolated `#url.id#` straight into
+the SQL string, which made the driver code executable.
+
 ## VS Code extensions worth having
 
 - **ESLint** — catches the hook mistakes (missing deps, conditional hooks)
@@ -187,6 +249,12 @@ vite.config.js          dev server config — proxies /api to the deployed app
 swa-cli.config.json     for `swa start`; unused until Core Tools is installed
 loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
 loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
+settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
+settlement_02_data.sql  sample settlements for the two GeoTab drivers
+src/pages/Settlement.jsx          the pay statement
+src/components/settlement/        its load table and adjustment blocks
+src/lib/api.js          fetchJson — the retry that survives a cold database
+src/lib/format.js       money, miles and date formatting in one place
 ```
 
 ## Exercises, roughly in order

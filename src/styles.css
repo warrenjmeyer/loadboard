@@ -144,3 +144,157 @@ button.primary {
 }
 
 .actions { display: flex; gap: 10px; }
+
+/* --------------------------------------------------------------------------
+   Settlement (pay statement)
+
+   Money columns use tabular-nums so digits line up in a column -- in a
+   proportional font "1" is narrower than "8" and the decimal points wander,
+   which on a pay statement reads as sloppiness.
+   -------------------------------------------------------------------------- */
+
+.board-nav {
+  margin-top: 28px;
+  padding-top: 16px;
+  border-top: 1px solid var(--line);
+  font-size: 14px;
+  color: var(--muted);
+}
+.board-nav a { margin-right: 12px; }
+
+.stmt-toolbar {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-bottom: 20px;
+}
+
+.stmt-masthead {
+  display: flex;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.stmt-company { font-size: 20px; font-weight: 600; margin-bottom: 4px; }
+
+.stmt-meta { font-size: 14px; min-width: 260px; }
+.stmt-meta-title { font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+.stmt-meta span,
+.stmt-driver span {
+  display: inline-block;
+  min-width: 104px;
+  color: var(--muted);
+}
+
+.stmt-netpay {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+  font-size: 17px;
+  font-weight: 600;
+}
+
+.stmt-block {
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+.stmt-block h2 { margin: 0 0 12px; font-size: 16px; }
+
+.stmt-driver {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  font-size: 14px;
+}
+
+.stmt-table { font-size: 14px; }
+
+/* Seven columns for the load table; the line sections override this with
+   their own three-column grid below. */
+.stmt-table > .stmt-row {
+  display: grid;
+  grid-template-columns: 1fr 2.4fr 0.8fr 0.8fr 0.8fr 0.9fr 1fr;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px solid var(--line);
+}
+
+.stmt-row .num,
+.stmt-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.stmt-head {
+  font-weight: 600;
+  color: var(--muted);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stmt-route { color: var(--muted); }
+
+.stmt-subtotal { font-weight: 600; border-bottom: none; border-top: 1px solid var(--ink); }
+
+.stmt-section { margin-bottom: 18px; }
+.stmt-section:last-child { margin-bottom: 0; }
+
+.stmt-section-title {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 4px;
+}
+
+/* Three columns here, not seven: an adjustment has an order number, a
+   description and an amount, and stretching it across the load table's
+   columns would leave four empty cells pretending to be data. */
+.stmt-lines .stmt-row {
+  display: grid;
+  grid-template-columns: 1fr 3fr 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: none;
+}
+
+.stmt-lines .stmt-subtotal { border-top: 1px solid var(--line); }
+
+.stmt-summary { font-size: 15px; }
+.stmt-summary .stmt-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  padding: 6px 0;
+}
+.stmt-net {
+  font-size: 20px;
+  font-weight: 600;
+  border-top: 2px solid var(--ink);
+  margin-top: 6px;
+  padding-top: 12px;
+}
+
+@media (max-width: 700px) {
+  .stmt-table > .stmt-row { grid-template-columns: 1fr 1fr; }
+  .stmt-table > .stmt-row .stmt-route { grid-column: 1 / -1; }
+}
+
+@media print {
+  .stmt-toolbar, .board-nav { display: none; }
+  .stmt-block, .stmt-masthead { border: none; padding: 0 0 12px; }
+}
