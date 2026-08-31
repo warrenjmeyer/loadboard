@@ -132,12 +132,19 @@ foreach ($key in $lanes.Keys) {
         typeName    = 'Route'
         credentials = $creds
         entity      = @{
-            name           = $key
-            comment        = 'Load board lane'
-            groups         = @(@{ id = $CompanyGroupId })
+            name    = $key
+            comment = 'Load board lane'
+            groups  = @(@{ id = $CompanyGroupId })
+
+            # The stops property is routePlanItemCollection, not the
+            # routePlanItems the SDK docs suggest. Getting it wrong fails with
+            # "Value cannot be null. (Parameter 'The caller
+            # (value.RoutePlanItemCollection) was null.')" -- which at least
+            # names the property it wanted.
+            #
             # Sequence is what makes this a route rather than a pair of places:
             # origin first, destination second.
-            routePlanItems = @(
+            routePlanItemCollection = @(
                 @{ zone = @{ id = $zoneByName[$lane.Origin.ToUpper()] };      sequence = 0 },
                 @{ zone = @{ id = $zoneByName[$lane.Destination.ToUpper()] }; sequence = 1 }
             )
