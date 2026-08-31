@@ -62,11 +62,11 @@ VALUES ('OVAUGHN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0301');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21000', 'D-51000', 'Demo - 17', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 27, 349, 0.6000, 209.40),
-    (@sid, 'O-21001', 'D-51001', 'Demo - 17', N'SIOUX CITY, IA - OMAHA, NE', 95, 27, 122, 0.6000, 73.20),
-    (@sid, 'O-21002', 'D-51002', 'Demo - 17', N'DENVER, CO - OMAHA, NE', 537, 29, 566, 0.6000, 339.60);
+    (@sid, 'O-21000', 'L-30091', 'D-51000', 'Demo - 17', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 27, 349, 0.6000, 209.40),
+    (@sid, 'O-21001', 'L-30092', 'D-51001', 'Demo - 17', N'SIOUX CITY, IA - OMAHA, NE', 95, 27, 122, 0.6000, 73.20),
+    (@sid, 'O-21002', 'L-30093', 'D-51002', 'Demo - 17', N'DENVER, CO - OMAHA, NE', 537, 29, 566, 0.6000, 339.60);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -86,12 +86,12 @@ VALUES ('OVAUGHN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0302');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21003', 'D-51003', 'Demo - 17', N'DENVER, CO - OMAHA, NE', 537, 18, 555, 0.6000, 333.00),
-    (@sid, 'O-21004', 'D-51004', 'Demo - 17', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 24, 256, 0.6000, 153.60),
-    (@sid, 'O-21005', 'D-51005', 'Demo - 17', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 25, 365, 0.6000, 219.00),
-    (@sid, 'O-21006', 'D-51006', 'Demo - 17', N'DALLAS, TX - MEMPHIS, TN', 452, 12, 464, 0.6000, 278.40);
+    (@sid, 'O-21003', 'L-30094', 'D-51003', 'Demo - 17', N'DENVER, CO - OMAHA, NE', 537, 18, 555, 0.6000, 333.00),
+    (@sid, 'O-21004', 'L-30095', 'D-51004', 'Demo - 17', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 24, 256, 0.6000, 153.60),
+    (@sid, 'O-21005', 'L-30096', 'D-51005', 'Demo - 17', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 25, 365, 0.6000, 219.00),
+    (@sid, 'O-21006', 'L-30097', 'D-51006', 'Demo - 17', N'DALLAS, TX - MEMPHIS, TN', 452, 12, 464, 0.6000, 278.40);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -110,11 +110,11 @@ VALUES ('PRAMAN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0303');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21007', 'D-51007', 'Demo - 13', N'DES MOINES, IA - DENVER, CO', 670, 23, 693, 0.6400, 443.52),
-    (@sid, 'O-21008', 'D-51008', 'Demo - 13', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 25, 365, 0.6400, 233.60),
-    (@sid, 'O-21009', 'D-51009', 'Demo - 13', N'SIOUX CITY, IA - OMAHA, NE', 95, 29, 124, 0.6400, 79.36);
+    (@sid, 'O-21007', 'L-30098', 'D-51007', 'Demo - 13', N'DES MOINES, IA - DENVER, CO', 670, 23, 693, 0.6400, 443.52),
+    (@sid, 'O-21008', 'L-30099', 'D-51008', 'Demo - 13', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 25, 365, 0.6400, 233.60),
+    (@sid, 'O-21009', 'L-30100', 'D-51009', 'Demo - 13', N'SIOUX CITY, IA - OMAHA, NE', 95, 29, 124, 0.6400, 79.36);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -134,11 +134,11 @@ VALUES ('PRAMAN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0304');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21010', 'D-51010', 'Demo - 13', N'DALLAS, TX - MEMPHIS, TN', 452, 25, 477, 0.6400, 305.28),
-    (@sid, 'O-21011', 'D-51011', 'Demo - 13', N'DENVER, CO - OMAHA, NE', 537, 29, 566, 0.6400, 362.24),
-    (@sid, 'O-21012', 'D-51012', 'Demo - 13', N'SIOUX CITY, IA - OMAHA, NE', 95, 24, 119, 0.6400, 76.16);
+    (@sid, 'O-21010', 'L-30101', 'D-51010', 'Demo - 13', N'DALLAS, TX - MEMPHIS, TN', 452, 25, 477, 0.6400, 305.28),
+    (@sid, 'O-21011', 'L-30102', 'D-51011', 'Demo - 13', N'DENVER, CO - OMAHA, NE', 537, 29, 566, 0.6400, 362.24),
+    (@sid, 'O-21012', 'L-30103', 'D-51012', 'Demo - 13', N'SIOUX CITY, IA - OMAHA, NE', 95, 24, 119, 0.6400, 76.16);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -156,11 +156,11 @@ VALUES ('GWHITFIELD', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0305'
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21013', 'D-51013', 'Demo - 19', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 11, 243, 0.5800, 140.94),
-    (@sid, 'O-21014', 'D-51014', 'Demo - 19', N'NASHVILLE, TN - CEDAR RAPIDS, IA', 621, 40, 661, 0.5800, 383.38),
-    (@sid, 'O-21015', 'D-51015', 'Demo - 19', N'SIOUX CITY, IA - OMAHA, NE', 95, 35, 130, 0.5800, 75.40);
+    (@sid, 'O-21013', 'L-30104', 'D-51013', 'Demo - 19', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 11, 243, 0.5800, 140.94),
+    (@sid, 'O-21014', 'L-30105', 'D-51014', 'Demo - 19', N'NASHVILLE, TN - CEDAR RAPIDS, IA', 621, 40, 661, 0.5800, 383.38),
+    (@sid, 'O-21015', 'L-30106', 'D-51015', 'Demo - 19', N'SIOUX CITY, IA - OMAHA, NE', 95, 35, 130, 0.5800, 75.40);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -176,11 +176,11 @@ VALUES ('GWHITFIELD', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0306'
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21016', 'D-51016', 'Demo - 19', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 37, 359, 0.5800, 208.22),
-    (@sid, 'O-21017', 'D-51017', 'Demo - 19', N'ST. LOUIS, MO - NASHVILLE, TN', 309, 41, 350, 0.5800, 203.00),
-    (@sid, 'O-21018', 'D-51018', 'Demo - 19', N'MEMPHIS, TN - DUBUQUE, IA', 612, 22, 634, 0.5800, 367.72);
+    (@sid, 'O-21016', 'L-30107', 'D-51016', 'Demo - 19', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 37, 359, 0.5800, 208.22),
+    (@sid, 'O-21017', 'L-30108', 'D-51017', 'Demo - 19', N'ST. LOUIS, MO - NASHVILLE, TN', 309, 41, 350, 0.5800, 203.00),
+    (@sid, 'O-21018', 'L-30109', 'D-51018', 'Demo - 19', N'MEMPHIS, TN - DUBUQUE, IA', 612, 22, 634, 0.5800, 367.72);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -201,11 +201,11 @@ VALUES ('ACORTEZ', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0307');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21019', 'D-51019', 'Demo - 03', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 29, 261, 0.6500, 169.65),
-    (@sid, 'O-21020', 'D-51020', 'Demo - 03', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 36, 358, 0.6500, 232.70),
-    (@sid, 'O-21021', 'D-51021', 'Demo - 03', N'DENVER, CO - OMAHA, NE', 537, 33, 570, 0.6500, 370.50);
+    (@sid, 'O-21019', 'L-30110', 'D-51019', 'Demo - 03', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 29, 261, 0.6500, 169.65),
+    (@sid, 'O-21020', 'L-30111', 'D-51020', 'Demo - 03', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 36, 358, 0.6500, 232.70),
+    (@sid, 'O-21021', 'L-30112', 'D-51021', 'Demo - 03', N'DENVER, CO - OMAHA, NE', 537, 33, 570, 0.6500, 370.50);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -225,11 +225,11 @@ VALUES ('ACORTEZ', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0308');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21022', 'D-51022', 'Demo - 03', N'NASHVILLE, TN - CEDAR RAPIDS, IA', 621, 32, 653, 0.6500, 424.45),
-    (@sid, 'O-21023', 'D-51023', 'Demo - 03', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 39, 379, 0.6500, 246.35),
-    (@sid, 'O-21024', 'D-51024', 'Demo - 03', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 33, 355, 0.6500, 230.75);
+    (@sid, 'O-21022', 'L-30113', 'D-51022', 'Demo - 03', N'NASHVILLE, TN - CEDAR RAPIDS, IA', 621, 32, 653, 0.6500, 424.45),
+    (@sid, 'O-21023', 'L-30114', 'D-51023', 'Demo - 03', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 39, 379, 0.6500, 246.35),
+    (@sid, 'O-21024', 'L-30115', 'D-51024', 'Demo - 03', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 33, 355, 0.6500, 230.75);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -249,11 +249,11 @@ VALUES ('DFRYE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0309');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21025', 'D-51025', 'Demo - 06', N'DUBUQUE, IA - CHICAGO, IL', 182, 40, 222, 0.6200, 137.64),
-    (@sid, 'O-21026', 'D-51026', 'Demo - 06', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 14, 336, 0.6200, 208.32),
-    (@sid, 'O-21027', 'D-51027', 'Demo - 06', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 37, 269, 0.6200, 166.78);
+    (@sid, 'O-21025', 'L-30116', 'D-51025', 'Demo - 06', N'DUBUQUE, IA - CHICAGO, IL', 182, 40, 222, 0.6200, 137.64),
+    (@sid, 'O-21026', 'L-30117', 'D-51026', 'Demo - 06', N'DUBUQUE, IA - KANSAS CITY, MO', 322, 14, 336, 0.6200, 208.32),
+    (@sid, 'O-21027', 'L-30118', 'D-51027', 'Demo - 06', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 37, 269, 0.6200, 166.78);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -272,12 +272,12 @@ VALUES ('DFRYE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0310');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21028', 'D-51028', 'Demo - 06', N'OMAHA, NE - DUBUQUE, IA', 372, 42, 414, 0.6200, 256.68),
-    (@sid, 'O-21029', 'D-51029', 'Demo - 06', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 19, 359, 0.6200, 222.58),
-    (@sid, 'O-21030', 'D-51030', 'Demo - 06', N'CHICAGO, IL - DENVER, CO', 1003, 17, 1020, 0.6200, 632.40),
-    (@sid, 'O-21031', 'D-51031', 'Demo - 06', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 23, 255, 0.6200, 158.10);
+    (@sid, 'O-21028', 'L-30119', 'D-51028', 'Demo - 06', N'OMAHA, NE - DUBUQUE, IA', 372, 42, 414, 0.6200, 256.68),
+    (@sid, 'O-21029', 'L-30120', 'D-51029', 'Demo - 06', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 19, 359, 0.6200, 222.58),
+    (@sid, 'O-21030', 'L-30121', 'D-51030', 'Demo - 06', N'CHICAGO, IL - DENVER, CO', 1003, 17, 1020, 0.6200, 632.40),
+    (@sid, 'O-21031', 'L-30122', 'D-51031', 'Demo - 06', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 23, 255, 0.6200, 158.10);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -295,12 +295,12 @@ VALUES ('ISOLBERG', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0311');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21032', 'D-51032', 'Demo - 16', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 26, 366, 0.6300, 230.58),
-    (@sid, 'O-21033', 'D-51033', 'Demo - 16', N'DES MOINES, IA - DENVER, CO', 670, 28, 698, 0.6300, 439.74),
-    (@sid, 'O-21034', 'D-51034', 'Demo - 16', N'CHICAGO, IL - DENVER, CO', 1003, 16, 1019, 0.6300, 641.97),
-    (@sid, 'O-21035', 'D-51035', 'Demo - 16', N'DALLAS, TX - MEMPHIS, TN', 452, 13, 465, 0.6300, 292.95);
+    (@sid, 'O-21032', 'L-30123', 'D-51032', 'Demo - 16', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 26, 366, 0.6300, 230.58),
+    (@sid, 'O-21033', 'L-30124', 'D-51033', 'Demo - 16', N'DES MOINES, IA - DENVER, CO', 670, 28, 698, 0.6300, 439.74),
+    (@sid, 'O-21034', 'L-30125', 'D-51034', 'Demo - 16', N'CHICAGO, IL - DENVER, CO', 1003, 16, 1019, 0.6300, 641.97),
+    (@sid, 'O-21035', 'L-30126', 'D-51035', 'Demo - 16', N'DALLAS, TX - MEMPHIS, TN', 452, 13, 465, 0.6300, 292.95);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -319,12 +319,12 @@ VALUES ('ISOLBERG', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0312');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21036', 'D-51036', 'Demo - 16', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 38, 378, 0.6300, 238.14),
-    (@sid, 'O-21037', 'D-51037', 'Demo - 16', N'DUBUQUE, IA - CHICAGO, IL', 182, 26, 208, 0.6300, 131.04),
-    (@sid, 'O-21038', 'D-51038', 'Demo - 16', N'MEMPHIS, TN - DUBUQUE, IA', 612, 36, 648, 0.6300, 408.24),
-    (@sid, 'O-21039', 'D-51039', 'Demo - 16', N'KANSAS CITY, MO - DALLAS, TX', 552, 19, 571, 0.6300, 359.73);
+    (@sid, 'O-21036', 'L-30127', 'D-51036', 'Demo - 16', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 38, 378, 0.6300, 238.14),
+    (@sid, 'O-21037', 'L-30128', 'D-51037', 'Demo - 16', N'DUBUQUE, IA - CHICAGO, IL', 182, 26, 208, 0.6300, 131.04),
+    (@sid, 'O-21038', 'L-30129', 'D-51038', 'Demo - 16', N'MEMPHIS, TN - DUBUQUE, IA', 612, 36, 648, 0.6300, 408.24),
+    (@sid, 'O-21039', 'L-30130', 'D-51039', 'Demo - 16', N'KANSAS CITY, MO - DALLAS, TX', 552, 19, 571, 0.6300, 359.73);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -342,12 +342,12 @@ VALUES ('TBOONE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0313');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21040', 'D-51040', 'Demo - 02', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 14, 354, 0.5900, 208.86),
-    (@sid, 'O-21041', 'D-51041', 'Demo - 02', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 33, 373, 0.5900, 220.07),
-    (@sid, 'O-21042', 'D-51042', 'Demo - 02', N'WATERLOO, IA - MINNEAPOLIS, MN', 246, 10, 256, 0.5900, 151.04),
-    (@sid, 'O-21043', 'D-51043', 'Demo - 02', N'DUBUQUE, IA - CHICAGO, IL', 182, 11, 193, 0.5900, 113.87);
+    (@sid, 'O-21040', 'L-30131', 'D-51040', 'Demo - 02', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 14, 354, 0.5900, 208.86),
+    (@sid, 'O-21041', 'L-30132', 'D-51041', 'Demo - 02', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 33, 373, 0.5900, 220.07),
+    (@sid, 'O-21042', 'L-30133', 'D-51042', 'Demo - 02', N'WATERLOO, IA - MINNEAPOLIS, MN', 246, 10, 256, 0.5900, 151.04),
+    (@sid, 'O-21043', 'L-30134', 'D-51043', 'Demo - 02', N'DUBUQUE, IA - CHICAGO, IL', 182, 11, 193, 0.5900, 113.87);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -364,11 +364,11 @@ VALUES ('TBOONE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0314');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21044', 'D-51044', 'Demo - 02', N'MILWAUKEE, WI - INDIANAPOLIS, IN', 279, 37, 316, 0.5900, 186.44),
-    (@sid, 'O-21045', 'D-51045', 'Demo - 02', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 43, 383, 0.5900, 225.97),
-    (@sid, 'O-21046', 'D-51046', 'Demo - 02', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 39, 271, 0.5900, 159.89);
+    (@sid, 'O-21044', 'L-30135', 'D-51044', 'Demo - 02', N'MILWAUKEE, WI - INDIANAPOLIS, IN', 279, 37, 316, 0.5900, 186.44),
+    (@sid, 'O-21045', 'L-30136', 'D-51045', 'Demo - 02', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 43, 383, 0.5900, 225.97),
+    (@sid, 'O-21046', 'L-30137', 'D-51046', 'Demo - 02', N'IOWA CITY, IA - MILWAUKEE, WI', 232, 39, 271, 0.5900, 159.89);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -386,12 +386,12 @@ VALUES ('NPRUITT', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0315');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21047', 'D-51047', 'Demo - 12', N'CHICAGO, IL - DENVER, CO', 1003, 41, 1044, 0.6600, 689.04),
-    (@sid, 'O-21048', 'D-51048', 'Demo - 12', N'DENVER, CO - OMAHA, NE', 537, 23, 560, 0.6600, 369.60),
-    (@sid, 'O-21049', 'D-51049', 'Demo - 12', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 27, 367, 0.6600, 242.22),
-    (@sid, 'O-21050', 'D-51050', 'Demo - 12', N'KANSAS CITY, MO - DALLAS, TX', 552, 43, 595, 0.6600, 392.70);
+    (@sid, 'O-21047', 'L-30138', 'D-51047', 'Demo - 12', N'CHICAGO, IL - DENVER, CO', 1003, 41, 1044, 0.6600, 689.04),
+    (@sid, 'O-21048', 'L-30139', 'D-51048', 'Demo - 12', N'DENVER, CO - OMAHA, NE', 537, 23, 560, 0.6600, 369.60),
+    (@sid, 'O-21049', 'L-30140', 'D-51049', 'Demo - 12', N'CEDAR RAPIDS, IA - ST. LOUIS, MO', 340, 27, 367, 0.6600, 242.22),
+    (@sid, 'O-21050', 'L-30141', 'D-51050', 'Demo - 12', N'KANSAS CITY, MO - DALLAS, TX', 552, 43, 595, 0.6600, 392.70);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES
@@ -410,12 +410,12 @@ VALUES ('NPRUITT', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0316');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
-    (settlement_id, order_no, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
+    (settlement_id, order_no, load_id, dispatch_no, unit_no, route_detail, loaded_miles, empty_miles, total_miles, pay_rate, pay_amount)
 VALUES
-    (@sid, 'O-21051', 'D-51051', 'Demo - 12', N'DENVER, CO - OMAHA, NE', 537, 23, 560, 0.6600, 369.60),
-    (@sid, 'O-21052', 'D-51052', 'Demo - 12', N'OMAHA, NE - DUBUQUE, IA', 372, 40, 412, 0.6600, 271.92),
-    (@sid, 'O-21053', 'D-51053', 'Demo - 12', N'ST. LOUIS, MO - NASHVILLE, TN', 309, 17, 326, 0.6600, 215.16),
-    (@sid, 'O-21054', 'D-51054', 'Demo - 12', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 41, 381, 0.6600, 251.46);
+    (@sid, 'O-21051', 'L-30142', 'D-51051', 'Demo - 12', N'DENVER, CO - OMAHA, NE', 537, 23, 560, 0.6600, 369.60),
+    (@sid, 'O-21052', 'L-30143', 'D-51052', 'Demo - 12', N'OMAHA, NE - DUBUQUE, IA', 372, 40, 412, 0.6600, 271.92),
+    (@sid, 'O-21053', 'L-30144', 'D-51053', 'Demo - 12', N'ST. LOUIS, MO - NASHVILLE, TN', 309, 17, 326, 0.6600, 215.16),
+    (@sid, 'O-21054', 'L-30145', 'D-51054', 'Demo - 12', N'DUBUQUE, IA - ST. LOUIS, MO', 340, 41, 381, 0.6600, 251.46);
 
 INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
 VALUES

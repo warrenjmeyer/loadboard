@@ -21,7 +21,8 @@ app.http('loads', {
       // Explicit column list: it keeps the shape stable if someone adds a
       // column to the table later.
       const result = await pool.request().query(`
-        SELECT id, origin, destination, miles, rate, equipment, status
+        SELECT id, origin, destination, miles, rate, equipment, status,
+               driver_code, delivered_date
         FROM dbo.Loads
         ORDER BY id;
       `)
@@ -36,6 +37,11 @@ app.http('loads', {
         rate: Number(r.rate),
         equipment: r.equipment,
         status: r.status,
+        // Both null unless the load has been delivered. CK_Loads_delivered
+        // makes sure they are either both present or both absent, so the front
+        // end never has to handle a delivery date with nobody attached to it.
+        driverCode: r.driver_code,
+        deliveredDate: r.delivered_date ? r.delivered_date.toISOString().slice(0, 10) : null,
       }))
 
       return {

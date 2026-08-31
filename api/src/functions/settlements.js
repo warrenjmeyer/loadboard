@@ -202,7 +202,7 @@ app.http('settlementDetail', {
           WHERE s.driver_code = @driverCode AND s.check_date = @checkDate;
 
           -- 1: earnings by load
-          SELECT r.order_no, r.dispatch_no, r.unit_no, r.route_detail,
+          SELECT r.order_no, r.load_id, r.dispatch_no, r.unit_no, r.route_detail,
                  r.loaded_miles, r.empty_miles, r.total_miles,
                  r.pay_rate, r.pay_amount
           FROM dbo.SettlementRoutes AS r
@@ -242,6 +242,9 @@ app.http('settlementDetail', {
         const payAmount = money(r.pay_amount)
         return {
           orderNo: r.order_no,
+          // Null on a SPECIAL line -- breakdown or layover pay, which is real
+          // money for no freight and has no load to point at.
+          loadId: r.load_id,
           dispatchNo: r.dispatch_no,
           unitNo: r.unit_no,
           routeDetail: r.route_detail,

@@ -28,7 +28,17 @@ export default function EarningsByLoad({ routes, totals }) {
 
         {routes.map((r) => (
           <div className="stmt-row" key={`${r.orderNo}-${r.dispatchNo ?? ''}`}>
-            <div>{r.orderNo}</div>
+            {/* Linked to the load it was, so a driver can trace a line on
+                their statement back to the freight. A SPECIAL line -- layover,
+                breakdown -- has no load, so it stays plain text rather than
+                pretending to lead somewhere. */}
+            <div>
+              {r.loadId ? (
+                <a href={`?search=${encodeURIComponent(r.loadId)}`}>{r.orderNo}</a>
+              ) : (
+                r.orderNo
+              )}
+            </div>
             <div className="stmt-route">{r.routeDetail}</div>
             <div className="num">{formatMiles(r.emptyMiles)}</div>
             <div className="num">{formatMiles(r.loadedMiles)}</div>

@@ -217,6 +217,27 @@ breakdown — has no rate to divide out. The original printed the flat dollar
 amount in the rate column, so $150 of layover pay displayed as a rate of "150";
 this shows an em dash instead.
 
+### The load a trip was
+
+`dbo.SettlementRoutes.load_id` is a foreign key to `dbo.Loads`. Every paid trip
+points at the freight it was; every delivered load names the driver who ran it
+and the date. Before this they were unrelated text columns, so the board
+advertised loads nobody was paid for and drivers were paid for trips that never
+existed as loads — which for a document whose job is being checkable was the
+wrong shape.
+
+`load_id` is nullable for exactly one reason: a `SPECIAL` line is real pay for
+no freight — breakdown, layover, a guarantee top-up. Those must not be forced
+to invent a load to point at.
+
+`CK_Loads_delivered` requires a Delivered load to have both a driver and a
+date, and a non-delivered load to have neither. A delivery date with nobody
+attached is the sort of half-state this whole change exists to prevent.
+
+The carrier's rate on a load is **not** the driver's pay. A load paying the
+driver $0.62/mi bills the customer around $2.90/mi; equal figures would be the
+tell that the data is invented.
+
 ### Tables
 
 Created by `settlement_01_ddl.sql`, seeded by `settlement_02_data.sql`:

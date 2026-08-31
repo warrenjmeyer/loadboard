@@ -12,7 +12,7 @@ import { fetchJson } from './lib/api.js'
 // piece of data, that data lives in their closest common parent. LoadFilters
 // changes the filter, LoadTable reads it -- so the filter lives here, in App.
 // ---------------------------------------------------------------------------
-export default function App() {
+export default function App({ initialSearch = '' }) {
   // useState gives you a value plus a setter. Calling the setter is what tells
   // React "this changed, re-run this component and update the screen."
   // Assigning to a plain variable would NOT do that -- React would never know.
@@ -25,7 +25,10 @@ export default function App() {
   // are waiting on it." Worth saying out loud, because it takes up to a minute.
   const [waking, setWaking] = useState(false)
 
-  const [search, setSearch] = useState('')
+  // Seeded from ?search= so a link from a pay statement lands on the board
+  // already filtered to that load. It is still ordinary state afterwards --
+  // typing in the box does not touch the URL.
+  const [search, setSearch] = useState(initialSearch)
   const [equipment, setEquipment] = useState('All')
   const [availableOnly, setAvailableOnly] = useState(false)
 

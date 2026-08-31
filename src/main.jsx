@@ -38,7 +38,7 @@ function Page() {
     return <Settlement driverCode={driverCode} initialCheckDate={params.get('date')} />
   }
   if (view === 'settlements') return <Settlements />
-  return <App />
+  return <App initialSearch={params.get('search') || ''} />
 }
 
 createRoot(document.getElementById('root')).render(

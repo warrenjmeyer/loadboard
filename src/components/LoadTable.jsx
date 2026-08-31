@@ -19,6 +19,7 @@ export default function LoadTable({ loads }) {
           <th className="num">$/mi</th>
           <th>Equipment</th>
           <th>Status</th>
+          <th>Driver</th>
         </tr>
       </thead>
       <tbody>

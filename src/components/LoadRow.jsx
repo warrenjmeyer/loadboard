@@ -20,6 +20,12 @@ export default function LoadRow({ load }) {
             JavaScript. Same reason `for` becomes `htmlFor`. */}
         <span className={`badge badge-${load.status.toLowerCase()}`}>{load.status}</span>
       </td>
+      {/* Only a delivered load has a driver, and the database enforces that --
+          so an empty cell here means "not delivered", never "we lost track of
+          who ran it". */}
+      <td className="mono">
+        {load.driverCode ? <a href={`?id=${load.driverCode}`}>{load.driverCode}</a> : ''}
+      </td>
     </tr>
   )
 }
