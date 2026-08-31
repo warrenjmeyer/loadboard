@@ -126,12 +126,24 @@ stored in this repo.
 
 ### Two things that will bite you
 
-**Cold starts are real.** `Millstream` is serverless (`GP_S_Gen5_2`) and
-auto-pauses when idle. The first request after a pause does not fail — it
-triggers a resume that takes 30–60 seconds, during which the client sits in
-the pre-login handshake. `loads.js` allows 120s for this. A 30s timeout expires
-mid-resume and reports a "pre-login handshake" error that reads like a network
-fault and is not one.
+**Cold starts fail the first request.** `Millstream` is serverless
+(`GP_S_Gen5_2`) and auto-pauses when idle. Waking it takes 30–60 seconds, and
+Static Web Apps cuts a function request off at roughly **45 seconds** — so the
+first visit after a quiet spell gets a **500**, not a slow response. The
+`connectionTimeout: 120000` in `loads.js` can never be reached; the platform
+gives up first.
+
+The request that failed is what starts the wake-up, though, so `App.jsx` retries
+a few times with a widening delay and says "Waking the database…" while it
+waits. That turns the error into a slow first load. Everything after it is fast.
+
+Running the same query from a script hits the other half of this: a 30s connect
+timeout expires mid-resume and reports *"Connection Timeout Expired … pre-login
+handshake"*, which reads like a network fault and is not one.
+
+If the pause ever becomes genuinely annoying, it can be disabled on the
+database — but a serverless database that never sleeps bills continuously, so
+that is a cost decision, not a code one.
 
 **The database firewall must allow Azure services.** The Function's outbound
 IP is dynamic on the Free tier, so there is no address to allowlist; the

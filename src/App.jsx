@@ -19,6 +19,11 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
+  // Separate from `loading` because it means something different to the person
+  // waiting: not "this is taking a moment" but "the database is asleep and we
+  // are waiting on it." Worth saying out loud, because it takes up to a minute.
+  const [waking, setWaking] = useState(false)
+
   const [search, setSearch] = useState('')
   const [equipment, setEquipment] = useState('All')
   const [availableOnly, setAvailableOnly] = useState(false)
@@ -33,39 +38,70 @@ export default function App() {
   useEffect(() => {
     let cancelled = false
 
-    fetch('/api/loads')
-      .then((res) => {
-        if (!res.ok) throw new Error(`HTTP ${res.status}`)
+    // Why this retries instead of just fetching once:
+    //
+    // The database is serverless and pauses itself when nobody uses it. Waking
+    // it takes 30-60 seconds, and Azure Static Web Apps cuts a function request
+    // off well before that (around 45s), so the FIRST visit after a quiet spell
+    // gets a 500 rather than a slow answer. No timeout we set in the function
+    // can change that -- the platform gives up first.
+    //
+    // The saving grace: the request that failed is what started the wake-up. By
+    // the time we ask again the database is usually up, so a couple of retries
+    // turn an error page into a slow load.
+    async function loadLoads() {
+      const waitsMs = [3000, 6000, 10000]
 
-        // A 200 is not proof you got what you asked for. When /api is not
-        // reachable, the dev server answers with index.html -- the SPA
-        // fallback -- and that is a perfectly good 200. Calling res.json() on
-        // it fails with "Unexpected token '<'", which describes the symptom
-        // and hides the cause. Check what came back before trusting it.
-        const type = res.headers.get('content-type') || ''
-        if (!type.includes('application/json')) {
-          throw new Error('the API did not respond. Restart the dev server, then reload.')
-        }
+      for (let attempt = 0; attempt <= waitsMs.length; attempt++) {
+        try {
+          const res = await fetch('/api/loads')
+          if (!res.ok) throw new Error(`HTTP ${res.status}`)
 
-        return res.json()
-      })
-      .then((data) => {
-        // Guard against setting state after the component is gone. React warns
-        // about this, and in a real app it is a genuine memory-leak source.
-        if (!cancelled) {
+          // A 200 is not proof you got what you asked for. When /api is not
+          // reachable, the dev server answers with index.html -- the SPA
+          // fallback -- and that is a perfectly good 200. Calling res.json() on
+          // it fails with "Unexpected token '<'", which describes the symptom
+          // and hides the cause. Check what came back before trusting it.
+          const type = res.headers.get('content-type') || ''
+          if (!type.includes('application/json')) {
+            // Retrying cannot fix a missing proxy, so do not spend 19 seconds
+            // discovering that. Fail immediately and say what to do.
+            const fatal = new Error('the API did not respond. Restart the dev server, then reload.')
+            fatal.fatal = true
+            throw fatal
+          }
+
+          const data = await res.json()
+
+          // Guard against setting state after the component is gone. React
+          // warns about this, and it is a genuine memory-leak source.
+          if (cancelled) return
           setLoads(data)
+          setWaking(false)
           setLoading(false)
+          return
+        } catch (err) {
+          if (cancelled) return
+
+          if (err.fatal || attempt === waitsMs.length) {
+            setError(err.message)
+            setWaking(false)
+            setLoading(false)
+            return
+          }
+
+          setWaking(true)
+          await new Promise((resolve) => setTimeout(resolve, waitsMs[attempt]))
         }
-      })
-      .catch((err) => {
-        if (!cancelled) {
-          setError(err.message)
-          setLoading(false)
-        }
-      })
+      }
+    }
+
+    loadLoads()
 
     // The returned function is the cleanup. React runs it before the effect
-    // re-runs and when the component unmounts.
+    // re-runs and when the component unmounts. The `cancelled` checks above are
+    // what make it work across an await: the fetch cannot be taken back, but we
+    // can decline to touch state once it finishes.
     return () => {
       cancelled = true
     }
@@ -108,7 +144,11 @@ export default function App() {
       <header>
         <h1>Load Board</h1>
         <p className="sub">
-          {loading ? 'Loading...' : `${visibleLoads.length} of ${loads.length} loads`}
+          {loading
+            ? waking
+              ? 'Waking the database...'
+              : 'Loading...'
+            : `${visibleLoads.length} of ${loads.length} loads`}
           {!loading && totalRevenue > 0 && ` · $${totalRevenue.toLocaleString()} shown`}
         </p>
       </header>
@@ -126,7 +166,15 @@ export default function App() {
         onAvailableOnlyChange={setAvailableOnly}
       />
 
-      {loading ? <p className="muted">Fetching loads...</p> : <LoadTable loads={visibleLoads} />}
+      {loading ? (
+        <p className="muted">
+          {waking
+            ? 'The database pauses when it is idle. Waking it takes up to a minute — this only happens on the first visit after a quiet spell.'
+            : 'Fetching loads...'}
+        </p>
+      ) : (
+        <LoadTable loads={visibleLoads} />
+      )}
 
       <AddLoadForm onAddLoad={handleAddLoad} />
     </div>
