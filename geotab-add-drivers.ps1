@@ -53,92 +53,19 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-# Windows PowerShell 5.1 still negotiates TLS 1.0 by default on some builds,
-# which Geotab refuses. Without this the first call dies with an unhelpful
-# "underlying connection was closed".
-[Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
+. (Join-Path $PSScriptRoot 'geotab-common.ps1')
 
 # --- credentials -----------------------------------------------------------
 if ([string]::IsNullOrWhiteSpace($Database)) { $Database = Read-Host 'MyGeotab database' }
 if ([string]::IsNullOrWhiteSpace($UserName)) { $UserName = Read-Host 'MyGeotab user' }
-
-$password = $env:GEOTAB_PASSWORD
-if ([string]::IsNullOrWhiteSpace($password)) {
-    $secure = Read-Host "Password for $UserName" -AsSecureString
-    $bstr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
-    $password = [Runtime.InteropServices.Marshal]::PtrToStringAuto($bstr)
-    [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($bstr)
-}
-
-# --- transport -------------------------------------------------------------
-# Geotab answers with HTTP 200 even when the call failed; the failure is an
-# `error` object in the body. Checking only the status code means silently
-# treating every rejection as success.
-function Invoke-Geotab {
-    param(
-        [Parameter(Mandatory)][string]$ApiServer,
-        [Parameter(Mandatory)][string]$Method,
-        [Parameter(Mandatory)][hashtable]$Params
-    )
-
-    $body = @{ method = $Method; params = $Params } | ConvertTo-Json -Depth 12
-    $response = Invoke-RestMethod -Method Post -Uri "https://$ApiServer/apiv1" `
-        -ContentType 'application/json' -Body $body
-
-    if ($response.PSObject.Properties.Name -contains 'error' -and $null -ne $response.error) {
-        $detail = $response.error.message
-        if ($response.error.errors) { $detail = $response.error.errors[0].message }
-        throw "Geotab $Method failed: $detail"
-    }
-
-    return $response.result
-}
+$password = Read-GeotabPassword -UserName $UserName
 
 # --- authenticate ----------------------------------------------------------
 Write-Host "Authenticating to $Database ..." -ForegroundColor Cyan
-
-$auth = $null
-try {
-    $auth = Invoke-Geotab -ApiServer $Server -Method 'Authenticate' -Params @{
-        userName = $UserName
-        password = $password
-        database = $Database
-    }
-} catch {
-    # "Incorrect login credentials" is returned for a bad password AND for a
-    # database this user cannot see, which makes the two indistinguishable.
-    # Authenticating without a database separates them: Geotab resolves it
-    # itself when the user belongs to exactly one, so success here means the
-    # password was fine all along and only the database name was wrong.
-    Write-Host "  rejected with the database name; retrying without it..." -ForegroundColor DarkGray
-
-    $probe = $null
-    try {
-        $probe = Invoke-Geotab -ApiServer $Server -Method 'Authenticate' -Params @{
-            userName = $UserName
-            password = $password
-        }
-    } catch {
-        Remove-Variable password
-        throw "Geotab rejected $UserName. The password is wrong, or this account signs in through SSO rather than a MyGeotab password. Note the MyGeotab password is its own credential -- it is not your Microsoft account password, even though the username is the same email."
-    }
-
-    Remove-Variable password
-    $actual = $probe.credentials.database
-    throw "The password is correct, but this account is not on a database called '$Database'. Geotab resolved it to '$actual' -- re-run with -Database '$actual' (or set `$env:GEOTAB_DATABASE)."
-}
+$session = Connect-Geotab -Database $Database -UserName $UserName -Password $password -Server $Server
 Remove-Variable password
-
-$credentials = $auth.credentials
-
-# The federation gives you a database on one of many servers. 'ThisServer'
-# means stay put; anything else is where the rest of the calls must go. Missing
-# this is the classic reason a script authenticates and then fails on every
-# call after it.
-$apiServer = $Server
-if ($auth.path -and $auth.path -ne 'ThisServer') { $apiServer = $auth.path }
-
+$credentials = $session.Credentials
+$apiServer = $session.Server
 Write-Host "  authenticated; using $apiServer" -ForegroundColor Green
 
 # --- optional group listing ------------------------------------------------

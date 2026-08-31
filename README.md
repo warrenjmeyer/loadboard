@@ -260,6 +260,24 @@ the status code alone treats every rejection as success.
 These are real users who can sign in to the Drive app. Point it at a test
 database.
 
+### Vehicles
+
+A driver is not a field on a vehicle in Geotab. The association is a
+**`DriverChange`** record — "this driver is in this vehicle from this moment" —
+which is what the Drive app and the HOS logs key off. It is unrelated to
+`driverGroups` and `Device.groups`, which control who can *see* what.
+
+```
+.\geotab-assign-vehicles.ps1 -Database demo_millstream -ListDevices
+.\geotab-assign-vehicles.ps1 -Database demo_millstream -WhatIf
+.\geotab-assign-vehicles.ps1 -Database demo_millstream
+```
+
+Pairing is by position after sorting both lists by name, so re-running pairs
+the same people with the same trucks. Surplus vehicles are left unassigned. The
+resulting pairing is written to `driver-vehicles.json`, which is what the
+settlement `unit_no` values can be updated from.
+
 ### Endpoints
 
 ```
@@ -301,6 +319,8 @@ settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
 settlement_02_data.sql  sample settlements for the two GeoTab drivers
 settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
+geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
+geotab-common.ps1       shared MyGeotab auth and transport
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks
 src/lib/api.js          fetchJson — the retry that survives a cold database
