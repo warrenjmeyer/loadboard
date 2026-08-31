@@ -34,15 +34,14 @@ param(
     # an N'...' literal counts.
     [string]$SqlGlob = 'settlement_0*.sql',
 
-    # A Route has no `groups` property -- confirmed by reading one back with
-    # -ShowSchema. It does carry a timezone.
+    # A Route has no groups property; it does carry a timezone.
     [string]$TimeZoneId = 'America/Chicago',
 
     [switch]$ListRoutes,
 
-    # Print an existing route exactly as Geotab returns it, and exit. Make one
-    # by hand in MyGeotab first; reading its shape beats guessing at the schema
-    # one rejection at a time.
+    # Print an existing route exactly as Geotab returns it, and exit. Reading a
+    # stored object beats guessing at the schema -- with the caveat that most
+    # of what comes back is Geotab's defaults, not fields you have to send.
     [switch]$ShowSchema,
 
     [switch]$WhatIf
@@ -53,11 +52,12 @@ $ErrorActionPreference = 'Stop'
 
 function New-RouteStop {
     <#
-        One stop on a route, shaped like the ones MyGeotab creates.
+        One stop on a route, shaped like the ones already in the database.
 
-        The date fields are not decoration: a stop with no activeFrom/activeTo
-        is not active, and dateTime is required even on a route that has no
-        schedule. The values here are what the UI writes for a basic route.
+        Only `zone` and `sequence` are needed -- Geotab fills the rest in. They
+        are set explicitly so the stored values are visible here rather than
+        being whatever the server happens to default to, which is the sort of
+        thing that changes between versions without anybody noticing.
     #>
     param(
         [Parameter(Mandatory)][string]$ZoneId,
@@ -144,8 +144,8 @@ if ($ShowSchema) {
     Write-Host 'Full object:' -ForegroundColor Cyan
     $sample | ConvertTo-Json -Depth 10 | Write-Host
 
-    # Called out separately because this is the property that has already cost
-    # two failed guesses, and its item shape is what the Add has to match.
+    # Called out separately because this is the property that has to be right;
+    # the others on a stop are defaulted.
     if ($sample.routePlanItemCollection) {
         Write-Host ''
         Write-Host 'One stop, in isolation:' -ForegroundColor Cyan
@@ -203,11 +203,20 @@ foreach ($key in $lanes.Keys) {
         typeName    = 'Route'
         credentials = $creds
         entity      = @{
-            # This shape was read back off a route created by hand in MyGeotab
-            # (-ShowSchema), not taken from the SDK docs. Two things the docs
-            # cost us: the stops property is routePlanItemCollection rather
-            # than routePlanItems, and a Route carries no `groups` at all --
-            # the real object simply does not have that property.
+            # One field here was genuinely required and the rest are explicit
+            # by choice.
+            #
+            # Required: the stops property is routePlanItemCollection, not the
+            # routePlanItems the SDK docs suggest. Getting it wrong fails with
+            # "Value cannot be null. (Parameter 'The caller
+            # (value.RoutePlanItemCollection) was null.')".
+            #
+            # The rest were copied off a created route read back with
+            # -ShowSchema. Geotab defaults them, so a leaner payload also
+            # works; they are stated here so what lands in the database is
+            # visible in this file rather than inherited silently. `groups` is
+            # absent because a Route has no such property -- sending it was
+            # ignored, not rejected.
             name         = $key
             comment      = 'Load board lane'
             routeType    = 'Basic'

@@ -353,10 +353,12 @@ in MyGeotab (Zones & Messages > Routes > Add) and then read its shape back:
 ```
 
 That prints the route exactly as Geotab returns it, plus one stop on its own.
-Reading the real object beats guessing at the schema one rejection at a time —
-the stops property is `routePlanItemCollection`, not the `routePlanItems` the
-SDK docs suggest, and that is how it was established.
-### Endpoints
+
+The one field that genuinely has to be right is the stops property: it is
+`routePlanItemCollection`, not the `routePlanItems` the SDK docs suggest.
+Everything else on a Route is defaulted by Geotab, so a route read back looks
+considerably fuller than the payload that created it — worth knowing before
+mistaking a default for a requirement, which is a mistake this project made.
 
 ```
 GET /api/drivers                                       # drivers who have settlements
