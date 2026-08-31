@@ -220,6 +220,30 @@ rewrite what they were paid last March. For the same reason the total is *not* a
 column — it is computed, so a stored total can never disagree with its own
 detail.
 
+### More test drivers
+
+`geotab-add-drivers.ps1` adds drivers to a MyGeotab database over the API:
+
+```
+$env:GEOTAB_DATABASE = 'Millstream'
+$env:GEOTAB_USER     = 'warrenjmeyer@live.com'
+.\geotab-add-drivers.ps1 -Count 10 -WhatIf   # preview
+.\geotab-add-drivers.ps1 -Count 10           # create
+```
+
+It skips users that already exist, so re-running is safe, and prints a
+`DriverCode` per driver in the form `dbo.Drivers` uses. `-ListGroups` prints the
+group ids if an `Add` is rejected for an unknown group.
+
+Two things the script handles that trip people up. Authentication returns the
+server your database actually lives on (`result.path`); calls made to the
+federation host after that fail. And Geotab answers with HTTP 200 even when a
+call was rejected — the failure is an `error` object in the body, so checking
+the status code alone treats every rejection as success.
+
+These are real users who can sign in to the Drive app. Point it at a test
+database.
+
 ### Endpoints
 
 ```
@@ -258,6 +282,7 @@ loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
 loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
 settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
 settlement_02_data.sql  sample settlements for the two GeoTab drivers
+geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks
 src/lib/api.js          fetchJson — the retry that survives a cold database
