@@ -292,8 +292,7 @@ settlement `unit_no` values can be updated from.
 ### Zones
 
 GeoTab has no notion of an origin and a destination on a load. It has **zones**
-— named polygons — and **routes**, whose stops are references to zones. So the
-lanes in the settlement data become 18 zones, one per city:
+— named polygons — and **routes**, whose stops are references to zones.
 
 ```
 .\geotab-add-zones.ps1 -Database demo_millstream -CheckTelematics
@@ -301,19 +300,25 @@ lanes in the settlement data become 18 zones, one per city:
 .\geotab-add-zones.ps1 -Database demo_millstream
 ```
 
-Zones are worth having on their own: arrivals and departures start appearing in
-reports without any route plan. They are also the prerequisite for routes.
+Zones are derived from **where the fleet actually stops**: recent trips are
+read, their stop points clustered, and the busiest places become zones. A zone
+is only worth having somewhere a truck goes.
 
-The coordinates are **city centres, not docks**. A zone here answers "the truck
-reached Dubuque", not "the truck reached the receiver" — replace them with real
-facility coordinates when you have them.
+That matters here because of a mismatch worth knowing about. The settlement
+lanes are Midwest — Dubuque, Chicago, Kansas City — matching the real Millstream
+address. The demo vehicles are a live simulated feed that drives around **Las
+Vegas**. Zones placed on the settlement cities would be correct configuration
+that no vehicle ever enters. `-FromLanes` still builds those 18 city zones if
+you want them; the default follows the trucks instead.
 
-`-CheckTelematics` reports each vehicle's last known position. If nothing has
-ever reported one, zones are still correct configuration but nothing will be
-recorded against them, and route adherence would have nothing to compare.
+`-CheckTelematics` reports each vehicle's last known position, which is how
+that was established in the first place. Worth running before assuming a fleet
+does or does not move — I assumed wrong.
 
-Geotab points are `x = longitude, y = latitude`. Swapping them puts Iowa in the
-Indian Ocean.
+Two geometry details. Geotab points are `x = longitude, y = latitude`, and
+swapping them puts Iowa in the Indian Ocean. And the box around each centre
+divides its longitude span by `cos(latitude)`, without which a zone in
+Minneapolis comes out wider than one in Dallas for the same stated radius.
 
 ### Endpoints
 

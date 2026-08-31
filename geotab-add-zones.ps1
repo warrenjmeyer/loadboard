@@ -1,5 +1,5 @@
 # ---------------------------------------------------------------------------
-# Create a geofence for every city the load lanes touch.
+# Create geofences for the places this fleet actually goes.
 #
 # Usage:
 #   .\geotab-add-zones.ps1 -Database demo_millstream -CheckTelematics
@@ -7,14 +7,19 @@
 #   .\geotab-add-zones.ps1 -Database demo_millstream
 #
 #   .\geotab-add-zones.ps1 -Database demo_millstream -ListZones
+#   .\geotab-add-zones.ps1 -Database demo_millstream -FromLanes
 #
 # A Zone is a named polygon. Once one exists, arrivals and departures start
 # appearing in reports on their own -- no route plan needed. Zones are also the
 # prerequisite for Routes, whose stops are references to zones.
 #
-# The coordinates below are city centres, not docks. A zone here answers "the
-# truck reached Dubuque", not "the truck reached the receiver". Replace them
-# with real facility coordinates when you have them.
+# By default the zones are DERIVED from where the fleet actually stops: recent
+# trips are read, their stop points clustered, and the busiest places become
+# zones. A zone is only worth having somewhere a truck goes.
+#
+# -FromLanes instead uses the 18 cities in the settlement lanes. Correct
+# configuration, but this fleet drives around Las Vegas, so nothing would ever
+# enter one.
 #
 # Re-running is safe: zones are matched by name and skipped if present.
 # ---------------------------------------------------------------------------
@@ -25,9 +30,7 @@ param(
     [string]$UserName = $env:GEOTAB_USER,
     [string]$Server = 'my.geotab.com',
 
-    # Half-width of the square drawn around each city centre. 3km is big enough
-    # to catch a truck stopping anywhere near the middle of town and small
-    # enough that neighbouring cities never overlap.
+    # Half-width of the square drawn around each zone centre.
     [double]$RadiusKm = 3.0,
 
     [string]$ZoneTypeId = 'ZoneTypeCustomerId',
@@ -35,14 +38,31 @@ param(
 
     [switch]$CheckTelematics,
     [switch]$ListZones,
+
+    # Create zones for the 18 cities in the settlement lanes instead of the
+    # places the fleet actually visits. Correct configuration, but the demo
+    # vehicles drive around Las Vegas, so nothing will ever enter one.
+    [switch]$FromLanes,
+
+    # How much history to read when working out where the fleet stops.
+    [int]$Days = 7,
+
+    # Stops closer together than this are treated as the same place. A truck
+    # never parks on the same square metre twice, so without clustering every
+    # visit to one yard becomes its own zone.
+    [double]$ClusterKm = 1.5,
+
+    [int]$MaxZones = 18,
+
     [switch]$WhatIf
 )
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'geotab-common.ps1')
 
-# City centres for every city in the settlement lanes. Approximate, and
-# deliberately so -- see the header.
+# Used only by -FromLanes: city centres for every city in the settlement lanes.
+# Approximate by design -- these answer "reached Dubuque", not "reached the
+# receiver".
 $CITIES = @(
     @{ Name = 'CEDAR RAPIDS, IA';  Lat = 41.9779; Lon = -91.6656 },
     @{ Name = 'CHICAGO, IL';       Lat = 41.8781; Lon = -87.6298 },
@@ -128,6 +148,102 @@ $have = @{}
 foreach ($z in $existing) { if ($z.name) { $have[$z.name.ToUpper()] = $true } }
 Write-Host "  $($existing.Count) zones already in this database" -ForegroundColor DarkGray
 Write-Host ''
+
+# --- where does the fleet actually stop? -----------------------------------
+# Unless -FromLanes was asked for, the zone list is derived rather than
+# assumed. A zone is only worth having somewhere a truck goes, and guessing
+# that from a map is how you end up with eighteen geofences in Iowa and a fleet
+# in Nevada.
+if (-not $FromLanes) {
+    $from = (Get-Date).ToUniversalTime().AddDays(-$Days).ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+    $to = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
+
+    Write-Host "Reading trips from the last $Days days..." -ForegroundColor Cyan
+    $trips = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
+        typeName    = 'Trip'
+        credentials = $creds
+        search      = @{ fromDate = $from; toDate = $to }
+    }
+
+    # A trip's stopPoint is where it ended -- a yard, a dock, a truck stop.
+    # That is what a zone should sit on, far more than the position a vehicle
+    # happens to occupy right now.
+    $stops = @()
+    foreach ($t in $trips) {
+        if ($t.stopPoint -and $t.stopPoint.y -and $t.stopPoint.x) {
+            $stops += [pscustomobject]@{ Lat = [double]$t.stopPoint.y; Lon = [double]$t.stopPoint.x }
+        }
+    }
+    Write-Host "  $($trips.Count) trips, $($stops.Count) with a stop position" -ForegroundColor DarkGray
+
+    if ($stops.Count -eq 0) {
+        throw "No trip stop positions in the last $Days days. Try -Days 30, or -FromLanes to use the settlement lane cities instead."
+    }
+
+    # Greedy clustering: walk the stops, drop each into the first cluster it is
+    # near enough to, otherwise start a new one. Good enough for finding depots
+    # in a few thousand points, and it needs no libraries.
+    $clusters = New-Object System.Collections.ArrayList
+    foreach ($s in $stops) {
+        $placed = $false
+        foreach ($c in $clusters) {
+            # Equirectangular approximation. Exact enough over a few km, and it
+            # avoids a trigonometric haversine per point-pair comparison.
+            $dLatKm = ($s.Lat - $c.Lat) * 111.0
+            $dLonKm = ($s.Lon - $c.Lon) * 111.0 * [Math]::Cos($c.Lat * [Math]::PI / 180.0)
+            if ([Math]::Sqrt($dLatKm * $dLatKm + $dLonKm * $dLonKm) -le $ClusterKm) {
+                # Running mean, so the centre settles on the middle of the yard
+                # rather than wherever the first truck happened to park.
+                $c.Count++
+                $c.Lat = $c.Lat + (($s.Lat - $c.Lat) / $c.Count)
+                $c.Lon = $c.Lon + (($s.Lon - $c.Lon) / $c.Count)
+                $placed = $true
+                break
+            }
+        }
+        if (-not $placed) {
+            [void]$clusters.Add([pscustomobject]@{ Lat = $s.Lat; Lon = $s.Lon; Count = 1 })
+        }
+    }
+
+    $top = $clusters | Sort-Object -Property Count -Descending | Select-Object -First $MaxZones
+    Write-Host "  $($clusters.Count) distinct places; taking the $($top.Count) most visited" -ForegroundColor DarkGray
+
+    # Ask Geotab what these places are called. Nicer than "Fleet Stop 03", and
+    # if the method is unavailable the fallback name still works.
+    $labels = @{}
+    try {
+        $coords = @($top | ForEach-Object { @{ x = $_.Lon; y = $_.Lat } })
+        $addresses = Invoke-Geotab -ApiServer $api -Method 'GetAddresses' -Params @{
+            coordinates = $coords
+            credentials = $creds
+        }
+        for ($i = 0; $i -lt $addresses.Count; $i++) {
+            $a = $addresses[$i]
+            $text = $a
+            if ($a -is [psobject] -and $a.PSObject.Properties.Name -contains 'formattedAddress') {
+                $text = $a.formattedAddress
+            }
+            if ($text) { $labels[$i] = ([string]$text).Trim() }
+        }
+    } catch {
+        Write-Host '  (address lookup unavailable; naming by position)' -ForegroundColor DarkGray
+    }
+
+    $CITIES = @()
+    for ($i = 0; $i -lt $top.Count; $i++) {
+        $label = $labels[$i]
+        if ([string]::IsNullOrWhiteSpace($label)) {
+            $label = 'Fleet Stop {0:D2}' -f ($i + 1)
+        }
+        # Zone names must be unique, and two clusters can easily sit on one
+        # street address.
+        $name = '{0} ({1} stops)' -f $label, $top[$i].Count
+        $CITIES += @{ Name = $name; Lat = $top[$i].Lat; Lon = $top[$i].Lon }
+    }
+
+    Write-Host ''
+}
 
 # --- create ----------------------------------------------------------------
 $created = 0
