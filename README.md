@@ -320,6 +320,31 @@ swapping them puts Iowa in the Indian Ocean. And the box around each centre
 divides its longitude span by `cos(latitude)`, without which a zone in
 Minneapolis comes out wider than one in Dallas for the same stated radius.
 
+### Routes
+
+A route is an ordered list of stops, each a reference to a zone — so the zones
+have to exist first. One route per lane in the settlement data:
+
+```
+.\geotab-add-zones.ps1  -Database demo_millstream -FromLanes
+.\geotab-add-routes.ps1 -Database demo_millstream -WhatIf
+.\geotab-add-routes.ps1 -Database demo_millstream
+```
+
+The lanes are **read from the settlement SQL**, not duplicated in the script.
+There is one list of lanes in this project and it lives in the seed files; a
+second copy drifts the first time a lane changes. Currently 22 lanes across 18
+cities.
+
+Every city is resolved to a zone before anything is created. Creating half the
+routes and then failing on a missing zone leaves a state nobody asked for, so
+a missing zone is an error up front with the command that fixes it.
+
+These routes describe the lane network the pay statements are built on. They
+will not produce adherence data, because the vehicles in this database drive
+around Las Vegas and will never enter a Midwest zone — that is a known
+mismatch, not a fault.
+
 ### Endpoints
 
 ```
@@ -364,6 +389,7 @@ settlement_04_fleet2.sql eight more, bringing the fleet to twenty
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
+geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks
