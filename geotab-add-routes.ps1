@@ -34,7 +34,9 @@ param(
     # an N'...' literal counts.
     [string]$SqlGlob = 'settlement_0*.sql',
 
-    [string]$CompanyGroupId = 'GroupCompanyId',
+    # A Route has no `groups` property -- confirmed by reading one back with
+    # -ShowSchema. It does carry a timezone.
+    [string]$TimeZoneId = 'America/Chicago',
 
     [switch]$ListRoutes,
 
@@ -48,6 +50,30 @@ param(
 
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'geotab-common.ps1')
+
+function New-RouteStop {
+    <#
+        One stop on a route, shaped like the ones MyGeotab creates.
+
+        The date fields are not decoration: a stop with no activeFrom/activeTo
+        is not active, and dateTime is required even on a route that has no
+        schedule. The values here are what the UI writes for a basic route.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$ZoneId,
+        [Parameter(Mandatory)][int]$Sequence
+    )
+
+    return @{
+        zone           = @{ id = $ZoneId }
+        sequence       = $Sequence
+        activeFrom     = '1986-01-01T00:00:00.000Z'
+        activeTo       = '2050-01-01T00:00:00.000Z'
+        dateTime       = '2018-01-01T00:00:00.000Z'
+        comment        = ''
+        nonOptimizable = $false
+    }
+}
 
 # --- the lanes -------------------------------------------------------------
 $pattern = "N'([A-Z .]+, [A-Z]{2}) - ([A-Z .]+, [A-Z]{2})'"
@@ -177,21 +203,29 @@ foreach ($key in $lanes.Keys) {
         typeName    = 'Route'
         credentials = $creds
         entity      = @{
-            name    = $key
-            comment = 'Load board lane'
-            groups  = @(@{ id = $CompanyGroupId })
+            # This shape was read back off a route created by hand in MyGeotab
+            # (-ShowSchema), not taken from the SDK docs. Two things the docs
+            # cost us: the stops property is routePlanItemCollection rather
+            # than routePlanItems, and a Route carries no `groups` at all --
+            # the real object simply does not have that property.
+            name         = $key
+            comment      = 'Load board lane'
+            routeType    = 'Basic'
+            timezoneId   = $TimeZoneId
+            isRepeatable = $false
 
-            # The stops property is routePlanItemCollection, not the
-            # routePlanItems the SDK docs suggest. Getting it wrong fails with
-            # "Value cannot be null. (Parameter 'The caller
-            # (value.RoutePlanItemCollection) was null.')" -- which at least
-            # names the property it wanted.
-            #
+            # The UI writes this sentinel for a route with no schedule. Mirrored
+            # rather than invented, so these look like every other basic route.
+            startTime    = '2018-01-01T00:00:00.000Z'
+            endTime      = '2018-01-01T00:00:00.000Z'
+
             # Sequence is what makes this a route rather than a pair of places:
-            # origin first, destination second.
+            # origin first, destination second. Every other field here is one
+            # the real object carries; `id` is left out because Geotab assigns
+            # it.
             routePlanItemCollection = @(
-                @{ zone = @{ id = $zoneByName[$lane.Origin.ToUpper()] };      sequence = 0 },
-                @{ zone = @{ id = $zoneByName[$lane.Destination.ToUpper()] }; sequence = 1 }
+                (New-RouteStop -ZoneId $zoneByName[$lane.Origin.ToUpper()] -Sequence 0),
+                (New-RouteStop -ZoneId $zoneByName[$lane.Destination.ToUpper()] -Sequence 1)
             )
         }
     } | Out-Null
