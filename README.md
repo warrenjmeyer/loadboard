@@ -345,6 +345,17 @@ will not produce adherence data, because the vehicles in this database drive
 around Las Vegas and will never enter a Midwest zone — that is a known
 mismatch, not a fault.
 
+If an `Add` is rejected for a property you cannot place, make one route by hand
+in MyGeotab (Zones & Messages > Routes > Add) and then read its shape back:
+
+```
+.\geotab-add-routes.ps1 -Database demo_millstream -ShowSchema
+```
+
+That prints the route exactly as Geotab returns it, plus one stop on its own.
+Reading the real object beats guessing at the schema one rejection at a time —
+the stops property is `routePlanItemCollection`, not the `routePlanItems` the
+SDK docs suggest, and that is how it was established.
 ### Endpoints
 
 ```

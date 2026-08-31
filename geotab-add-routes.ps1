@@ -37,6 +37,12 @@ param(
     [string]$CompanyGroupId = 'GroupCompanyId',
 
     [switch]$ListRoutes,
+
+    # Print an existing route exactly as Geotab returns it, and exit. Make one
+    # by hand in MyGeotab first; reading its shape beats guessing at the schema
+    # one rejection at a time.
+    [switch]$ShowSchema,
+
     [switch]$WhatIf
 )
 
@@ -46,7 +52,11 @@ $ErrorActionPreference = 'Stop'
 # --- the lanes -------------------------------------------------------------
 $pattern = "N'([A-Z .]+, [A-Z]{2}) - ([A-Z .]+, [A-Z]{2})'"
 $files = Get-ChildItem -Path (Join-Path $PSScriptRoot $SqlGlob) -ErrorAction SilentlyContinue
-if (-not $files) { throw "No settlement SQL found matching $SqlGlob." }
+if (-not $files -and -not ($ShowSchema -or $ListRoutes)) {
+    # The diagnostic modes read from Geotab, not from the seed files, so they
+    # should not be blocked by a missing SQL glob.
+    throw "No settlement SQL found matching $SqlGlob."
+}
 
 $lanes = [ordered]@{}
 foreach ($m in (Select-String -Path $files.FullName -Pattern $pattern -AllMatches).Matches) {
@@ -80,6 +90,41 @@ if ($ListRoutes) {
     $existingRoutes | Select-Object name, id | Sort-Object name |
         Format-Table -AutoSize | Out-String | Write-Host
     Write-Host "$($existingRoutes.Count) routes."
+    return
+}
+
+if ($ShowSchema) {
+    if (-not $existingRoutes -or $existingRoutes.Count -eq 0) {
+        throw 'No routes exist yet. Create one by hand in MyGeotab (Zones & Messages > Routes > Add), give it two zone stops, then run this again.'
+    }
+
+    # Prefer one with stops on it. A route with none would show the property
+    # exists but not what belongs inside it, which is the part being checked.
+    $sample = $existingRoutes |
+        Where-Object { $_.routePlanItemCollection -and $_.routePlanItemCollection.Count -gt 0 } |
+        Select-Object -First 1
+    if (-not $sample) {
+        Write-Host 'No route has any stops; showing the first one anyway.' -ForegroundColor Yellow
+        $sample = $existingRoutes[0]
+    }
+
+    Write-Host ''
+    Write-Host "Route: $($sample.name)" -ForegroundColor Cyan
+    Write-Host 'Top-level properties Geotab returned:' -ForegroundColor Cyan
+    $sample.PSObject.Properties |
+        Select-Object Name, @{n = 'Type'; e = { if ($null -eq $_.Value) { '(null)' } else { $_.Value.GetType().Name } } } |
+        Sort-Object Name | Format-Table -AutoSize | Out-String | Write-Host
+
+    Write-Host 'Full object:' -ForegroundColor Cyan
+    $sample | ConvertTo-Json -Depth 10 | Write-Host
+
+    # Called out separately because this is the property that has already cost
+    # two failed guesses, and its item shape is what the Add has to match.
+    if ($sample.routePlanItemCollection) {
+        Write-Host ''
+        Write-Host 'One stop, in isolation:' -ForegroundColor Cyan
+        $sample.routePlanItemCollection[0] | ConvertTo-Json -Depth 6 | Write-Host
+    }
     return
 }
 
