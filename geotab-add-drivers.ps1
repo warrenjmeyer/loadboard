@@ -46,10 +46,19 @@ param(
     # 60-hour/7-day variant; 'None' means the driver is not logging HOS.
     [string]$HosRuleSet = 'America8Day',
 
+    # Password for created drivers. Falls back to GEOTAB_DRIVER_PASSWORD, and
+    # then to a generated one. Deliberately not defaulted to a literal here:
+    # a password written into a script is a password in every clone of the repo
+    # and in its whole history.
+    [string]$DriverPassword = $env:GEOTAB_DRIVER_PASSWORD,
+
     [switch]$ListGroups,
 
     # Apply -HosRuleSet to every existing driver and exit, creating nobody.
     [switch]$ApplyHosRuleSetToAll,
+
+    # Set -DriverPassword on every existing driver and exit, creating nobody.
+    [switch]$SetPasswordForAll,
 
     [switch]$WhatIf
 )
@@ -137,6 +146,46 @@ if ($ApplyHosRuleSetToAll) {
     return
 }
 
+# --- optional: put every driver on the same password -----------------------
+if ($SetPasswordForAll) {
+    if ([string]::IsNullOrWhiteSpace($DriverPassword)) {
+        throw 'Pass -DriverPassword or set $env:GEOTAB_DRIVER_PASSWORD.'
+    }
+
+    $drivers = $existing | Where-Object { $_.isDriver }
+    Write-Host "Setting one password on $($drivers.Count) drivers..." -ForegroundColor Cyan
+
+    $changed = 0
+    foreach ($d in $drivers) {
+        if ($WhatIf) {
+            Write-Host ("  would reset {0}" -f $d.name)
+            continue
+        }
+
+        # Same round-trip as the HOS update: Geotab's Set replaces the entity,
+        # so send back what Get returned with one property added. Geotab never
+        # returns the existing password, so this only ever sets a new one.
+        $d | Add-Member -NotePropertyName password -NotePropertyValue $DriverPassword -Force
+        Invoke-Geotab -ApiServer $apiServer -Method 'Set' -Params @{
+            typeName    = 'User'
+            entity      = $d
+            credentials = $credentials
+        } | Out-Null
+
+        Write-Host ("  {0}" -f $d.name) -ForegroundColor Green
+        $changed++
+    }
+
+    Write-Host ''
+    if ($WhatIf) {
+        Write-Host 'Nothing was changed (-WhatIf).' -ForegroundColor Yellow
+    } else {
+        Write-Host "Reset $changed driver password(s)." -ForegroundColor Green
+        Write-Host 'Every driver now signs in with the password you supplied.'
+    }
+    return
+}
+
 # --- the drivers to create -------------------------------------------------
 # Fixed list rather than random: re-running produces the same people, so the
 # settlements seeded against them stay valid.
@@ -166,9 +215,13 @@ if ($Count -gt $names.Count) {
 }
 
 # One password for every test driver. They are throwaway accounts in a test
-# database; generating ten different ones would mean printing ten secrets to
-# the console, which is worse.
-$driverPassword = 'TestDrv!' + (Get-Random -Minimum 100000 -Maximum 999999)
+# database; generating a different one each would mean printing a column of
+# secrets to the console, which is worse.
+$driverPassword = $DriverPassword
+if ([string]::IsNullOrWhiteSpace($driverPassword)) {
+    $driverPassword = 'TestDrv!' + (Get-Random -Minimum 100000 -Maximum 999999)
+    Write-Host '  no -DriverPassword given; generating one' -ForegroundColor DarkGray
+}
 
 $created = @()
 $skipped = @()
@@ -243,8 +296,14 @@ if ($skipped.Count) {
 if ($created.Count) {
     Write-Host "Created $($created.Count) drivers." -ForegroundColor Green
     $created | Format-Table -AutoSize | Out-String | Write-Host
-    Write-Host "Shared password for all of them: $driverPassword" -ForegroundColor Yellow
-    Write-Host 'Not stored anywhere. Copy it now or reset the passwords in MyGeotab.'
+    if ([string]::IsNullOrWhiteSpace($DriverPassword)) {
+        # Only echo a password we invented. Printing one the caller supplied
+        # just puts their secret in the scrollback for no benefit.
+        Write-Host "Generated password for all of them: $driverPassword" -ForegroundColor Yellow
+        Write-Host 'Not stored anywhere. Copy it now or reset the passwords in MyGeotab.'
+    } else {
+        Write-Host 'They all use the password you supplied.'
+    }
     Write-Host ''
     Write-Host 'The DriverCode column is what dbo.Drivers would use if you want'
     Write-Host 'settlements seeded for these drivers.'

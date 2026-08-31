@@ -240,6 +240,17 @@ without a database name and tells you the one Geotab resolves.
 The MyGeotab password is its own credential too. Same email as the Azure
 sign-in, different password.
 
+All drivers can share one password, which is convenient for testing the Drive
+app. Pass it rather than editing the script — a password written into a file is
+a password in every clone and in the whole git history:
+
+```
+.\geotab-add-drivers.ps1 -Database demo_millstream -SetPasswordForAll -DriverPassword '...'
+$env:GEOTAB_DRIVER_PASSWORD = '...'    # or set it once and omit the flag
+```
+
+Without one, created drivers get a generated password printed at the end.
+
 Drivers are created with `hosRuleSet` `America8Day` — USA Property
 70-hour/8-day. `-ApplyHosRuleSetToAll` sets it on drivers that already exist:
 
