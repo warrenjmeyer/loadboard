@@ -1,6 +1,9 @@
 -- loads_02_data.sql
--- Seed data from public/loads.json (8 rows). Needs only INSERT/UPDATE rights
--- on an existing table -- no DDL permission required.
+-- The original 8 seed rows for dbo.Loads. Needs only INSERT/UPDATE rights on
+-- an existing table -- no DDL permission required.
+--
+-- MERGE, not INSERT, so re-running this is safe: it updates rows that exist
+-- and adds the ones that do not.
 --
 -- If your table lives somewhere other than dbo.Loads, change :target below
 -- (both occurrences) to match, e.g. staging.Loads or Millstream.dbo.Loads.

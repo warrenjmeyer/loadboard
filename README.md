@@ -173,6 +173,8 @@ api/package.json        the Function App's own dependencies (mssql)
 .github/workflows/      builds and deploys on push to main
 vite.config.js          dev server config — proxies /api to the deployed app
 swa-cli.config.json     for `swa start`; unused until Core Tools is installed
+loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
+loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
 ```
 
 ## Exercises, roughly in order
