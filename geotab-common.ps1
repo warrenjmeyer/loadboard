@@ -90,6 +90,52 @@ function Connect-Geotab {
     return @{ Credentials = $auth.credentials; Server = $apiServer }
 }
 
+function Get-Lanes {
+    <#
+        Every origin-destination pair in the project, from both places lanes
+        are written down:
+
+          settlement_0*.sql   N'DUBUQUE, IA - CHICAGO, IL'   (one literal)
+          loads_02_data.sql   N'Dubuque, IA', N'Chicago, IL' (two literals)
+
+        Both, because the two drifted apart the moment the load board grew:
+        routes were built from the settlements alone and covered 7 of 32 load
+        lanes. Reading one source and calling it "the lanes" is what caused
+        that, so this reads all of them.
+
+        Everything is upper-cased. The load board writes "Dubuque, IA" and the
+        settlements write "DUBUQUE, IA"; zone names are matched on this, so a
+        casing difference would quietly create a second Dubuque.
+    #>
+    param([Parameter(Mandatory)][string]$ScriptRoot)
+
+    $files = @()
+    foreach ($glob in 'settlement_0*.sql', 'loads_0*.sql') {
+        $files += Get-ChildItem -Path (Join-Path $ScriptRoot $glob) -ErrorAction SilentlyContinue
+    }
+    if (-not $files) { throw "No settlement or load SQL found in $ScriptRoot." }
+
+    $lanes = [ordered]@{}
+
+    # route_detail on a settlement line: one literal, dash-separated.
+    foreach ($m in (Select-String -Path $files.FullName -Pattern "N'([A-Za-z .]+, [A-Za-z]{2}) - ([A-Za-z .]+, [A-Za-z]{2})'" -AllMatches).Matches) {
+        $key = ($m.Groups[1].Value + ' - ' + $m.Groups[2].Value).ToUpper()
+        if (-not $lanes.Contains($key)) {
+            $lanes[$key] = @{ Origin = $m.Groups[1].Value.ToUpper(); Destination = $m.Groups[2].Value.ToUpper() }
+        }
+    }
+
+    # A load row: id, then origin and destination as separate literals.
+    foreach ($m in (Select-String -Path $files.FullName -Pattern "\('L-\d+', N'([^']+)',\s*N'([^']+)'," -AllMatches).Matches) {
+        $key = ($m.Groups[1].Value + ' - ' + $m.Groups[2].Value).ToUpper()
+        if (-not $lanes.Contains($key)) {
+            $lanes[$key] = @{ Origin = $m.Groups[1].Value.ToUpper(); Destination = $m.Groups[2].Value.ToUpper() }
+        }
+    }
+
+    return $lanes
+}
+
 function Read-GeotabPassword {
     param([Parameter(Mandatory)][string]$UserName)
 

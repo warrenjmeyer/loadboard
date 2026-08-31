@@ -350,9 +350,9 @@ have to exist first. One route per lane in the settlement data:
 ```
 
 The lanes are **read from the settlement SQL**, not duplicated in the script.
-There is one list of lanes in this project and it lives in the seed files; a
-second copy drifts the first time a lane changes. Currently 22 lanes across 18
-cities.
+They come from the settlements AND the load board: reading only the
+settlements is exactly how the routes came to cover 7 of the load board's 32
+lanes. Currently 47 lanes across 19 cities.
 
 Every city is resolved to a zone before anything is created. Creating half the
 routes and then failing on a missing zone leaves a state nobody asked for, so

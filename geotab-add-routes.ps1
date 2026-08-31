@@ -1,5 +1,6 @@
 # ---------------------------------------------------------------------------
-# Create a MyGeotab route for every lane in the settlement data.
+# Create a MyGeotab route for every lane in the project -- settlements and the
+# load board both.
 #
 # Usage:
 #   .\geotab-add-zones.ps1  -Database demo_millstream -FromLanes   # do this first
@@ -12,9 +13,9 @@
 # So the zones have to exist first -- this script looks them up by name and
 # refuses to invent anything if one is missing.
 #
-# The lanes are read from the settlement SQL rather than duplicated here. There
-# is one list of lanes in this project and it lives in the seed files; a second
-# copy would drift the first time a lane changed.
+# The lanes are read from the seed SQL rather than duplicated here -- from the
+# settlements AND the load board, because reading only one is exactly how the
+# routes ended up covering 7 of the load board's 32 lanes.
 #
 # Worth being clear about what these will and will not do: the vehicles in this
 # database drive around Las Vegas, so no truck will enter a Midwest zone and
@@ -29,10 +30,6 @@ param(
     [string]$Database = $env:GEOTAB_DATABASE,
     [string]$UserName = $env:GEOTAB_USER,
     [string]$Server = 'my.geotab.com',
-
-    # Where the lanes come from. Anything matching "CITY, ST - CITY, ST" inside
-    # an N'...' literal counts.
-    [string]$SqlGlob = 'settlement_0*.sql',
 
     # A Route has no groups property; it does carry a timezone.
     [string]$TimeZoneId = 'America/Chicago',
@@ -76,24 +73,13 @@ function New-RouteStop {
 }
 
 # --- the lanes -------------------------------------------------------------
-$pattern = "N'([A-Z .]+, [A-Z]{2}) - ([A-Z .]+, [A-Z]{2})'"
-$files = Get-ChildItem -Path (Join-Path $PSScriptRoot $SqlGlob) -ErrorAction SilentlyContinue
-if (-not $files -and -not ($ShowSchema -or $ListRoutes)) {
-    # The diagnostic modes read from Geotab, not from the seed files, so they
-    # should not be blocked by a missing SQL glob.
-    throw "No settlement SQL found matching $SqlGlob."
-}
-
+# From both the settlements and the load board -- see Get-Lanes. The diagnostic
+# modes read from Geotab rather than the SQL, so they skip this entirely.
 $lanes = [ordered]@{}
-foreach ($m in (Select-String -Path $files.FullName -Pattern $pattern -AllMatches).Matches) {
-    $origin = $m.Groups[1].Value
-    $destination = $m.Groups[2].Value
-    $key = "$origin - $destination"
-    if (-not $lanes.Contains($key)) {
-        $lanes[$key] = @{ Origin = $origin; Destination = $destination }
-    }
+if (-not ($ShowSchema -or $ListRoutes)) {
+    $lanes = Get-Lanes -ScriptRoot $PSScriptRoot
+    Write-Host "$($lanes.Count) distinct lanes across the settlement and load data" -ForegroundColor Cyan
 }
-Write-Host "$($lanes.Count) distinct lanes in $($files.Count) settlement file(s)" -ForegroundColor Cyan
 
 if ([string]::IsNullOrWhiteSpace($Database)) { $Database = Read-Host 'MyGeotab database' }
 if ([string]::IsNullOrWhiteSpace($UserName)) { $UserName = Read-Host 'MyGeotab user' }

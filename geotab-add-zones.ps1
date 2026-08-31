@@ -17,9 +17,9 @@
 # trips are read, their stop points clustered, and the busiest places become
 # zones. A zone is only worth having somewhere a truck goes.
 #
-# -FromLanes instead uses the 18 cities in the settlement lanes. Correct
-# configuration, but this fleet drives around Las Vegas, so nothing would ever
-# enter one.
+# -FromLanes instead uses the cities the lane data touches -- settlements and
+# the load board both. Correct configuration, but this fleet drives around Las
+# Vegas, so nothing would ever enter one.
 #
 # Re-running is safe: zones are matched by name and skipped if present.
 # ---------------------------------------------------------------------------
@@ -39,9 +39,9 @@ param(
     [switch]$CheckTelematics,
     [switch]$ListZones,
 
-    # Create zones for the 18 cities in the settlement lanes instead of the
-    # places the fleet actually visits. Correct configuration, but the demo
-    # vehicles drive around Las Vegas, so nothing will ever enter one.
+    # Create zones for the cities the lanes touch, instead of the places the
+    # fleet actually visits. Correct configuration, but the demo vehicles drive
+    # around Las Vegas, so nothing will ever enter one.
     [switch]$FromLanes,
 
     # How much history to read when working out where the fleet stops.
@@ -60,13 +60,18 @@ param(
 $ErrorActionPreference = 'Stop'
 . (Join-Path $PSScriptRoot 'geotab-common.ps1')
 
-# Used only by -FromLanes: city centres for every city in the settlement lanes.
+# Used only by -FromLanes. Coordinates only: WHICH cities are needed is derived
+# from the lane data, not listed here. A hand-maintained list of cities is what
+# let the load board grow to 19 cities while the zones stayed at 18, so this
+# file now answers "where is Dubuque", never "which cities matter".
+#
 # Approximate by design -- these answer "reached Dubuque", not "reached the
 # receiver".
-$CITIES = @(
+$CITY_COORDS = @(
     @{ Name = 'CEDAR RAPIDS, IA';  Lat = 41.9779; Lon = -91.6656 },
     @{ Name = 'CHICAGO, IL';       Lat = 41.8781; Lon = -87.6298 },
     @{ Name = 'DALLAS, TX';        Lat = 32.7767; Lon = -96.7970 },
+    @{ Name = 'DAVENPORT, IA';     Lat = 41.5236; Lon = -90.5776 },
     @{ Name = 'DENVER, CO';        Lat = 39.7392; Lon = -104.9903 },
     @{ Name = 'DES MOINES, IA';    Lat = 41.5868; Lon = -93.6250 },
     @{ Name = 'DUBUQUE, IA';       Lat = 42.5006; Lon = -90.6646 },
@@ -148,6 +153,33 @@ $have = @{}
 foreach ($z in $existing) { if ($z.name) { $have[$z.name.ToUpper()] = $true } }
 Write-Host "  $($existing.Count) zones already in this database" -ForegroundColor DarkGray
 Write-Host ''
+
+# --- the cities the lanes actually touch -----------------------------------
+if ($FromLanes) {
+    $lanes = Get-Lanes -ScriptRoot $PSScriptRoot
+
+    $needed = [ordered]@{}
+    foreach ($lane in $lanes.Values) {
+        foreach ($city in @($lane.Origin, $lane.Destination)) {
+            if (-not $needed.Contains($city)) { $needed[$city] = $true }
+        }
+    }
+
+    $coordByName = @{}
+    foreach ($c in $CITY_COORDS) { $coordByName[$c.Name.ToUpper()] = $c }
+
+    # Fail on a city with no coordinates rather than quietly leaving it out.
+    # Silently skipping is precisely how the zones ended up one city short of
+    # the lanes and nobody noticed until the routes could not resolve.
+    $unknown = @($needed.Keys | Where-Object { -not $coordByName.ContainsKey($_) })
+    if ($unknown.Count) {
+        throw "No coordinates for: $($unknown -join '; '). Add them to `$CITY_COORDS in this script."
+    }
+
+    $CITIES = @($needed.Keys | ForEach-Object { $coordByName[$_] })
+    Write-Host "$($lanes.Count) lanes touch $($CITIES.Count) cities" -ForegroundColor Cyan
+    Write-Host ''
+}
 
 # --- where does the fleet actually stop? -----------------------------------
 # Unless -FromLanes was asked for, the zone list is derived rather than
