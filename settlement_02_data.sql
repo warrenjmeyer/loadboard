@@ -68,7 +68,7 @@ VALUES
     (@sid, 'DEDUCTION',     NULL,      NULL,    N'MEDICAL INSURANCE',    NULL,       -87.50),
     (@sid, 'DEDUCTION',     NULL,      NULL,    N'ADVANCE',              N'CD-88213',-150.00),
     (@sid, 'DEDUCTION',     NULL,      NULL,    N'ESCROW',               NULL,       -50.00);
--- Net: 1374.54 + 175.00 + 340.50 - 287.50 = 1602.54
+-- Settlement total: 1374.54 + 175.00 + 340.50 - 287.50 = 1602.54
 
 ------------------------------------------------------------------------------
 -- JAMES SMITH -- week ending 08/15, paid 08/21
@@ -92,7 +92,7 @@ VALUES
     (@sid, 'REIMBURSEMENT', 'O-10405', NULL, N'TOLLS',               NULL,   28.75),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'MEDICAL INSURANCE',   NULL,  -87.50),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'ESCROW',              NULL,  -50.00);
--- Net: 1274.10 + 50.00 + 383.75 - 137.50 = 1570.35
+-- Settlement total: 1274.10 + 50.00 + 383.75 - 137.50 = 1570.35
 
 ------------------------------------------------------------------------------
 -- JAMES SMITH -- week ending 08/08, paid 08/14
@@ -117,7 +117,7 @@ VALUES
     (@sid, 'REIMBURSEMENT', NULL, NULL,    N'PER DIEM - 3 DAYS',  NULL,     213.00),
     (@sid, 'DEDUCTION',     NULL, NULL,    N'MEDICAL INSURANCE',  NULL,     -87.50),
     (@sid, 'DEDUCTION',     NULL, NULL,    N'ADVANCE',            N'CD-88104', -100.00);
--- Net: 729.70 + 200.00 + 213.00 - 187.50 = 955.20
+-- Settlement total: 729.70 + 200.00 + 213.00 - 187.50 = 955.20
 
 ------------------------------------------------------------------------------
 -- SHERMAN OAKS -- paid 08/28
@@ -140,7 +140,7 @@ VALUES
     (@sid, 'REIMBURSEMENT', 'O-10416', NULL, N'MOTEL',               NULL,  89.95),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'MEDICAL INSURANCE',   NULL, -76.00),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'ESCROW',              NULL, -50.00);
--- Net: 839.84 + 50.00 + 302.95 - 126.00 = 1066.79
+-- Settlement total: 839.84 + 50.00 + 302.95 - 126.00 = 1066.79
 
 ------------------------------------------------------------------------------
 -- SHERMAN OAKS -- paid 08/21
@@ -162,13 +162,14 @@ VALUES
     (@sid, 'REIMBURSEMENT', 'O-10407', NULL, N'TOLLS',             NULL,      18.40),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'MEDICAL INSURANCE', NULL,     -76.00),
     (@sid, 'DEDUCTION',     NULL,      NULL, N'ADVANCE',           N'CD-90551', -125.00);
--- Net: 777.20 + 231.40 - 201.00 = 807.60
+-- Settlement total: 777.20 + 231.40 - 201.00 = 807.60
 
 GO
 
 ------------------------------------------------------------------------------
--- Check what landed. Net pay here is computed the same way the API computes
--- it, so these figures are what the statement should show.
+-- Check what landed. The total here is computed the same way the API computes
+-- it, so these figures are what the statement should show. No tax is withheld
+-- anywhere: this is earnings less deductions, not take-home pay.
 ------------------------------------------------------------------------------
 SELECT s.driver_code,
        CONVERT(char(10), s.check_date, 120) AS check_date,
@@ -176,7 +177,7 @@ SELECT s.driver_code,
        r.miles,
        r.route_pay,
        COALESCE(l.line_total, 0)              AS lines_total,
-       r.route_pay + COALESCE(l.line_total, 0) AS net_pay
+       r.route_pay + COALESCE(l.line_total, 0) AS settlement_total
 FROM dbo.Settlements AS s
 CROSS APPLY (
     SELECT COALESCE(SUM(total_miles), 0) AS miles,

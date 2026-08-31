@@ -227,7 +227,16 @@ app.http('settlementDetail', {
             deductions: deductionTotal,
             // Deductions are already stored negative, so this is a plain sum.
             // Nothing here has to remember which way to flip a sign.
-            netPay: routePay + revenueTotal + perDiemTotal + reimbursementTotal + deductionTotal,
+            //
+            // Deliberately NOT called netPay. Nothing here withholds tax: the
+            // original took net pay from UKG, which had the driver's W-4,
+            // filing status and YTD wages. This is what the settlement itself
+            // can account for -- earnings less the deductions it knows about --
+            // and for a W-2 driver it is 20-25% above what actually lands in
+            // their account. Calling it net pay would be a lie on a document
+            // whose whole job is being trusted.
+            settlementTotal:
+              routePay + revenueTotal + perDiemTotal + reimbursementTotal + deductionTotal,
           },
           ytd: {
             loadedMiles: Number(ytd.loaded),

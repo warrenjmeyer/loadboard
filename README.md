@@ -175,11 +175,18 @@ every dollar figure is invented.
 
 ### What the statement computes
 
-Net pay is a plain sum, because deductions are **stored negative**:
+The bottom line is a plain sum, because deductions are **stored negative**:
 
 ```
-netPay = routePay + revenue + perDiem + reimbursements + deductions
+settlementTotal = routePay + revenue + perDiem + reimbursements + deductions
 ```
+
+It is called **settlement total**, not net pay, and the distinction matters.
+Nothing here withholds tax: the original took net pay from UKG, which knew the
+driver's W-4, filing status and YTD wages. This figure is what the settlement
+itself can account for — earnings less the deductions it knows about — and for a
+W-2 driver it sits 20–25% above what actually reaches their bank account. A
+document whose whole job is being trusted should not label that "net pay".
 
 The original negated amounts at query time in three different places, and
 negated reimbursements too — which looks like an accident of the source data
@@ -209,7 +216,7 @@ with a discriminator says the same thing without the union.
 
 `SettlementRoutes.pay_rate` is stored rather than read from the driver: a
 settlement is a historical record, and re-rating a driver must not silently
-rewrite what they were paid last March. For the same reason net pay is *not* a
+rewrite what they were paid last March. For the same reason the total is *not* a
 column — it is computed, so a stored total can never disagree with its own
 detail.
 

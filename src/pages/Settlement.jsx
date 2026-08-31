@@ -163,7 +163,7 @@ export default function Settlement({ driverCode }) {
       </div>
 
       {/* Masthead: who paid, who was paid, for what period, and the number
-          that matters. Net pay goes here because it is the first thing a
+          that matters. The total goes here because it is the first thing a
           driver looks for -- everything below is the explanation for it. */}
       <div className="stmt-masthead">
         <div>
@@ -190,7 +190,7 @@ export default function Settlement({ driverCode }) {
             <span>Document</span> {settlement.documentNo}
           </div>
           <div className="stmt-netpay">
-            <span>Net pay</span> {formatMoney(totals.netPay)}
+            <span>Settlement total</span> {formatMoney(totals.settlementTotal)}
           </div>
         </div>
       </div>
@@ -263,9 +263,13 @@ export default function Settlement({ driverCode }) {
           <div className="num">{formatMiles(ytd.totalMiles)}</div>
         </div>
         <div className="stmt-row stmt-net">
-          <div>Net pay</div>
-          <div className="num">{formatMoney(totals.netPay)}</div>
+          <div>Settlement total</div>
+          <div className="num">{formatMoney(totals.settlementTotal)}</div>
         </div>
+        <p className="stmt-note muted">
+          Earnings less the deductions shown above. Payroll withholds tax
+          separately, so this is not take-home pay.
+        </p>
       </div>
     </div>
   )

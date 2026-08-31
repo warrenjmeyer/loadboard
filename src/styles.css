@@ -298,3 +298,8 @@ button.primary {
   .stmt-toolbar, .board-nav { display: none; }
   .stmt-block, .stmt-masthead { border: none; padding: 0 0 12px; }
 }
+
+.stmt-note {
+  margin: 8px 0 0;
+  font-size: 13px;
+}
