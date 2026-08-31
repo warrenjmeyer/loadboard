@@ -10,7 +10,9 @@
 #   .\geotab-add-drivers.ps1 -ListGroups  # print group ids and exit
 #   .\geotab-add-drivers.ps1 -Count 3 -WhatIf   # show what would be created
 #
-# Re-running is safe: existing users are skipped, not duplicated or overwritten.
+# -Count is how many of the roster below should EXIST, not how many to create.
+# Existing users are skipped, so -Count 18 when ten already exist creates the
+# eight missing. Re-running never duplicates or overwrites anyone.
 #
 # These are real users in a real database. They can sign in to the Drive app.
 # Point this at a test database, not production.
@@ -150,7 +152,13 @@ $names = @(
     @{ First = 'Cyrus';   Last = 'Nolan' },
     @{ First = 'Lena';    Last = 'Hartman' },
     @{ First = 'Otis';    Last = 'Vaughn' },
-    @{ First = 'Priya';   Last = 'Raman' }
+    @{ First = 'Priya';   Last = 'Raman' },
+    @{ First = 'Gus';     Last = 'Whitfield' },
+    @{ First = 'Alma';    Last = 'Cortez' },
+    @{ First = 'Desmond'; Last = 'Frye' },
+    @{ First = 'Ingrid';  Last = 'Solberg' },
+    @{ First = 'Terrell'; Last = 'Boone' },
+    @{ First = 'Nadia';   Last = 'Pruitt' }
 )
 
 if ($Count -gt $names.Count) {

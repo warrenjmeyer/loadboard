@@ -318,6 +318,7 @@ loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
 settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
 settlement_02_data.sql  sample settlements for the two GeoTab drivers
 settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
+settlement_04_fleet2.sql eight more, bringing the fleet to twenty
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-common.ps1       shared MyGeotab auth and transport
