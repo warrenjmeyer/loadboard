@@ -23,6 +23,73 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 // front end never has to guess.
 const money = (v) => (v === null || v === undefined ? 0 : Number(v))
 
+app.http('settlementBoard', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'settlements',
+  handler: async (request, context) => {
+    try {
+      const pool = await getPool()
+
+      // Totals are computed here rather than stored, the same way the detail
+      // endpoint does it -- one definition of what a settlement is worth, so
+      // the board and the statement can never disagree.
+      //
+      // CROSS APPLY for routes because every settlement has them; OUTER APPLY
+      // for lines because one legitimately might not, and an INNER join would
+      // silently drop it from the board.
+      const result = await pool.request().query(`
+        SELECT s.driver_code, d.first_name, d.last_name,
+               s.check_date, s.period_start, s.period_end, s.document_no,
+               r.load_count, r.miles, r.route_pay,
+               COALESCE(l.line_total, 0)  AS line_total,
+               COALESCE(l.deduction_count, 0) AS deduction_count
+        FROM dbo.Settlements AS s
+        JOIN dbo.Drivers AS d ON d.driver_code = s.driver_code
+        CROSS APPLY (
+            SELECT COUNT(*) AS load_count,
+                   COALESCE(SUM(total_miles), 0) AS miles,
+                   COALESCE(SUM(pay_amount), 0)  AS route_pay
+            FROM dbo.SettlementRoutes WHERE settlement_id = s.settlement_id
+        ) AS r
+        OUTER APPLY (
+            SELECT SUM(amount) AS line_total,
+                   SUM(CASE WHEN line_type = 'DEDUCTION' THEN 1 ELSE 0 END) AS deduction_count
+            FROM dbo.SettlementLines WHERE settlement_id = s.settlement_id
+        ) AS l
+        ORDER BY s.check_date DESC, d.last_name, d.first_name;
+      `)
+
+      return {
+        jsonBody: result.recordset.map((r) => {
+          const miles = Number(r.miles)
+          const total = money(r.route_pay) + money(r.line_total)
+          return {
+            driverCode: r.driver_code,
+            driverName: `${r.first_name} ${r.last_name}`,
+            checkDate: r.check_date.toISOString().slice(0, 10),
+            periodStart: r.period_start.toISOString().slice(0, 10),
+            periodEnd: r.period_end.toISOString().slice(0, 10),
+            documentNo: r.document_no,
+            loadCount: Number(r.load_count),
+            miles,
+            settlementTotal: total,
+            // Dollars per mile, the same figure the load board shows -- but a
+            // settlement with no miles (all flat pay) would divide by zero, so
+            // it reports null and the table prints an em dash.
+            perMile: miles > 0 ? total / miles : null,
+            hasDeductions: Number(r.deduction_count) > 0,
+          }
+        }),
+        headers: { 'Cache-Control': 'no-store' },
+      }
+    } catch (err) {
+      context.error('GET /api/settlements failed:', err)
+      return { status: 500, jsonBody: { error: 'Could not load settlements.' } }
+    }
+  },
+})
+
 app.http('driverList', {
   methods: ['GET'],
   authLevel: 'anonymous',

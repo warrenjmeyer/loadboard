@@ -169,6 +169,24 @@ which was reached as `coDrvSettlement.cfm?id=<employee code>` with the check
 date chosen from a dropdown. There is no router — see the comment in
 `src/main.jsx` for why two pages and one query parameter do not need one.
 
+
+### Pages
+
+```
+/                      the load board
+?view=settlements      every settlement, filterable
+?id=JSMITH             one driver's pay statement
+?id=JSMITH&date=...    ...at a specific check date
+```
+
+The settlements board is built to the same pattern as the load board on
+purpose: a container owning data and filters, a controlled filter component
+with no state of its own, a table, a row. If you can read one you can read the
+other, and that is worth more than any cleverness that would make them differ.
+
+It replaced a list of every driver at the bottom of the load board. That was
+fine at two drivers and unreadable at twenty — a board filters, a wall of names
+cannot.
 Drivers are the two Drive Users from the Millstream GeoTab account (James Smith
 `JSMITH`, Sherman Oaks `SOAKS`). Their names and the company address are real;
 every dollar figure is invented.
@@ -361,6 +379,7 @@ considerably fuller than the payload that created it — worth knowing before
 mistaking a default for a requirement, which is a mistake this project made.
 
 ```
+GET /api/settlements                                   # every settlement, with totals
 GET /api/drivers                                       # drivers who have settlements
 GET /api/drivers/{driverCode}/settlements              # check dates, newest first
 GET /api/drivers/{driverCode}/settlements/{checkDate}  # one full statement

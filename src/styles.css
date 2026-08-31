@@ -310,3 +310,5 @@ button.primary {
   margin-bottom: 6px;
 }
 .board-nav a { display: inline-block; margin: 0 14px 4px 0; }
+
+.stmt-back { display: flex; gap: 14px; }

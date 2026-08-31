@@ -24,7 +24,7 @@ const COMPANY = {
   postalCode: '52001',
 }
 
-export default function Settlement({ driverCode }) {
+export default function Settlement({ driverCode, initialCheckDate }) {
   const [checkDates, setCheckDates] = useState([])
   const [selected, setSelected] = useState('')
   const [statement, setStatement] = useState(null)
@@ -49,7 +49,12 @@ export default function Settlement({ driverCode }) {
         setCheckDates(dates)
         setWaking(false)
         if (dates.length) {
-          setSelected(dates[0].checkDate)
+          // A ?date= from the settlements board wins, so a link lands on the
+          // statement it named. Falling back to the newest matters when the
+          // date is stale or absent: showing a driver the wrong pay period is
+          // worse than ignoring the parameter.
+          const wanted = dates.find((d) => d.checkDate === initialCheckDate)
+          setSelected(wanted ? wanted.checkDate : dates[0].checkDate)
         } else {
           setStatement(null)
           setLoading(false)
@@ -69,7 +74,7 @@ export default function Settlement({ driverCode }) {
     return () => {
       cancelled = true
     }
-  }, [driverCode])
+  }, [driverCode, initialCheckDate])
 
   // Second effect: load the selected statement. Depends on `selected`, so
   // changing the dropdown re-runs it -- this is the case the empty dependency
@@ -111,7 +116,7 @@ export default function Settlement({ driverCode }) {
         </header>
         <div className="error">{error}</div>
         <p>
-          <a href="./">Back to the load board</a>
+          <a href="?view=settlements">Back to the settlements board</a>
         </p>
       </div>
     )
@@ -149,7 +154,10 @@ export default function Settlement({ driverCode }) {
   return (
     <div className="page stmt">
       <div className="stmt-toolbar">
-        <a href="./">← Load board</a>
+        <nav className="stmt-back">
+          <a href="?view=settlements">← Settlements</a>
+          <a href="./">Load board</a>
+        </nav>
         <label>
           Check date
           <select value={selected} onChange={(e) => setSelected(e.target.value)}>
