@@ -39,7 +39,16 @@ param(
     [string]$TimeZoneId = 'America/Chicago',
     [string]$LicenseProvince = 'IA',
 
+    # Hours of service rule set. America8Day is USA Property 70-hour/8-day,
+    # which is what the existing Millstream drivers use. America7Day is the
+    # 60-hour/7-day variant; 'None' means the driver is not logging HOS.
+    [string]$HosRuleSet = 'America8Day',
+
     [switch]$ListGroups,
+
+    # Apply -HosRuleSet to every existing driver and exit, creating nobody.
+    [switch]$ApplyHosRuleSetToAll,
+
     [switch]$WhatIf
 )
 
@@ -89,10 +98,35 @@ function Invoke-Geotab {
 # --- authenticate ----------------------------------------------------------
 Write-Host "Authenticating to $Database ..." -ForegroundColor Cyan
 
-$auth = Invoke-Geotab -ApiServer $Server -Method 'Authenticate' -Params @{
-    userName = $UserName
-    password = $password
-    database = $Database
+$auth = $null
+try {
+    $auth = Invoke-Geotab -ApiServer $Server -Method 'Authenticate' -Params @{
+        userName = $UserName
+        password = $password
+        database = $Database
+    }
+} catch {
+    # "Incorrect login credentials" is returned for a bad password AND for a
+    # database this user cannot see, which makes the two indistinguishable.
+    # Authenticating without a database separates them: Geotab resolves it
+    # itself when the user belongs to exactly one, so success here means the
+    # password was fine all along and only the database name was wrong.
+    Write-Host "  rejected with the database name; retrying without it..." -ForegroundColor DarkGray
+
+    $probe = $null
+    try {
+        $probe = Invoke-Geotab -ApiServer $Server -Method 'Authenticate' -Params @{
+            userName = $UserName
+            password = $password
+        }
+    } catch {
+        Remove-Variable password
+        throw "Geotab rejected $UserName. The password is wrong, or this account signs in through SSO rather than a MyGeotab password. Note the MyGeotab password is its own credential -- it is not your Microsoft account password, even though the username is the same email."
+    }
+
+    Remove-Variable password
+    $actual = $probe.credentials.database
+    throw "The password is correct, but this account is not on a database called '$Database'. Geotab resolved it to '$actual' -- re-run with -Database '$actual' (or set `$env:GEOTAB_DATABASE)."
 }
 Remove-Variable password
 
@@ -129,6 +163,50 @@ $existing = Invoke-Geotab -ApiServer $apiServer -Method 'Get' -Params @{
 $existingNames = @{}
 foreach ($u in $existing) { $existingNames[$u.name.ToLower()] = $true }
 Write-Host "  $($existing.Count) users already in this database" -ForegroundColor DarkGray
+
+# --- optional: fix the HOS rule set on everyone ----------------------------
+if ($ApplyHosRuleSetToAll) {
+    $drivers = $existing | Where-Object { $_.isDriver }
+    Write-Host "Setting hosRuleSet to $HosRuleSet on $($drivers.Count) drivers..." -ForegroundColor Cyan
+
+    $changed = 0
+    foreach ($d in $drivers) {
+        if ($d.hosRuleSet -eq $HosRuleSet) {
+            Write-Host ("  {0,-34} already {1}" -f $d.name, $HosRuleSet) -ForegroundColor DarkGray
+            continue
+        }
+
+        $was = $d.hosRuleSet
+        if (-not $was) { $was = '(unset)' }
+
+        if ($WhatIf) {
+            Write-Host ("  would change {0,-30} {1} -> {2}" -f $d.name, $was, $HosRuleSet)
+            continue
+        }
+
+        # Geotab's Set replaces the whole entity, so send back the object that
+        # came from Get with one property changed. Building a fresh entity with
+        # only hosRuleSet would blank out everything omitted -- groups, licence,
+        # active dates, the lot.
+        $d.hosRuleSet = $HosRuleSet
+        Invoke-Geotab -ApiServer $apiServer -Method 'Set' -Params @{
+            typeName    = 'User'
+            entity      = $d
+            credentials = $credentials
+        } | Out-Null
+
+        Write-Host ("  {0,-34} {1} -> {2}" -f $d.name, $was, $HosRuleSet) -ForegroundColor Green
+        $changed++
+    }
+
+    Write-Host ''
+    if ($WhatIf) {
+        Write-Host 'Nothing was changed (-WhatIf).' -ForegroundColor Yellow
+    } else {
+        Write-Host "Updated $changed driver(s)." -ForegroundColor Green
+    }
+    return
+}
 
 # --- the drivers to create -------------------------------------------------
 # Fixed list rather than random: re-running produces the same people, so the
@@ -181,6 +259,7 @@ for ($i = 0; $i -lt $Count; $i++) {
         licenseNumber   = '5{0:D9}' -f (412255000 + $i)
         licenseProvince = $LicenseProvince
         timeZoneId      = $TimeZoneId
+        hosRuleSet      = $HosRuleSet
 
         # activeTo has to be a real future date. Leave it out and the user is
         # created already expired, which shows up as a driver who cannot log in
