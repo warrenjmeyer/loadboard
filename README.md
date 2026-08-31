@@ -225,10 +225,26 @@ detail.
 `geotab-add-drivers.ps1` adds drivers to a MyGeotab database over the API:
 
 ```
-$env:GEOTAB_DATABASE = 'Millstream'
+$env:GEOTAB_DATABASE = 'demo_millstream'
 $env:GEOTAB_USER     = 'warrenjmeyer@live.com'
 .\geotab-add-drivers.ps1 -Count 10 -WhatIf   # preview
 .\geotab-add-drivers.ps1 -Count 10           # create
+```
+
+The MyGeotab database is **`demo_millstream`**, not `Millstream` — that is the
+company name, and also the Azure SQL database, which makes the two easy to
+confuse. Authenticating against the wrong one reports "Incorrect login
+credentials", which reads like a bad password and is not; the script retries
+without a database name and tells you the one Geotab resolves.
+
+The MyGeotab password is its own credential too. Same email as the Azure
+sign-in, different password.
+
+Drivers are created with `hosRuleSet` `America8Day` — USA Property
+70-hour/8-day. `-ApplyHosRuleSetToAll` sets it on drivers that already exist:
+
+```
+.\geotab-add-drivers.ps1 -Database demo_millstream -ApplyHosRuleSetToAll -WhatIf
 ```
 
 It skips users that already exist, so re-running is safe, and prints a
