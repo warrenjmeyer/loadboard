@@ -289,6 +289,32 @@ the same people with the same trucks. Surplus vehicles are left unassigned. The
 resulting pairing is written to `driver-vehicles.json`, which is what the
 settlement `unit_no` values can be updated from.
 
+### Zones
+
+GeoTab has no notion of an origin and a destination on a load. It has **zones**
+— named polygons — and **routes**, whose stops are references to zones. So the
+lanes in the settlement data become 18 zones, one per city:
+
+```
+.\geotab-add-zones.ps1 -Database demo_millstream -CheckTelematics
+.\geotab-add-zones.ps1 -Database demo_millstream -WhatIf
+.\geotab-add-zones.ps1 -Database demo_millstream
+```
+
+Zones are worth having on their own: arrivals and departures start appearing in
+reports without any route plan. They are also the prerequisite for routes.
+
+The coordinates are **city centres, not docks**. A zone here answers "the truck
+reached Dubuque", not "the truck reached the receiver" — replace them with real
+facility coordinates when you have them.
+
+`-CheckTelematics` reports each vehicle's last known position. If nothing has
+ever reported one, zones are still correct configuration but nothing will be
+recorded against them, and route adherence would have nothing to compare.
+
+Geotab points are `x = longitude, y = latitude`. Swapping them puts Iowa in the
+Indian Ocean.
+
 ### Endpoints
 
 ```
@@ -332,6 +358,7 @@ settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
 settlement_04_fleet2.sql eight more, bringing the fleet to twenty
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
+geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-common.ps1       shared MyGeotab auth and transport
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks
