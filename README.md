@@ -263,11 +263,12 @@ database.
 ### Endpoints
 
 ```
+GET /api/drivers                                       # drivers who have settlements
 GET /api/drivers/{driverCode}/settlements              # check dates, newest first
 GET /api/drivers/{driverCode}/settlements/{checkDate}  # one full statement
 ```
 
-Both bind their parameters. The original interpolated `#url.id#` straight into
+They bind their parameters. The original interpolated `#url.id#` straight into
 the SQL string, which made the driver code executable.
 
 ## VS Code extensions worth having
@@ -298,6 +299,7 @@ loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
 loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
 settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
 settlement_02_data.sql  sample settlements for the two GeoTab drivers
+settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks

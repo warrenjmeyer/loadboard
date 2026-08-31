@@ -23,6 +23,41 @@ const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 // front end never has to guess.
 const money = (v) => (v === null || v === undefined ? 0 : Number(v))
 
+app.http('driverList', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'drivers',
+  handler: async (request, context) => {
+    try {
+      const pool = await getPool()
+
+      // Only drivers who actually have a settlement. A link to an empty
+      // statement is a dead end, and the list exists to be clicked.
+      const result = await pool.request().query(`
+        SELECT d.driver_code, d.first_name, d.last_name,
+               COUNT(s.settlement_id) AS settlement_count
+        FROM dbo.Drivers AS d
+        JOIN dbo.Settlements AS s ON s.driver_code = d.driver_code
+        GROUP BY d.driver_code, d.first_name, d.last_name
+        ORDER BY d.last_name, d.first_name;
+      `)
+
+      return {
+        jsonBody: result.recordset.map((r) => ({
+          driverCode: r.driver_code,
+          firstName: r.first_name,
+          lastName: r.last_name,
+          settlementCount: Number(r.settlement_count),
+        })),
+        headers: { 'Cache-Control': 'no-store' },
+      }
+    } catch (err) {
+      context.error('GET /api/drivers failed:', err)
+      return { status: 500, jsonBody: { error: 'Could not load drivers.' } }
+    }
+  },
+})
+
 app.http('settlementList', {
   methods: ['GET'],
   authLevel: 'anonymous',

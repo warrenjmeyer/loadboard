@@ -29,6 +29,12 @@ export default function App() {
   const [equipment, setEquipment] = useState('All')
   const [availableOnly, setAvailableOnly] = useState(false)
 
+  // Drivers with settlements, for the links at the bottom. Deliberately has no
+  // error state: the board is about loads, and failing to draw a nav is not
+  // worth interrupting that with a red banner. If the call fails the list stays
+  // empty and the section does not render.
+  const [drivers, setDrivers] = useState([])
+
   // useEffect is for things that reach OUTSIDE React: network calls, timers,
   // subscriptions. The [] dependency array means "run this once, after the
   // first render." Change [] to [something] and it re-runs whenever that
@@ -59,6 +65,18 @@ export default function App() {
         setError(err.message)
         setWaking(false)
         setLoading(false)
+      })
+
+    // Second, independent request. Kept in the same effect because it shares
+    // the same `cancelled` flag and the same lifetime; kept as a separate
+    // fetch because the two do not depend on each other, so they should not
+    // wait for each other either.
+    fetchJson('/api/drivers')
+      .then((rows) => {
+        if (!cancelled) setDrivers(rows)
+      })
+      .catch(() => {
+        // Swallowed on purpose. See the comment on the `drivers` state.
       })
 
     // The returned function is the cleanup. React runs it before the effect
@@ -142,11 +160,21 @@ export default function App() {
       <AddLoadForm onAddLoad={handleAddLoad} />
 
       {/* Plain anchors, not buttons: these change the page, and a link is what
-          the browser already knows how to open in a new tab. */}
-      <nav className="board-nav">
-        Driver settlements: <a href="?id=JSMITH">James Smith</a>{' '}
-        <a href="?id=SOAKS">Sherman Oaks</a>
-      </nav>
+          the browser already knows how to open in a new tab.
+
+          The list comes from the API rather than being hardcoded -- there are
+          twelve drivers now, and a hand-maintained list is one that goes stale
+          the first time someone is hired. */}
+      {drivers.length > 0 && (
+        <nav className="board-nav">
+          <div className="board-nav-title">Driver settlements</div>
+          {drivers.map((d) => (
+            <a key={d.driverCode} href={`?id=${d.driverCode}`}>
+              {d.firstName} {d.lastName}
+            </a>
+          ))}
+        </nav>
+      )}
     </div>
   )
 }

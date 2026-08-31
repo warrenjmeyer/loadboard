@@ -303,3 +303,10 @@ button.primary {
   margin: 8px 0 0;
   font-size: 13px;
 }
+
+.board-nav-title {
+  font-weight: 600;
+  color: var(--ink);
+  margin-bottom: 6px;
+}
+.board-nav a { display: inline-block; margin: 0 14px 4px 0; }
