@@ -58,7 +58,7 @@ DECLARE @sid INT;
 -- OTIS VAUGHN -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('OVAUGHN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0301');
+VALUES ('OVAUGHN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0017');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -82,7 +82,7 @@ VALUES
 -- OTIS VAUGHN -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('OVAUGHN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0302');
+VALUES ('OVAUGHN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0017');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -106,7 +106,7 @@ VALUES
 -- PRIYA RAMAN -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('PRAMAN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0303');
+VALUES ('PRAMAN', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0013');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -130,7 +130,7 @@ VALUES
 -- PRIYA RAMAN -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('PRAMAN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0304');
+VALUES ('PRAMAN', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0013');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -152,7 +152,7 @@ VALUES
 -- GUS WHITFIELD -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('GWHITFIELD', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0305');
+VALUES ('GWHITFIELD', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0019');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -172,7 +172,7 @@ VALUES
 -- GUS WHITFIELD -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('GWHITFIELD', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0306');
+VALUES ('GWHITFIELD', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0019');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -197,7 +197,7 @@ VALUES
 -- ALMA CORTEZ -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('ACORTEZ', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0307');
+VALUES ('ACORTEZ', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0003');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -221,7 +221,7 @@ VALUES
 -- ALMA CORTEZ -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('ACORTEZ', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0308');
+VALUES ('ACORTEZ', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0003');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -245,7 +245,7 @@ VALUES
 -- DESMOND FRYE -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('DFRYE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0309');
+VALUES ('DFRYE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0006');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -268,7 +268,7 @@ VALUES
 -- DESMOND FRYE -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('DFRYE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0310');
+VALUES ('DFRYE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0006');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -291,7 +291,7 @@ VALUES
 -- INGRID SOLBERG -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('ISOLBERG', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0311');
+VALUES ('ISOLBERG', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0016');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -315,7 +315,7 @@ VALUES
 -- INGRID SOLBERG -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('ISOLBERG', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0312');
+VALUES ('ISOLBERG', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0016');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -338,7 +338,7 @@ VALUES
 -- TERRELL BOONE -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('TBOONE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0313');
+VALUES ('TBOONE', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0002');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -360,7 +360,7 @@ VALUES
 -- TERRELL BOONE -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('TBOONE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0314');
+VALUES ('TBOONE', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0002');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -382,7 +382,7 @@ VALUES
 -- NADIA PRUITT -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('NPRUITT', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0315');
+VALUES ('NPRUITT', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0012');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -406,7 +406,7 @@ VALUES
 -- NADIA PRUITT -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('NPRUITT', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0316');
+VALUES ('NPRUITT', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0012');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes

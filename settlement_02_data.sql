@@ -50,7 +50,7 @@ DECLARE @sid INT;
 -- JAMES SMITH -- week ending 08/22, paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('JSMITH', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0141');
+VALUES ('JSMITH', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0015');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -77,7 +77,7 @@ VALUES
 -- JAMES SMITH -- week ending 08/15, paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('JSMITH', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0139');
+VALUES ('JSMITH', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0015');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -103,7 +103,7 @@ VALUES
 -- show a flat amount in the rate column instead of dividing by zero.
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('JSMITH', '2026-08-14', '2026-08-02', '2026-08-08', 'CK-260814-0137');
+VALUES ('JSMITH', '2026-08-14', '2026-08-02', '2026-08-08', 'CK-260814-0001');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -126,7 +126,7 @@ VALUES
 -- SHERMAN OAKS -- paid 08/28
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('SOAKS', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0142');
+VALUES ('SOAKS', '2026-08-28', '2026-08-16', '2026-08-22', 'CK-260828-0010');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
@@ -149,7 +149,7 @@ VALUES
 -- SHERMAN OAKS -- paid 08/21
 ------------------------------------------------------------------------------
 INSERT INTO dbo.Settlements (driver_code, check_date, period_start, period_end, document_no)
-VALUES ('SOAKS', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0140');
+VALUES ('SOAKS', '2026-08-21', '2026-08-09', '2026-08-15', 'CK-260821-0010');
 SET @sid = SCOPE_IDENTITY();
 
 INSERT INTO dbo.SettlementRoutes
