@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo } from 'react'
 import LoadFilters from './components/LoadFilters.jsx'
 import LoadTable from './components/LoadTable.jsx'
 import AddLoadForm from './components/AddLoadForm.jsx'
-import { fetchJson, postJson, fetchUser } from './lib/api.js'
+import { fetchJson, postJson } from './lib/api.js'
+import { fetchMe, logout } from './lib/auth.js'
 
 // ---------------------------------------------------------------------------
 // App is the "container" component. It owns the data and the filter settings,
@@ -35,10 +36,10 @@ export default function App({ initialSearch = '' }) {
   // Who is signed in. Kept here rather than in AddLoadForm because it is one
   // answer for the whole page, and asking twice would mean two requests.
   //
-  // Three states, not two: `undefined` until /.auth/me answers, then a
-  // principal or null. Starting at null instead would be a claim we cannot
-  // support yet, and the visible cost is a "Sign in" prompt flashing at
-  // someone who is already signed in.
+  // Three states, not two: `undefined` until /api/me answers, then an account
+  // or null. Starting at null instead would be a claim we cannot support yet,
+  // and the visible cost is a "Sign in" prompt flashing at someone who is
+  // already signed in.
   const [user, setUser] = useState(undefined)
 
   // useEffect is for things that reach OUTSIDE React: network calls, timers,
@@ -83,15 +84,21 @@ export default function App({ initialSearch = '' }) {
   }, [])
 
   // A second effect, not another branch of the first one. They are unrelated
-  // questions with unrelated failure modes: /.auth/me is served by the
-  // platform and answers instantly, while /api/loads goes to a database that
-  // may be asleep. Sharing an effect would make the board wait on the login
-  // check, or the login check wait on the board.
+  // questions: who is signed in, and what freight exists. Sharing an effect
+  // would make the board wait on the identity check, or the identity check
+  // wait on the board -- and the board is the reason people are here.
   useEffect(() => {
     let cancelled = false
-    fetchUser().then((principal) => {
-      if (!cancelled) setUser(principal)
-    })
+    fetchMe()
+      .then((account) => {
+        if (!cancelled) setUser(account)
+      })
+      .catch(() => {
+        // Being unable to ask is the same as not being signed in, as far as
+        // this page is concerned. The board is public either way, and every
+        // route that matters is gated on the server.
+        if (!cancelled) setUser(null)
+      })
     return () => {
       cancelled = true
     }
@@ -208,12 +215,42 @@ export default function App({ initialSearch = '' }) {
         </p>
       )}
 
-      <AddLoadForm onAddLoad={handleAddLoad} user={user} />
+      {/* The server decides this -- identity.can(user, 'addLoad') in the
+          function, which is the only check that matters. Repeating the rule
+          here just means the form is absent rather than present-and-refusing,
+          and if the two ever disagree the server wins and the person sees a
+          403 they did not expect. */}
+      <AddLoadForm
+        onAddLoad={handleAddLoad}
+        user={user}
+        canAdd={Boolean(user) && (user.role === 'dispatcher' || user.role === 'admin')}
+      />
 
       {user && (
         <p className="muted signin-note">
-          Signed in as {user.userDetails} ·{' '}
-          <a href="/.auth/logout?post_logout_redirect_uri=/">Sign out</a>
+          Signed in as {user.displayName || user.email}
+          {user.role !== 'none' && ` · ${user.role}`}
+          {' · '}
+          <button
+            type="button"
+            className="linklike"
+            onClick={async () => {
+              // Ask the server to revoke the session, then reload. Clearing
+              // only the cookie would leave a token that still works for
+              // anyone who copied it.
+              try { await logout() } catch { /* leaving anyway */ }
+              window.location.href = '/'
+            }}
+          >
+            Sign out
+          </button>
+        </p>
+      )}
+
+      {user && user.pendingApproval && (
+        <p className="muted signin-note">
+          Your account is waiting for an administrator to approve it. Until then
+          you can read the board but not change it.
         </p>
       )}
 
@@ -225,6 +262,11 @@ export default function App({ initialSearch = '' }) {
           which a wall of names cannot. */}
       <nav className="board-nav">
         <a href="?view=settlements">Driver settlements →</a>
+        {/* Rendered only when nobody is signed in. `user === undefined` means
+            /api/me has not answered, and offering "sign in" to somebody who
+            already is looks broken. */}
+        {user === null && <a href="?signin=1">Sign in</a>}
+        {user === null && <a href="?register=1">Create an account</a>}
       </nav>
     </div>
   )

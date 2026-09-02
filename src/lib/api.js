@@ -17,6 +17,17 @@
 
 const RETRY_WAITS_MS = [3000, 6000, 10000]
 
+// Fallbacks for when the response carries no {"error": ...} of its own --
+// a platform page rather than one of ours.
+const DEFAULT_MESSAGE = {
+  400: 'That request was not valid.',
+  401: 'Sign in to continue.',
+  403: 'Your account does not have access to that.',
+  404: 'Not found.',
+  409: 'That already exists.',
+  429: 'Too many attempts. Wait a few minutes and try again.',
+}
+
 function fatal(message, status, extra) {
   const err = new Error(message)
   err.fatal = true
@@ -46,28 +57,23 @@ async function request(path, init, { onWaking } = {}) {
     try {
       const res = await fetch(path, init)
 
-      // These four are answers, not failures. Retrying will not make the row
-      // exist, the input valid, or the user signed in, so fail immediately
-      // rather than making someone wait through three delays to be told the
-      // same thing.
-      if (res.status === 404) throw fatal('Not found.', 404)
-      if (res.status === 400) throw fatal(await messageFrom(res, 'That load is not valid.'), 400)
-      if (res.status === 401 || res.status === 403) {
-        throw fatal(await messageFrom(res, 'Sign in to add a load.'), res.status)
-      }
-      if (res.status === 409) {
-        // `attempt > 0` matters. A POST is retried above because the insert is
-        // guarded by the primary key and so is safe to repeat -- but that
-        // means a first attempt which timed out while the database woke may
-        // have landed anyway, and the retry then meets its own row. The
-        // caller is told, because "you picked a duplicate" and "your load
-        // saved after all" need different responses.
-        throw fatal(await messageFrom(res, 'That load number already exists.'), 409, {
-          mayHaveLanded: attempt > 0,
-        })
+      // Any 4xx is an answer, not a failure. Retrying will not make the row
+      // exist, the input valid, the user signed in, or the throttle lift --
+      // and retrying a 429 in particular is the one thing guaranteed to make
+      // it worse, since each attempt extends the window it is counting.
+      if (res.status >= 400 && res.status < 500) {
+        const extra = res.status === 409 ? { mayHaveLanded: attempt > 0 } : undefined
+        // `mayHaveLanded` matters because a POST is retried below: the insert
+        // is guarded by a primary key and so is safe to repeat, but a first
+        // attempt that timed out while the database woke may have landed
+        // anyway, and the retry then meets its own row.
+        throw fatal(await messageFrom(res, DEFAULT_MESSAGE[res.status] || 'That request was refused.'), res.status, extra)
       }
 
-      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      // 5xx falls through to the retry. The server message is carried on the
+      // error anyway, so if the retries run out the caller still gets the
+      // useful sentence rather than "HTTP 503".
+      if (!res.ok) throw new Error(await messageFrom(res, `HTTP ${res.status}`))
 
       // 204 has no body to parse. Nothing returns one today; this is here so
       // that the day something does, it fails as a missing feature rather
@@ -111,33 +117,4 @@ export function postJson(path, body, options) {
     },
     options
   )
-}
-
-// ---------------------------------------------------------------------------
-// Who is signed in, according to Static Web Apps.
-//
-// /.auth/me is served by the platform, not by our function, and it is the
-// only honest source: the browser cannot be trusted to remember, and the
-// cookie it depends on is deliberately unreadable from JavaScript.
-//
-// Returns null when nobody is signed in -- and also in dev, where the auth
-// cookie belongs to the deployed origin and never reaches localhost. That is
-// the same "dev talks to production" seam the API proxy has, and it is why
-// writes are blocked in dev; see vite.config.js.
-// ---------------------------------------------------------------------------
-export async function fetchUser() {
-  try {
-    const res = await fetch('/.auth/me')
-    if (!res.ok) return null
-
-    const type = res.headers.get('content-type') || ''
-    if (!type.includes('application/json')) return null
-
-    const body = await res.json()
-    return body?.clientPrincipal ?? null
-  } catch {
-    // Being unable to ask is the same as not being signed in, as far as the
-    // page is concerned. The POST is gated on the server either way.
-    return null
-  }
 }

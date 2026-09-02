@@ -3,6 +3,7 @@ import { fetchJson } from '../lib/api.js'
 import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
 import EarningsByLoad from '../components/settlement/EarningsByLoad.jsx'
 import LineSection from '../components/settlement/LineSection.jsx'
+import AccessNotice from '../components/AccessNotice.jsx'
 
 // ---------------------------------------------------------------------------
 // The company-driver settlement (pay statement).
@@ -32,6 +33,11 @@ export default function Settlement({ driverCode, initialCheckDate }) {
   const [loading, setLoading] = useState(true)
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
+  // 401, 403 and a genuine failure need three different pages, and only the
+  // status separates them. A driver opening someone else's statement gets 403,
+  // and offering them a sign-in link would send them round a loop that cannot
+  // end -- they are already signed in; that is the whole problem.
+  const [errorStatus, setErrorStatus] = useState(null)
 
   // First effect: which check dates does this driver have? Also picks the most
   // recent one, which is what someone opening their pay statement wants to see.
@@ -67,6 +73,7 @@ export default function Settlement({ driverCode, initialCheckDate }) {
             ? `No settlements found for driver ${driverCode}.`
             : err.message
         )
+        setErrorStatus(err.status ?? null)
         setWaking(false)
         setLoading(false)
       })
@@ -99,6 +106,7 @@ export default function Settlement({ driverCode, initialCheckDate }) {
       .catch((err) => {
         if (cancelled) return
         setError(err.status === 404 ? 'That settlement no longer exists.' : err.message)
+        setErrorStatus(err.status ?? null)
         setWaking(false)
         setLoading(false)
       })
@@ -109,6 +117,13 @@ export default function Settlement({ driverCode, initialCheckDate }) {
   }, [driverCode, selected])
 
   if (error) {
+    // A refusal is its own page, not an error banner inside a statement that
+    // was never loaded. AccessNotice renders the sign-in prompt for a 401 and
+    // a plain "not yours" for a 403.
+    if (errorStatus === 401 || errorStatus === 403) {
+      return <AccessNotice error={error} status={errorStatus} />
+    }
+
     return (
       <div className="page">
         <header>

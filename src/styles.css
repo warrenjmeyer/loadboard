@@ -330,3 +330,62 @@ button.primary {
 .board-nav a { display: inline-block; margin: 0 14px 4px 0; }
 
 .stmt-back { display: flex; gap: 14px; }
+
+
+/* --------------------------------------------------------------------------
+   Sign in, register, set password
+
+   Narrower than the board on purpose. A form is read top to bottom and a line
+   of input stretched across a wide screen is harder to scan, not easier --
+   the same reason a newspaper sets columns rather than running text edge to
+   edge.
+   -------------------------------------------------------------------------- */
+
+.auth-page {
+  max-width: 460px;
+}
+
+.auth-page .add-form {
+  display: flex;
+  flex-direction: column;
+}
+
+/* The auth forms stack; only the load form is a grid. */
+.auth-page .add-form fieldset {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.auth-page .add-form .actions {
+  margin-top: 4px;
+}
+
+.field-error {
+  color: #b3261e;
+  font-size: 13px;
+  margin: -6px 0 0;
+}
+
+.hint {
+  font-size: 13px;
+  margin: 0;
+}
+
+/* A button that reads as a link. It stays a <button> because it performs an
+   action rather than going somewhere -- signing out is a POST that revokes the
+   session server-side, and an <a> would be a lie to anyone using a keyboard or
+   a screen reader. */
+.linklike {
+  background: none;
+  border: none;
+  padding: 0;
+  font: inherit;
+  color: var(--accent);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.linklike:hover {
+  opacity: 0.75;
+}

@@ -23,7 +23,7 @@ const BLANK = {
 // `error` when it comes back refused. Both are local for the same reason the
 // draft is: App has no use for either.
 // ---------------------------------------------------------------------------
-export default function AddLoadForm({ onAddLoad, user }) {
+export default function AddLoadForm({ onAddLoad, user, canAdd }) {
   const [form, setForm] = useState(BLANK)
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -71,22 +71,31 @@ export default function AddLoadForm({ onAddLoad, user }) {
     }
   }
 
-  // `undefined` means /.auth/me has not answered yet. Render nothing rather
+  // `undefined` means /api/me has not answered yet. Render nothing rather
   // than guess: both guesses are wrong half the time, and either one flickers
   // into the other a moment later.
   if (user === undefined) return null
 
-  // The POST is gated on the server (staticwebapp.config.json and a check
-  // inside the function), so this is not the security boundary -- it is the
-  // difference between a form that refuses you after you have filled it in
-  // and one that tells you up front.
+  // The POST is gated inside the function itself, so none of this is the
+  // security boundary -- it is the difference between a form that refuses you
+  // after you have filled it in and one that tells you up front.
   if (!user) {
     return (
       <p className="muted signin-note">
-        <a className="signin" href="/.auth/login/github?post_login_redirect_uri=/">
-          Sign in with GitHub
-        </a>{' '}
-        to add a load.
+        <a className="signin" href="?signin=1">Sign in</a> to add a load.
+      </p>
+    )
+  }
+
+  // Signed in, but not allowed. Saying which of the two it is matters: an
+  // account waiting for approval is a queue, and an account with the wrong
+  // role is a decision. They call for different next steps.
+  if (!canAdd) {
+    return (
+      <p className="muted signin-note">
+        {user.pendingApproval
+          ? 'Your account is waiting for approval before you can add loads.'
+          : 'Your account does not have permission to add loads.'}
       </p>
     )
   }

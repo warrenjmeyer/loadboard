@@ -3,6 +3,7 @@ import { fetchJson } from '../lib/api.js'
 import { formatMoney, formatMiles } from '../lib/format.js'
 import SettlementFilters from '../components/SettlementFilters.jsx'
 import SettlementTable from '../components/SettlementTable.jsx'
+import AccessNotice from '../components/AccessNotice.jsx'
 
 // ---------------------------------------------------------------------------
 // The settlements board: every settlement across the fleet, filterable.
@@ -19,6 +20,9 @@ export default function Settlements() {
   const [loading, setLoading] = useState(true)
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
+  // Kept beside the message because 401, 403 and "the database fell over" are
+  // three different things to say, and only the status tells them apart.
+  const [errorStatus, setErrorStatus] = useState(null)
 
   const [search, setSearch] = useState('')
   const [payDate, setPayDate] = useState('All')
@@ -39,6 +43,7 @@ export default function Settlements() {
       .catch((err) => {
         if (cancelled) return
         setError(err.message)
+        setErrorStatus(err.status ?? null)
         setWaking(false)
         setLoading(false)
       })
@@ -88,7 +93,7 @@ export default function Settlements() {
         </p>
       </header>
 
-      {error && <div className="error">Could not load data: {error}</div>}
+      {error && <AccessNotice error={error} status={errorStatus} />}
 
       <SettlementFilters
         search={search}
