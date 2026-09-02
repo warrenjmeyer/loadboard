@@ -149,4 +149,12 @@ test('email addresses are normalised, and junk is rejected', () => {
   for (const bad of ['no-at-sign', 'a@b', 'a b@c.com', '@b.com', 'a@', '', null, 42, 'a@b..com']) {
     assert.strictEqual(auth.normaliseEmail(bad), null, `should reject ${JSON.stringify(bad)}`)
   }
+
+  // A one-character final segment. CK_Users_EmailShape in the database
+  // (Email LIKE '%_@_%.__%') requires two, so accepting it here would turn a
+  // 400 naming the field into a 500 from a failed INSERT. Whichever of the two
+  // rules is looser has to be the database's.
+  assert.strictEqual(auth.normaliseEmail('a@b.c'), null)
+  assert.strictEqual(auth.normaliseEmail('a@b.co'), 'a@b.co')
+  assert.strictEqual(auth.normaliseEmail('warren@example.co.uk'), 'warren@example.co.uk')
 })

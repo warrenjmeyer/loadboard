@@ -245,7 +245,13 @@ function normaliseEmail(value) {
   // address the mail system cannot reach is not one worth storing, and the
   // registration link would go nowhere.
   if (email.length < 3 || email.length > 254) return null
-  if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) return null
+
+  // The final segment must be at least two characters, because
+  // CK_Users_EmailShape in the database says so: Email LIKE '%_@_%.__%'.
+  // Anything this accepts and the constraint rejects arrives as a 500 from a
+  // failed INSERT instead of a 400 naming the field -- so the looser of the
+  // two rules has to be the database's, never this one.
+  if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/.test(email)) return null
   return email
 }
 

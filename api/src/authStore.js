@@ -27,6 +27,19 @@ const { hashToken, mintToken, PASSWORD_ALGORITHM, SESSION_MAX_AGE_S } = require(
 // too short to be worth attacking -- and single-use regardless.
 const TOKEN_TTL_MINUTES = 60
 
+// The only three values CK_SecurityTokens_Purpose permits. They are the
+// schema's vocabulary, not ours, and inventing a fourth ('register', say) is a
+// constraint violation surfacing as a 500 -- which is how this was found.
+//
+// Registration uses EmailVerify rather than a purpose of its own, and that is
+// the honest name for it: the link proves the address, and setting the first
+// password is what the person does once it has. EmailChange is unused so far.
+const PURPOSE = {
+  VERIFY: 'EmailVerify',
+  RESET: 'PasswordReset',
+  EMAIL_CHANGE: 'EmailChange',
+}
+
 // ---------------------------------------------------------------------------
 // Users
 // ---------------------------------------------------------------------------
@@ -88,6 +101,15 @@ async function createUser(email, emailNormalized, displayName) {
 // Hence the explicit transaction. Without it, a failure between the UPDATE and
 // the INSERT leaves an account with no current password -- which the LEFT JOIN
 // above reports as "never set one", and the person can no longer log in.
+//
+// The order is also forced, not merely tidy. UX_UserPasswords_OneCurrent is a
+// UNIQUE index on UserId filtered to IsCurrent = 1, so the database itself
+// guarantees at most one current password per account -- and inserting the new
+// row before retiring the old one violates it. Retire first, then insert.
+//
+// CK_UserPasswords_Retired pairs the two columns the other way: IsCurrent = 0
+// requires a RetiredUtc, and IsCurrent = 1 requires none. So a retired row
+// must be given its timestamp in the same statement that retires it.
 // ---------------------------------------------------------------------------
 async function setPassword(userId, passwordHash, algorithm = PASSWORD_ALGORITHM) {
   const pool = await getPool()
@@ -394,5 +416,6 @@ module.exports = {
   hitRateLimit,
   rateLimitCount,
   logEvent,
+  PURPOSE,
   TOKEN_TTL_MINUTES,
 }
