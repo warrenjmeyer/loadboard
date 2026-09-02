@@ -95,7 +95,8 @@ async function main() {
   await makePerson('none')
   await makePerson('driver', MINE)
   await makePerson('dispatcher')
-  ok('created a pending, a driver and a dispatcher')
+  await makePerson('admin')
+  ok('created a pending, a driver, a dispatcher and an admin')
 
   // --- GET /api/loads stays public ----------------------------------------
   let r = await handlers.loads(req(), ctx)
@@ -146,6 +147,26 @@ async function main() {
   assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
   assert.ok(Array.isArray(r.jsonBody))
   ok(`a dispatcher sees the settlements board (${r.jsonBody.length} rows)`)
+
+  // Admin was untested until 2026-09-02. It is the role Warren actually holds,
+  // which makes it the one role where being wrong is guaranteed to be noticed.
+  r = await handlers.settlementBoard(req({ cookie: people.admin.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(Array.isArray(r.jsonBody) && r.jsonBody.length > 0)
+  ok(`an ADMIN sees the settlements board (${r.jsonBody.length} rows)`)
+
+  r = await handlers.driverList(req({ cookie: people.admin.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(Array.isArray(r.jsonBody) && r.jsonBody.length > 0)
+  ok(`an ADMIN sees the driver list (${r.jsonBody.length} drivers)`)
+
+  r = await handlers.settlementList(req({ cookie: people.admin.cookie, params: { driverCode: THEIRS } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  ok(`an ADMIN can open any driver's statements (${THEIRS})`)
+
+  r = await handlers.loads(req({ method: 'POST', body: { ...newLoad, id: TEST_LOAD_ID + 'A' }, cookie: people.admin.cookie }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  ok('an ADMIN can add a load')
 
   // --- one driver's statement ---------------------------------------------
   const listReq = (cookie, code) => req({ cookie, params: { driverCode: code } })
@@ -210,7 +231,7 @@ async function cleanup() {
   const ids = Object.values(people).map((p) => p.userId).filter(Boolean)
 
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
-    .query('DELETE FROM dbo.Loads WHERE id = @id;')
+    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A';")
 
   for (const id of ids) {
     await pool.request().input('u', sql.Int, id).input('ip', sql.VarChar(45), IP).query(`
