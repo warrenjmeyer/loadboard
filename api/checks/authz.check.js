@@ -18,15 +18,24 @@ const { app } = require('@azure/functions')
 // otherwise defined inline -- and it means settlements.js needs no edit purely
 // to be testable.
 const handlers = {}
-const realHttp = app.http.bind(app)
-app.http = (name, opts) => { handlers[name] = opts.handler }
-require('./loads')
-require('./settlements')
-app.http = realHttp
 
-const { getPool, sql } = require('../db')
-const auth = require('../auth')
-const store = require('../authStore')
+// Deliberately NOT at module scope. Replacing app.http is exactly what broke
+// production when this file was loaded as a function, so it happens inside a
+// call that only the direct-execution path makes.
+function captureHandlers() {
+  const realHttp = app.http.bind(app)
+  app.http = (name, opts) => { handlers[name] = opts.handler }
+  try {
+    require('../src/functions/loads')
+    require('../src/functions/settlements')
+  } finally {
+    app.http = realHttp
+  }
+}
+
+const { getPool, sql } = require('../src/db')
+const auth = require('../src/auth')
+const store = require('../src/authStore')
 
 const IP = '203.0.113.199'
 const PASSWORD = 'a long enough passphrase for authz'
@@ -71,6 +80,7 @@ async function makePerson(role, driverCode) {
 
 async function main() {
   assert.ok(auth.isPepperConfigured(), 'AUTH_PEPPER must be set')
+  captureHandlers()
   await getPool()
 
   // A real driver code, because auth.Users.DriverCode has a foreign key to
@@ -220,10 +230,28 @@ async function cleanup() {
   console.log(`\ncleanup  test users left: ${left.recordset[0].users}, test loads left: ${left.recordset[0].loads}`)
 }
 
-main()
-  .then(async () => { await cleanup(); console.log(`\nALL PASS (${passed} checks)`); process.exit(0) })
-  .catch(async (err) => {
-    console.error(`\nFAILED: ${err.message}`)
-    try { await cleanup() } catch (e) { console.error(`cleanup also failed: ${e.message}`) }
-    process.exit(1)
-  })
+// ---------------------------------------------------------------------------
+// Only run when executed directly, never when required.
+//
+// This guard exists because its absence took the production API down. These
+// files used to live in api/src/functions/, which package.json globs as
+// "src/functions/*.js" -- so Azure loaded them as if they were functions, ran
+// main() against the live database, and called process.exit() inside the
+// Functions host. authz.check.js additionally replaces app.http to capture
+// handlers rather than register them, and it sorts before loads.js, so
+// /api/loads and every settlement route were swallowed and never registered.
+//
+// Moving them out of that folder is the real fix. This is the belt to its
+// braces: even if something requires this file, nothing happens.
+// ---------------------------------------------------------------------------
+if (require.main !== module) {
+  module.exports = { main, cleanup }
+} else {
+  main()
+    .then(async () => { await cleanup(); console.log(`\nALL PASS (${passed} checks)`); process.exit(0) })
+    .catch(async (err) => {
+      console.error(`\nFAILED: ${err.message}`)
+      try { await cleanup() } catch (e) { console.error(`cleanup also failed: ${e.message}`) }
+      process.exit(1)
+    })
+}

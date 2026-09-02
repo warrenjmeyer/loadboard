@@ -13,10 +13,10 @@
 // ---------------------------------------------------------------------------
 const assert = require('node:assert')
 const crypto = require('node:crypto')
-const { getPool, sql } = require('../db')
-const auth = require('../auth')
-const store = require('../authStore')
-const { handleLogin, handleLogout, handleMe } = require('./session')
+const { getPool, sql } = require('../src/db')
+const auth = require('../src/auth')
+const store = require('../src/authStore')
+const { handleLogin, handleLogout, handleMe } = require('../src/functions/session')
 
 const EMAIL = `claude-check-${crypto.randomUUID()}@example.invalid`
 const IP = '203.0.113.199'
@@ -189,10 +189,28 @@ async function cleanup() {
   console.log(`\ncleanup  removed test user ${userId} (rows remaining: ${left.recordset[0].n})`)
 }
 
-main()
-  .then(async () => { await cleanup(); console.log(`\nALL PASS (${passed} checks)`); process.exit(0) })
-  .catch(async (err) => {
-    console.error(`\nFAILED: ${err.message}`)
-    try { await cleanup() } catch (e) { console.error(`cleanup also failed: ${e.message}`) }
-    process.exit(1)
-  })
+// ---------------------------------------------------------------------------
+// Only run when executed directly, never when required.
+//
+// This guard exists because its absence took the production API down. These
+// files used to live in api/src/functions/, which package.json globs as
+// "src/functions/*.js" -- so Azure loaded them as if they were functions, ran
+// main() against the live database, and called process.exit() inside the
+// Functions host. authz.check.js additionally replaces app.http to capture
+// handlers rather than register them, and it sorts before loads.js, so
+// /api/loads and every settlement route were swallowed and never registered.
+//
+// Moving them out of that folder is the real fix. This is the belt to its
+// braces: even if something requires this file, nothing happens.
+// ---------------------------------------------------------------------------
+if (require.main !== module) {
+  module.exports = { main, cleanup }
+} else {
+  main()
+    .then(async () => { await cleanup(); console.log(`\nALL PASS (${passed} checks)`); process.exit(0) })
+    .catch(async (err) => {
+      console.error(`\nFAILED: ${err.message}`)
+      try { await cleanup() } catch (e) { console.error(`cleanup also failed: ${e.message}`) }
+      process.exit(1)
+    })
+}
