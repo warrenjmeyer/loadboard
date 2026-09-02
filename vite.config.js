@@ -14,11 +14,57 @@ import react from '@vitejs/plugin-react'
 // Where the dev server sends /api. Defaults to the deployed app; point
 // VITE_API_TARGET at http://localhost:7071 to use a local Functions host
 // instead, with no code change.
-const apiTarget =
-  process.env.VITE_API_TARGET || 'https://wonderful-tree-0a929e80f.7.azurestaticapps.net'
+const explicitTarget = process.env.VITE_API_TARGET
+const apiTarget = explicitTarget || 'https://wonderful-tree-0a929e80f.7.azurestaticapps.net'
+
+// ---------------------------------------------------------------------------
+// The dev server will not write to production.
+//
+// Reading the live database from a laptop is fine, and this repo has done it
+// from the start. Writing to it is not: `npm run dev` proxies /api to the
+// deployed app, so the first time you test the add form, the test load is a
+// real row on the real board, added by a browser nobody deployed.
+//
+// So non-GET requests through the proxy are refused here, before they leave
+// the machine -- unless VITE_API_TARGET was set explicitly, which is the
+// deliberate act that says "I know where this is going." Point it at a local
+// Functions host and writes work; point it at the deployed URL by hand and
+// they work too, because at that point you have said so out loud.
+//
+// To exercise writes against real infrastructure without this, open a pull
+// request: Static Web Apps builds it a preview environment on its own URL,
+// and tearing that down is closing the PR.
+// ---------------------------------------------------------------------------
+function refuseDevWrites() {
+  return {
+    name: 'refuse-dev-writes',
+
+    // configureServer WITHOUT returning a function installs this ahead of
+    // Vite's internal middlewares -- the proxy among them. Return a function
+    // instead and it runs after, which here would mean after the request had
+    // already been sent to Azure.
+    configureServer(server) {
+      server.middlewares.use((req, res, next) => {
+        const isApi = req.url === '/api' || req.url.startsWith('/api/')
+        const isRead = req.method === 'GET' || req.method === 'HEAD'
+        if (explicitTarget || !isApi || isRead) return next()
+
+        res.statusCode = 403
+        res.setHeader('Content-Type', 'application/json')
+        res.end(
+          JSON.stringify({
+            error:
+              `The dev server refuses to ${req.method} to the deployed API. ` +
+              'Set VITE_API_TARGET to say where writes should go, or test them on a PR preview.',
+          })
+        )
+      })
+    },
+  }
+}
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), refuseDevWrites()],
   base: './',
 
   // Dev-only. Vite serves the front end but has no /api of its own, so an
@@ -37,6 +83,22 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
+        target: apiTarget,
+        changeOrigin: true,
+      },
+
+      // /.auth is served by Static Web Apps itself, not by our function, so
+      // it needs proxying for the same reason /api does -- otherwise
+      // /.auth/me returns the SPA fallback and the page cannot tell whether
+      // anyone is signed in.
+      //
+      // Proxying it does not sign you in on localhost, and cannot: the auth
+      // cookie belongs to the deployed origin and is never sent to a
+      // different host. So dev shows you as signed out, always. That is the
+      // same seam as the API proxy -- dev is pointed at production and only
+      // production knows who you are -- and it is the other half of why
+      // writes are refused above.
+      '/.auth': {
         target: apiTarget,
         changeOrigin: true,
       },

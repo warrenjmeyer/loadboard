@@ -1,4 +1,11 @@
 {
+  "routes": [
+    {
+      "route": "/api/loads",
+      "methods": ["POST"],
+      "allowedRoles": ["authenticated"]
+    }
+  ],
   "navigationFallback": {
     "rewrite": "/index.html",
     "exclude": ["/assets/*", "/api/*"]

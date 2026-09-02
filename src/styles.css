@@ -145,6 +145,24 @@ button.primary {
 
 .actions { display: flex; gap: 10px; }
 
+/* A fieldset is the shortest way to disable a whole form at once, but it
+   arrives with a groove border, its own margins and a min-width that breaks
+   grid children. Strip all of it -- the element is here for the disabling,
+   not for the look. */
+.add-form fieldset {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+
+.add-form fieldset:disabled { opacity: 0.6; }
+.add-form fieldset:disabled button { cursor: progress; }
+
+.add-form .error { margin-bottom: 16px; }
+
+.signin-note { font-size: 14px; margin: 0; }
+
 /* --------------------------------------------------------------------------
    Settlement (pay statement)
 

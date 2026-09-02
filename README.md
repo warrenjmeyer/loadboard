@@ -27,10 +27,18 @@ to install.
 
 Two consequences worth holding onto:
 
-- **Dev reads the production database.** There is one `dbo.Loads` and your dev
-  session is querying it. That is fine while the API is read-only, which it is
-  today. Revisit it before you add a POST route, or you will be writing to live
-  data from your laptop.
+- **Dev reads the production database, and refuses to write to it.** There is
+  one `dbo.Loads` and your dev session is querying it. Reading it is fine.
+  Writing it from a laptop is not, so the dev server answers any non-`GET`
+  request to `/api` with a **403** of its own, before it leaves the machine —
+  see `refuseDevWrites` in `vite.config.js`. Setting `VITE_API_TARGET` lifts
+  the block, because setting it is the deliberate act of saying where writes
+  should go.
+- **Dev always shows you signed out.** `/.auth` is proxied too, so `/.auth/me`
+  returns real JSON rather than the app shell — but the auth cookie belongs to
+  the deployed origin and is never sent to `localhost`. Only production knows
+  who you are. To exercise the add form for real, open a pull request and use
+  the preview environment it builds.
 - **Config changes need a restart.** Vite does not hot-reload `vite.config.js`.
   If `/api` suddenly returns the app shell instead of JSON, your dev server
   predates the proxy — stop it and start it again.
@@ -152,15 +160,62 @@ instead. That opens the network port to any Azure resource — every connection
 still needs the `sqlmillstream` login. The properly locked-down answer is a
 private endpoint, which requires the Standard SWA plan.
 
-### Writes still do not persist
+### Adding a load
 
-`AddLoadForm` adds rows to React state in the browser only; there is no POST
-handler yet, so a refresh loses them. The shape to copy is already in
-`loads.js` — add an `app.http` route with `methods: ['POST']`, take the pool
-the same way, and use a parameterised `pool.request().input(...)` query.
-**Never** interpolate values into the SQL string. That route is also where the
-`auth` schema in `Millstream` finally earns its keep, because at that point
-you need to know who is adding the load.
+`POST /api/loads` inserts the row and returns it. `AddLoadForm` waits for that
+answer before touching the board, so what is on screen is what is in the table
+— no optimistic row that might not be real.
+
+**Every value is parameterised.** `pool.request().input('origin', sql.NVarChar(100), …)`
+sends the value as data, never as SQL. Building that string by interpolation
+instead is the whole of SQL injection; a destination of `x'); DROP TABLE
+dbo.Loads; --` is an ordinary thing for a text input to contain.
+
+Three things the route decides rather than accepts:
+
+- **`status` is hard-coded** to `Available`. A load that has just been created
+  is available by definition, and taking the value from the client would let a
+  POST claim `Delivered` with no driver — which `CK_Loads_delivered` rejects as
+  a 500 instead of an answer.
+- **Validation mirrors the constraints** (`CK_Loads_miles`, `CK_Loads_rate`,
+  the column widths) so a bad field comes back as a 400 naming it, not a 500
+  carrying a constraint name. The table is still the backstop.
+- **A duplicate id is a 409**, not an error. `IF EXISTS … THROW 50409` and
+  `PK_Loads` underneath it land in the same handler, so two simultaneous posts
+  of one id give one 201 and one 409 — never two rows.
+
+### Who is allowed to add one
+
+The board is public. The POST is not: `staticwebapp.config.json` carries a
+route rule requiring an authenticated user for `POST /api/loads`, and the
+function reads the `x-ms-client-principal` header Static Web Apps injects. That
+header cannot be forged from outside — SWA strips any a client sends — but it
+is also absent if you run the Functions host directly, which is why the gate is
+both a route rule and a check in code.
+
+This uses SWA's **built-in GitHub login**, which needs no configuration and no
+schema: `/.auth/login/github` in, `/.auth/logout` out, `/.auth/me` to ask. The
+`auth` schema in `Millstream` is still there for a real driver login later —
+this was the cheaper way to stop leaving an unauthenticated write open on a
+public URL.
+
+Attribution is **logged, not stored**: `dbo.Loads` has no `created_by` column,
+and adding one is DDL against Millstream. `context.log` answers "who added
+this" today; the column is a small migration away when the board should show it.
+
+### Retrying a POST
+
+Normally the thing you must not do — repeat it and you get two of whatever it
+created. It is safe here for one reason: the load number is chosen by the
+caller and is the primary key, so a second insert of the same body cannot make
+a second row.
+
+That matters because of the sleeping database. A POST that times out during a
+30–60s wake-up may have written the row anyway, and the retry then meets it as
+a 409. `src/lib/api.js` flags that case (`mayHaveLanded`), and `App.jsx`
+re-reads the board to settle it: if the load is there, the save worked, and
+saying otherwise would send someone hunting a problem that does not exist.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you
@@ -426,12 +481,12 @@ src/components/
   LoadFilters.jsx       controlled inputs, no state of its own
   LoadTable.jsx         renders a list, handles the empty case
   LoadRow.jsx           pure presentation
-  AddLoadForm.jsx       owns local form state, reports up via callback
-public/staticwebapp.config.json   routing, SPA fallback, /api passthrough
-api/src/functions/loads.js        GET /api/loads — reads dbo.Loads live
+  AddLoadForm.jsx       owns local form state, posts it, reports up
+public/staticwebapp.config.json   routing, SPA fallback, and the login gate
+api/src/functions/loads.js        GET and POST /api/loads, against dbo.Loads
 api/package.json        the Function App's own dependencies (mssql)
 .github/workflows/      builds and deploys on push to main
-vite.config.js          dev server config — proxies /api to the deployed app
+vite.config.js          dev server config — proxies /api, refuses dev writes
 swa-cli.config.json     for `swa start`; unused until Core Tools is installed
 loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
 loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
@@ -446,7 +501,7 @@ geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
 src/pages/Settlement.jsx          the pay statement
 src/components/settlement/        its load table and adjustment blocks
-src/lib/api.js          fetchJson — the retry that survives a cold database
+src/lib/api.js          fetchJson / postJson / fetchUser — and the cold-start retry
 src/lib/format.js       money, miles and date formatting in one place
 ```
 
