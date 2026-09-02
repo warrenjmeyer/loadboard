@@ -79,16 +79,41 @@ test('tokens are random, url-safe, and stored only as a hash', () => {
   // Safe in a URL with no escaping -- these travel in an emailed link.
   assert.strictEqual(token, encodeURIComponent(token))
 
-  // What goes in the database is not what goes in the email.
-  assert.notStrictEqual(token, lookup)
-  assert.strictEqual(auth.hashToken(token), lookup)
-  assert.match(lookup, /^[0-9a-f]{64}$/)
+  // What goes in the database is not what goes in the email, and it is a
+  // Buffer because SecurityTokens.TokenHash and Sessions.TokenHash are
+  // binary(32).
+  assert.ok(Buffer.isBuffer(lookup))
+  assert.strictEqual(lookup.length, 32)
+  assert.ok(lookup.equals(auth.hashToken(token)))
+  assert.ok(!lookup.equals(Buffer.from(token)))
 
   // Distinct every time. The 2023 original derived this from the clock, so
   // whoever asked for the reset could compute it.
   const seen = new Set()
   for (let i = 0; i < 500; i++) seen.add(auth.mintToken().token)
   assert.strictEqual(seen.size, 500)
+
+  // And distinct hashes, not just distinct tokens.
+  const hashes = new Set()
+  for (let i = 0; i < 500; i++) hashes.add(auth.mintToken().lookup.toString('hex'))
+  assert.strictEqual(hashes.size, 500)
+})
+
+test('an algorithm we do not implement is refused, not guessed at', async () => {
+  const stored = await auth.hashPassword('correct horse battery staple')
+
+  // The row already in auth.UserPasswords is bcrypt. Feeding its hash to the
+  // scrypt parser would fail anyway, but the refusal must be deliberate --
+  // relying on a parse failure is relying on an accident.
+  assert.strictEqual(
+    await auth.verifyPassword('correct horse battery staple', stored, 'bcrypt'),
+    false
+  )
+  assert.strictEqual(await auth.verifyPassword('x', '$2b$12$' + 'a'.repeat(53), 'bcrypt'), false)
+
+  // The default is our own algorithm, so existing callers are unaffected.
+  assert.strictEqual(auth.PASSWORD_ALGORITHM, 'scrypt')
+  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored), true)
 })
 
 test('the session cookie carries every flag that matters', () => {

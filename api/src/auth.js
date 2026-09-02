@@ -37,6 +37,16 @@ const scrypt = promisify(crypto.scrypt)
 // needsRehash().
 const SCRYPT = { N: 65536, r: 8, p: 2, keylen: 32, saltBytes: 16 }
 
+// Goes into auth.UserPasswords.Algorithm on every row this code writes.
+//
+// That column is why the one bcrypt password already in the table is a choice
+// rather than a problem: two algorithms can coexist while a migration runs.
+// We do not implement bcrypt -- one account does not justify a dependency, and
+// every candidate is either a native module that can fail the CI build or a
+// pure-JS reimplementation to be trusted -- so verifyPassword refuses any
+// algorithm it does not know instead of guessing at the format.
+const PASSWORD_ALGORITHM = 'scrypt'
+
 // Node caps scrypt's memory at 32 MB by default and throws above it. The real
 // requirement is 128 * N * r, which for the settings above is 64 MB, so the
 // default would reject every hash we ask for. Doubling it leaves headroom to
@@ -93,13 +103,20 @@ function parseStored(stored) {
   return { params: { ...params, keylen: hashBuf.length }, salt: saltBuf, hash: hashBuf }
 }
 
-async function verifyPassword(password, stored) {
+async function verifyPassword(password, stored, algorithm = PASSWORD_ALGORITHM) {
+  // auth.UserPasswords records the algorithm beside the hash, so this does not
+  // have to be inferred from the shape of the string. Anything we do not
+  // implement is refused outright rather than guessed at -- a bcrypt hash fed
+  // to the scrypt parser would simply fail to parse, but relying on that is
+  // relying on an accident.
+  if (algorithm !== PASSWORD_ALGORITHM) return false
+
   const parsed = parseStored(stored)
 
-  // An unparseable stored value means a row this code did not write -- the
-  // SHA-512 or plaintext the ColdFusion original left behind, most likely.
-  // Refuse it. Those credentials are not honoured even once: the old login
-  // accepted plaintext, so any of them may already be known.
+  // An unparseable stored value means a row this code did not write. Refuse
+  // it rather than reaching for a fallback: the ColdFusion original's login
+  // had exactly that fallback -- "or the password matches in plaintext" -- and
+  // it is the reason none of those credentials can be trusted.
   if (!parsed) return false
 
   if (typeof password !== 'string' || password.length === 0) return false
@@ -145,8 +162,15 @@ function mintToken() {
   return { token, lookup: hashToken(token) }
 }
 
+// Returns a Buffer, not hex, because auth.SecurityTokens.TokenHash and
+// auth.Sessions.TokenHash are binary(32) -- half the storage of hex, and it
+// removes the question of whether the column is upper or lower case, which is
+// the kind of mismatch that makes a lookup silently return nothing.
+//
+// mssql maps a Buffer to VarBinary directly, so this goes into a parameter
+// with no conversion at either end.
 function hashToken(token) {
-  return crypto.createHash('sha256').update(token, 'utf8').digest('hex')
+  return crypto.createHash('sha256').update(token, 'utf8').digest()
 }
 
 // ---------------------------------------------------------------------------
@@ -215,6 +239,11 @@ function normaliseEmail(value) {
   // treats it that way, and matching their behaviour beats matching the RFC.
   const email = value.trim().toLowerCase()
 
+  // 254 is the longest address that can actually be delivered. The column is
+  // NVARCHAR(320) -- the theoretical maximum, 64 for the local part plus 255
+  // for the domain -- so this is stricter than the schema on purpose: an
+  // address the mail system cannot reach is not one worth storing, and the
+  // registration link would go nowhere.
   if (email.length < 3 || email.length > 254) return null
   if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)+$/.test(email)) return null
   return email
@@ -230,6 +259,7 @@ module.exports = {
   clearSessionCookie,
   readSessionToken,
   normaliseEmail,
+  PASSWORD_ALGORITHM,
   SESSION_COOKIE,
   SESSION_MAX_AGE_S,
 }
