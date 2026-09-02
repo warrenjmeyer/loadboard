@@ -188,27 +188,48 @@ const SESSION_COOKIE = 'lb_session'
 // the same thing in both apps even though the cookies are separate.
 const SESSION_MAX_AGE_S = 480 * 60
 
+// Returned as an OBJECT, not a Set-Cookie string.
+//
+// This is the shape @azure/functions v4 defines as `Cookie`, and passing
+// anything else is why the deployed login sent no Set-Cookie header at all:
+// the runtime serialises these fields itself and silently discards a raw
+// string. Login answered 200 with a user, wrote a session row, and handed the
+// browser nothing -- so every later request fell back to whatever other
+// identity was lying around and arrived with no role.
+//
+// The lesson is that `cookies` is a typed field, not a header escape hatch.
 function sessionCookie(token, maxAgeSeconds = SESSION_MAX_AGE_S) {
-  return [
-    `${SESSION_COOKIE}=${token}`,
-    'Path=/',
+  return {
+    name: SESSION_COOKIE,
+    value: token,
+    path: '/',
     // HttpOnly: JavaScript cannot read it, so an XSS bug cannot steal the
     // session. The single most valuable flag here.
-    'HttpOnly',
+    httpOnly: true,
     // Secure: never sent over plain HTTP. Static Web Apps is HTTPS-only.
-    'Secure',
+    secure: true,
     // Lax, not Strict. Strict drops the cookie on the first navigation in from
     // an emailed link, which is how people arrive. Lax still refuses to send
     // it on a cross-site POST, which is the case CSRF needs.
-    'SameSite=Lax',
-    `Max-Age=${maxAgeSeconds}`,
-  ].join('; ')
+    sameSite: 'Lax',
+    maxAge: maxAgeSeconds,
+  }
 }
 
-// Max-Age=0 with an empty value. Expiring a cookie is the only way to delete
-// one; there is no delete.
+// maxAge 0 expires it immediately. Expiring a cookie is the only way to delete
+// one; there is no delete. Every other attribute must match the cookie being
+// replaced, or the browser treats it as a different cookie and leaves the
+// original in place.
 function clearSessionCookie() {
-  return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
+  return {
+    name: SESSION_COOKIE,
+    value: '',
+    path: '/',
+    httpOnly: true,
+    secure: true,
+    sameSite: 'Lax',
+    maxAge: 0,
+  }
 }
 
 function readSessionToken(request) {

@@ -48,7 +48,16 @@ export default function Settlements() {
         setLoading(false)
       })
 
-    return () => {
+    // A refusal replaces the page rather than appearing inside it. Rendering it
+  // inline left "Not available to your account" sandwiched between the header
+  // and a filter bar over an empty table, which reads as a broken page rather
+  // than an answer -- and still showed "0 of 0 settlements" as if the number
+  // were real.
+  if (error && (errorStatus === 401 || errorStatus === 403)) {
+    return <AccessNotice error={error} status={errorStatus} />
+  }
+
+  return () => {
       cancelled = true
     }
   }, [])
@@ -92,6 +101,8 @@ export default function Settlements() {
           {!loading && totalPaid > 0 && ` · ${formatMoney(totalPaid)} · ${formatMiles(totalMiles)} mi`}
         </p>
       </header>
+
+
 
       {error && <AccessNotice error={error} status={errorStatus} />}
 

@@ -51,8 +51,10 @@ const ctx = { error: (...a) => console.log('    [ctx.error]', ...a), log: () => 
 // Pull the session token back out of a Set-Cookie string.
 function cookieToken(result) {
   assert.ok(Array.isArray(result.cookies) && result.cookies.length, 'expected a cookie')
-  const m = /lb_session=([^;]*)/.exec(result.cookies[0])
-  return m ? m[1] : null
+  const c = result.cookies[0]
+  assert.strictEqual(typeof c, 'object', 'cookies must be Cookie objects, not strings')
+  assert.strictEqual(c.name, 'lb_session')
+  return c.value
 }
 
 async function main() {
@@ -109,10 +111,11 @@ async function main() {
   ok('correct password -> 200, role=none, pendingApproval')
 
   const cookie = r.cookies[0]
-  for (const flag of ['HttpOnly', 'Secure', 'SameSite=Lax']) {
-    assert.ok(cookie.includes(flag), `cookie missing ${flag}`)
-  }
-  ok('the session cookie carries HttpOnly, Secure and SameSite')
+  assert.strictEqual(cookie.httpOnly, true)
+  assert.strictEqual(cookie.secure, true)
+  assert.strictEqual(cookie.sameSite, 'Lax')
+  assert.strictEqual(cookie.path, '/')
+  ok('the session cookie carries HttpOnly, Secure, SameSite and Path')
 
   const token = cookieToken(r)
 
@@ -139,7 +142,7 @@ async function main() {
   // --- logout -------------------------------------------------------------
   r = await handleLogout(req({ cookie: `lb_session=${token}` }), ctx)
   assert.strictEqual(r.status, 200)
-  assert.ok(r.cookies[0].includes('Max-Age=0'), 'the cookie must be expired')
+  assert.strictEqual(r.cookies[0].maxAge, 0, 'the cookie must be expired')
   ok('POST /api/logout -> 200 and an expired cookie')
 
   // Revoked server-side, not merely forgotten by the browser.

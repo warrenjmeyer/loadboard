@@ -169,19 +169,46 @@ test('tokens are random, url-safe, and stored only as a hash', () => {
   assert.strictEqual(seen.size, 500)
 })
 
-test('the session cookie carries every flag that matters', () => {
+test('the session cookie is a Cookie object with every flag that matters', () => {
   const cookie = auth.sessionCookie('abc')
 
-  for (const flag of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/']) {
-    assert.ok(cookie.includes(flag), `missing ${flag}`)
-  }
+  // An OBJECT, not a Set-Cookie string. Returning a string is why the deployed
+  // login sent no Set-Cookie header at all -- @azure/functions serialises
+  // these fields itself and silently discards anything else.
+  assert.strictEqual(typeof cookie, 'object')
+  assert.strictEqual(cookie.name, 'lb_session')
+  assert.strictEqual(cookie.value, 'abc')
+  assert.strictEqual(cookie.path, '/')
+  assert.strictEqual(cookie.httpOnly, true)
+  assert.strictEqual(cookie.secure, true)
+  assert.strictEqual(cookie.sameSite, 'Lax')
 
   // 480 minutes, the same eight hours Security.cfc uses.
   assert.strictEqual(auth.SESSION_MAX_AGE_S, 480 * 60)
-  assert.ok(cookie.includes(`Max-Age=${480 * 60}`))
+  assert.strictEqual(cookie.maxAge, 480 * 60)
 
-  // Expiring a cookie is the only way to delete one.
-  assert.ok(auth.clearSessionCookie().includes('Max-Age=0'))
+  // Every field the runtime knows about is spelled the way it expects. A typo
+  // here does not throw -- it just quietly drops that attribute.
+  for (const key of Object.keys(cookie)) {
+    assert.ok(
+      ['name', 'value', 'domain', 'path', 'expires', 'secure', 'httpOnly', 'sameSite', 'maxAge'].includes(key),
+      `unknown Cookie field "${key}" -- the runtime will ignore it`
+    )
+  }
+})
+
+test('clearing the cookie expires it and matches the original', () => {
+  const set = auth.sessionCookie('abc')
+  const clear = auth.clearSessionCookie()
+
+  assert.strictEqual(clear.maxAge, 0)
+  assert.strictEqual(clear.value, '')
+
+  // A browser treats a cookie with a different path or flags as a DIFFERENT
+  // cookie and leaves the original in place, so signing out would not.
+  for (const key of ['name', 'path', 'httpOnly', 'secure', 'sameSite']) {
+    assert.strictEqual(clear[key], set[key], `${key} must match or the original survives`)
+  }
 })
 
 test('the session token is found among other cookies', () => {
