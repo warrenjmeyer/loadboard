@@ -83,7 +83,23 @@ function validate(body) {
   return { errors, load: { id, origin, destination, miles, rate, equipment } }
 }
 
-async function handleGet() {
+async function handleGet(request) {
+  // What the public may see is CURRENT FREIGHT: the loads that are available
+  // or covered, with nobody's name on them. That is what a load board is for.
+  //
+  // Delivered history is a different thing wearing the same shape. All 145 of
+  // those rows carry a driver code and a date, so serving them anonymously
+  // published which driver hauled which lane, when, for how much -- and the
+  // whole roster of driver codes with it. Gating the settlement routes and
+  // leaving that on the front page would have been gating the report and
+  // publishing the data.
+  //
+  // A signed-in account with no role yet does not count as signed in for this.
+  // "Powerless until approved" has to mean it here too, or registering becomes
+  // a way to read the history.
+  const user = await identity.currentUser(request)
+  const seesHistory = Boolean(user) && user.role !== 'none'
+
   const pool = await getPool()
 
   // Explicit column list: it keeps the shape stable if someone adds a
@@ -95,8 +111,17 @@ async function handleGet() {
     ORDER BY id;
   `)
 
+  const rows = seesHistory
+    ? result.recordset.map(rowToLoad)
+    : result.recordset
+        .filter((r) => r.status !== 'Delivered')
+        // Belt and braces. Current freight has no driver today, but a Covered
+        // load could grow one, and the filter above should not be the only
+        // thing standing between an anonymous visitor and a name.
+        .map((r) => ({ ...rowToLoad(r), driverCode: null, deliveredDate: null }))
+
   return {
-    jsonBody: result.recordset.map(rowToLoad),
+    jsonBody: rows,
     headers: {
       // The data changes rarely and a stale board is worse than a slow
       // one, so no caching. Revisit if this ever gets traffic.
@@ -196,7 +221,7 @@ app.http('loads', {
     try {
       return request.method === 'POST'
         ? await handlePost(request, context)
-        : await handleGet()
+        : await handleGet(request)
     } catch (err) {
       // A duplicate id is the caller's answer, not a server fault: the load is
       // already on the board. THROW 50409 above and PK_Loads underneath it

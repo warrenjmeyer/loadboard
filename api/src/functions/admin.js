@@ -4,8 +4,13 @@ const identity = require('../identity')
 const { getPool, sql } = require('../db')
 
 // ---------------------------------------------------------------------------
-// GET  /api/admin/users              everyone, pending first
-// POST /api/admin/users/{publicId}   set a role, or switch an account off
+// GET  /api/accounts               everyone, pending first
+// POST /api/accounts/{publicId}    set a role, or switch an account off
+//
+// Named /api/accounts rather than /api/admin/... because the first attempt at
+// the latter deployed successfully and then 404'd: the Functions host reserves
+// /admin for its own management API, and that is not a fight worth having over
+// a path segment.
 //
 // Registration is open and every new account arrives with Role='none', able to
 // sign in and do nothing. Until this existed the only way to approve anyone was
@@ -180,15 +185,15 @@ function wrap(name, handler) {
 app.http('adminUsers', {
   methods: ['GET'],
   authLevel: 'anonymous',
-  route: 'admin/users',
-  handler: wrap('GET /api/admin/users', handleList),
+  route: 'accounts',
+  handler: wrap('GET /api/accounts', handleList),
 })
 
 app.http('adminUserUpdate', {
   methods: ['POST'],
   authLevel: 'anonymous',
-  route: 'admin/users/{publicId}',
-  handler: wrap('POST /api/admin/users/{publicId}', handleUpdate),
+  route: 'accounts/{publicId}',
+  handler: wrap('POST /api/accounts/{publicId}', handleUpdate),
 })
 
 module.exports = { handleList, handleUpdate, ROLES }

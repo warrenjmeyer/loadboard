@@ -37,7 +37,7 @@ export default function Admin() {
 
   useEffect(() => {
     let cancelled = false
-    fetchJson('/api/admin/users', { onWaking: () => !cancelled && setWaking(true) })
+    fetchJson('/api/accounts', { onWaking: () => !cancelled && setWaking(true) })
       .then((d) => {
         if (cancelled) return
         setData(d)
@@ -59,7 +59,7 @@ export default function Admin() {
     setRowError((r) => ({ ...r, [publicId]: null }))
 
     try {
-      const saved = await postJson(`/api/admin/users/${publicId}`, body)
+      const saved = await postJson(`/api/accounts/${publicId}`, body)
 
       // Replace the one row rather than refetching the table. A refetch would
       // reorder it -- approving someone moves them out of the pending group --

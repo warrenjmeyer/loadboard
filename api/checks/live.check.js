@@ -159,6 +159,20 @@ async function main() {
   assert.strictEqual(r.status, 401)
   ok('a random session token is worth nothing -> 401')
 
+  // --- the approval screen, over the wire ---------------------------------
+  r = await get('/api/accounts')
+  assert.strictEqual(r.status, 401)
+  r = await get('/api/accounts', people.driver.cookie)
+  assert.strictEqual(r.status, 403)
+  ok('accounts: 401 anonymous, 403 for a driver')
+
+  r = await get('/api/accounts', people.admin.cookie)
+  assert.strictEqual(r.status, 200, JSON.stringify(r.body))
+  assert.ok(Array.isArray(r.body.users) && r.body.users.length > 0)
+  assert.ok(Array.isArray(r.body.drivers) && r.body.drivers.length > 0)
+  assert.strictEqual(r.body.users[0].userId, undefined, 'UserId must not reach the browser')
+  ok(`admin: lists ${r.body.users.length} accounts and ${r.body.drivers.length} drivers`)
+
   // --- logout must expire the cookie AND kill the session -----------------
   const out = await fetch(ORIGIN + '/api/logout', {
     method: 'POST',
