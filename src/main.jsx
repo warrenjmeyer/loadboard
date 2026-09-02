@@ -7,6 +7,7 @@ import SignIn from './pages/SignIn.jsx'
 import Register from './pages/Register.jsx'
 import SetPassword from './pages/SetPassword.jsx'
 import VerifyEmail from './pages/VerifyEmail.jsx'
+import Admin from './pages/Admin.jsx'
 import { takeTokenFromUrl } from './lib/auth.js'
 import './styles.css'
 
@@ -27,6 +28,7 @@ import './styles.css'
 //   ?reset=TOKEN          the link from a password-reset email
 //   ?signin=1             the sign-in form
 //   ?register=1           create an account
+//   ?view=admin           approve accounts and set roles (admins only)
 //   ?id=JSMITH            one driver's settlement (optionally &date=...)
 //   ?view=settlements     the settlements board
 //   anything else         the load board
@@ -42,8 +44,8 @@ const params = new URLSearchParams(window.location.search)
 const driverCode = params.get('id')
 const view = params.get('view')
 
-// This is still not a router, and it is now closer to needing one than it was.
-// Seven pages selected by query parameter is about the limit; the honest tell
+// This is still not a router, and it is now past the point of comfort. Eight
+// pages selected by query parameter is over the limit; the honest tell
 // will be the first time one of these needs to be linked to with state, or the
 // first time going back from a statement should restore the filters behind it.
 // See exercise 6 in the README.
@@ -62,6 +64,7 @@ function Page() {
     return <Settlement driverCode={driverCode} initialCheckDate={params.get('date')} />
   }
   if (view === 'settlements') return <Settlements />
+  if (view === 'admin') return <Admin />
   return <App initialSearch={params.get('search') || ''} />
 }
 

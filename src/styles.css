@@ -389,3 +389,22 @@ button.primary {
 .linklike:hover {
   opacity: 0.75;
 }
+
+
+/* --------------------------------------------------------------------------
+   Accounts (admin)
+   -------------------------------------------------------------------------- */
+
+.admin-table td { vertical-align: top; }
+.admin-table select { min-width: 130px; }
+
+.admin-who { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.admin-email { font-size: 13px; }
+
+/* Waiting for approval. Tinted rather than badged because the whole point is
+   to find these rows at a glance in a list of accounts that mostly need
+   nothing -- a badge you have to read is a badge you have to look for. */
+.row-pending td { background: #fffbe6; }
+
+.admin-table .hint { margin-top: 4px; max-width: 260px; }
+.admin-table .field-error { margin-top: 4px; }

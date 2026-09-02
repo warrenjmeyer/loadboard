@@ -265,6 +265,7 @@ export default function App({ initialSearch = '' }) {
         {/* Rendered only when nobody is signed in. `user === undefined` means
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}
+        {user && user.role === 'admin' && <a href="?view=admin">Accounts →</a>}
         {user === null && <a href="?signin=1">Sign in</a>}
         {user === null && <a href="?register=1">Create an account</a>}
       </nav>

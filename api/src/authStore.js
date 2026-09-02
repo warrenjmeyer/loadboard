@@ -290,6 +290,106 @@ async function hitRateLimit(bucket, subjectKey, ip, { windowMinutes = 60, subjec
   return result.recordset[0] || null
 }
 
+
+// ---------------------------------------------------------------------------
+// Administration
+//
+// Role and DriverCode are columns this app added (auth_01_roles.sql), so they
+// are the one place raw SQL is right: no shared procedure knows about them,
+// and inventing one would mean editing an API the ColdFusion app depends on.
+// IsActive is different -- usp_User_Deactivate and usp_User_Reactivate already
+// exist and write the audit rows, so those are used rather than reimplemented.
+// ---------------------------------------------------------------------------
+
+// Everyone, newest first, with the pending ones surfaced by the caller. Small
+// enough to send whole: this is a fleet, not a mailing list, and paging an
+// approval queue nobody can see the end of is worse than a long page.
+//
+// PublicId is what leaves the server. UserId is a sequential key and telling
+// the browser that account 7 exists tells it accounts 1 through 6 do too.
+async function listUsers() {
+  const pool = await getPool()
+  const result = await pool.request().query(`
+    SELECT u.PublicId, u.Email, u.DisplayName, u.[Role], u.DriverCode,
+           u.IsActive, u.EmailConfirmedUtc, u.CreatedUtc, u.LockoutEndUtc,
+           CAST(CASE WHEN u.LockoutEndUtc > SYSUTCDATETIME() THEN 1 ELSE 0 END AS BIT) AS IsLockedOut,
+           d.first_name, d.last_name,
+           (SELECT MAX(s.LastSeenUtc) FROM auth.Sessions s
+             WHERE s.UserId = u.UserId AND s.RevokedUtc IS NULL) AS LastSeenUtc
+    FROM auth.Users u
+    LEFT JOIN dbo.Drivers d ON d.driver_code = u.DriverCode
+    ORDER BY
+      -- Waiting-for-approval first: that is the only row anyone opens this
+      -- screen to act on.
+      CASE WHEN u.[Role] = 'none' AND u.IsActive = 1 THEN 0 ELSE 1 END,
+      u.CreatedUtc DESC;`)
+
+  return result.recordset
+}
+
+async function findUserByPublicId(publicId) {
+  const pool = await getPool()
+  const result = await pool
+    .request()
+    .input('pid', sql.UniqueIdentifier, publicId)
+    .query(`SELECT UserId, PublicId, Email, DisplayName, [Role], DriverCode, IsActive
+            FROM auth.Users WHERE PublicId = @pid;`)
+
+  return result.recordset[0] || null
+}
+
+// How many admins are left. The caller uses this to refuse the change that
+// leaves nobody able to make changes -- an app with no admin needs a DBA and
+// a SQL prompt to recover, which is not a state to reach through a dropdown.
+async function countActiveAdmins() {
+  const pool = await getPool()
+  const result = await pool.request().query(
+    `SELECT COUNT(*) AS n FROM auth.Users WHERE [Role] = 'admin' AND IsActive = 1;`)
+  return result.recordset[0].n
+}
+
+// Role and DriverCode move together because CK_Users_DriverCode requires it:
+// a driver must have a code, everyone else must not. Setting them in one
+// statement is what keeps the row valid at every instant.
+async function setUserRole(userId, role, driverCode, actorEmail, ip) {
+  const pool = await getPool()
+  await pool
+    .request()
+    .input('u', sql.Int, userId)
+    .input('r', sql.VarChar(20), role)
+    .input('d', sql.VarChar(20), role === 'driver' ? driverCode : null)
+    .input('detail', sql.NVarChar(500), `role -> ${role}${role === 'driver' ? ` (${driverCode})` : ''} by ${actorEmail}`)
+    .input('ip', sql.VarChar(45), ip || null)
+    .query(`
+      SET XACT_ABORT ON;
+      BEGIN TRANSACTION;
+
+        UPDATE auth.Users
+           SET [Role] = @r, DriverCode = @d, ModifiedUtc = SYSUTCDATETIME()
+         WHERE UserId = @u;
+
+        -- Who changed whose access, and when. The one question an audit trail
+        -- exists to answer, and the procedures cannot write it because they do
+        -- not know these columns exist.
+        INSERT INTO auth.AuthEvents (UserId, EventType, IpAddress, Detail)
+        VALUES (@u, 'RoleChanged', @ip, @detail);
+
+      COMMIT TRANSACTION;`)
+}
+
+async function setUserActive(userId, isActive, reason, ip) {
+  const pool = await getPool()
+  const request = pool.request().input('UserId', sql.Int, userId).input('IpAddress', sql.VarChar(45), ip || null)
+
+  if (isActive) {
+    await request.execute('auth.usp_User_Reactivate')
+  } else {
+    // Deactivating revokes their sessions inside the procedure, which is the
+    // point: an account switched off at 14:00 stops working at 14:00.
+    await request.input('Reason', sql.VarChar(40), reason || 'Deactivated').execute('auth.usp_User_Deactivate')
+  }
+}
+
 module.exports = {
   getUserForLogin,
   getAuthorization,
@@ -305,6 +405,11 @@ module.exports = {
   getThrottleState,
   recordLoginAttempt,
   hitRateLimit,
+  listUsers,
+  findUserByPublicId,
+  countActiveAdmins,
+  setUserRole,
+  setUserActive,
   PURPOSE,
   TOKEN_TTL_MINUTES,
 }
