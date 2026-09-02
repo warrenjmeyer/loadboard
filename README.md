@@ -184,150 +184,39 @@ Three things the route decides rather than accepts:
   `PK_Loads` underneath it land in the same handler, so two simultaneous posts
   of one id give one 201 and one 409 — never two rows.
 
-### Who is allowed to add one, and who is anyone at all
+### Who is allowed to add one
 
 The board is public. Nothing else is.
 
-**Accounts live in `Millstream.auth`, and they are not this app's.** A
-ColdFusion app at `C:\Websites\app-scaffold` has owned that schema since
-19 August 2026 - `services/Security.cfc`, eighteen stored procedures, peppered
-bcrypt, lockout, an audit trail. This app is a **second caller** of it, not a
-second implementation, and that constrains almost every choice below.
+**Accounts are not this app's.** A ColdFusion app at `C:\Websites\app-scaffold`
+has owned `Millstream.auth` since 19 August 2026 — eighteen stored procedures,
+peppered bcrypt, lockout, an audit trail. This app is a second *caller* of that
+system, not a second implementation, and almost every choice in the login
+follows from that.
 
-The procedures are the shared API. `api/src/authStore.js` is thin wrappers over
-`usp_User_Create`, `usp_Session_Validate`, `usp_Token_Redeem` and the rest. It
-used to write raw SQL at those tables, which worked and was still wrong: two
-implementations of one rule drift, and the drift is invisible until the day one
-app locks an account the other still admits.
+Sign in at `?signin=1`, register at `?register=1`. Roles come from the
+`auth.Users` row and are read fresh on every request:
 
-**The password recipe has to match byte for byte:**
-
-```
-bcrypt($2b, cost 12, over lowercase-hex( HMAC-SHA256(password, AUTH_PEPPER) ))
-```
-
-That pre-hash is `prepareForBcrypt()` in `Security.cfc`. It exists because
-bcrypt truncates at 72 bytes and stops at a null byte, so a long passphrase
-would have its tail silently ignored - and it is hex rather than base64 because
-base64 has a documented null-byte interaction. `api/src/auth.test.js` builds a
-hash *the ColdFusion way* from primitives and verifies it through our code, so a
-drift in the recipe fails the suite even when our own round trip still passes.
-
-**`AUTH_PEPPER` is a shared secret between two applications.** It lives in the
-Static Web App's settings here and in `config/env.json` there. A stolen database
-backup is useless without it, because every stored hash is over an HMAC keyed
-with it. **Rotating it invalidates every password in both apps at once** - they
-change together or not at all.
-
-`bcryptjs`, not the native `bcrypt`: the machine that builds this deploy is a
-GitHub Actions runner we do not control, and a native build failure there is a
-deploy that dies in a compiler error. Measured 333 ms to hash and 316 ms to
-verify, which is the cost we want anyway.
-
-Sessions cannot be shared even though accounts are. Cookies do not cross
-origins, so ColdFusion on `localhost:8500` and this app on `azurestaticapps.net`
-are always separate sign-ins against the same people.
-
-### Roles, and the thing the GitHub gate never asked
-
-`POST /api/loads` used to be gated by a route rule in
-`staticwebapp.config.json` requiring Static Web Apps authentication. That rule
-asked *"are you signed in to GitHub"* and never *"are you anyone we know"* - any
-GitHub account on earth satisfied it.
-
-Authorization now comes from the `auth.Users` row, whichever door someone came
-in by: this app's session cookie, or the platform's `x-ms-client-principal`. One
-place decides, so a role granted once applies to both and revoking it closes
-both. `auth_01_roles.sql` added the two columns that make it possible:
-
-| state | meaning |
+| role | may |
 |---|---|
-| `IsActive = 0` | may not authenticate at all |
-| `IsActive = 1`, `Role = 'none'` | signed in, awaiting approval, can do nothing |
-| `IsActive = 1`, a role | approved |
+| `none` | sign in; see the public board and nothing else |
+| `driver` | their own settlement, nobody else's |
+| `dispatcher` | add loads, read every settlement |
+| `admin` | everything, plus approve accounts at `?view=admin` |
 
-Kept apart on purpose: folding "awaiting approval" into `IsActive = 0` makes it
-indistinguishable from "disabled", and those need different answers at the
-sign-in screen - one is *we will get to you*, the other is *no*.
+Registration is open and new accounts arrive at `none`, able to sign in and do
+nothing until an admin approves them.
 
-`DriverCode` is what makes a pay statement private. All four settlement routes
-were anonymous until today, which meant `/api/drivers/JSMITH/settlements` handed
-anyone's pay to anyone who knew a driver code - and driver codes are printed on
-the load board. The money is invented; the names are real. A driver now reads
-their own statement and gets **403** on anyone else's, compared against the code
-on their account and never against the one in the URL, because the URL is the
-question and not the answer.
+**The board stays public, but *public* means current freight only** — the 32
+available and covered loads, with no driver attached. All 145 delivered rows
+carry a driver code and a date, and serving those anonymously would publish who
+hauled what, when and for how much.
 
-403 rather than 404 there, deliberately. Hiding it as "not found" would be
-tidier, and it would also let a driver map which codes exist by watching 403
-turn into 404.
-
-Losing that route rule loses the platform half of the belt-and-braces, and that
-is the real price of admitting a second kind of login - a rule requiring SWA
-auth cannot be satisfied by a cookie this app issued. The check in code is now
-the only gate, which is why `api/src/functions/authz.check.js` exists and walks
-the whole matrix against the real database.
-
-### Registration, and the email that does not contain a password
-
-`?register=1` then an emailed link to `?verify=TOKEN`. Forgotten passwords go
-`?signin=1`, *Forgot password?*, then `?reset=TOKEN`.
-
-**There is no temporary password, and there will not be one.** The 2023
-ColdFusion original this project grew out of mailed one derived from
-`getNumericDate(now())` - the request clock, computable by whoever triggered it
-- and *overwrote the real password with it* before anyone proved they owned the
-mailbox. Submitting a stranger's address locked them out and handed the sender
-their account.
-
-The link is the credential: 32 random bytes, stored only as a SHA-256,
-single-use, expiring in an hour. **Nothing on the account changes until somebody
-opens it.** That is the structural fix rather than a patch, and
-`register.check.js` asserts it directly - after `/api/forgot` the stored hash is
-byte-identical and the old password still verifies.
-
-Enumeration is closed at every door. Register and forgot return one identical
-message whatever happened: taken, unknown, malformed, rate-limited. Someone
-registering an address that already exists gets no hint from the form; the
-**owner** is emailed instead, being the only party entitled to know and the one
-who would want to.
-
-Login burns the same CPU on every rejection. `burnVerify` runs a real bcrypt
-comparison against a throwaway hash, because otherwise an unknown address
-returns in about a millisecond and a known one in 316, and that gap is a free
-account-enumeration oracle.
-
-Password rules match `checkPasswordPolicy()` in `Security.cfc` - 12 to 128
-characters, same blocklist, **blocklist checked first**. That ordering is
-load-bearing: every entry shorter than twelve characters would otherwise be
-unreachable, and the most-guessed passwords in the world are exactly the short
-ones. `password` is eight characters and must still produce the specific "too
-easily guessed" message.
-
-No composition rules. Current NIST guidance drops them - they reliably produce
-`Password1!` - in favour of screening against real breach data, which
-`api/src/pwned.js` does through Have I Been Pwned's range API. Only the first
-five characters of the SHA-1 leave the process, so the password itself never
-does. It fails **open**: if the service is unreachable the password is allowed,
-because their outage must not become ours.
-
-### Mail
-
-SendGrid, through its v3 REST endpoint with `fetch` rather than
-`@sendgrid/mail` - one JSON POST, and no dependency tree added to the Function
-App to save fifteen lines.
-
-Click and open tracking are **off**. Rewriting a reset URL through a click
-tracker makes it look like a phishing redirect and breaks the one thing the mail
-exists to deliver. `bypass_list_management` is **on**, because a password reset
-that vanishes into a marketing suppression list is an account nobody can
-recover.
-
-**Mail currently shows "via sendgrid.net" in Gmail.** `MAIL_FROM` is a
-`live.com` address and SendGrid signs as `sendgrid.net`, so DKIM does not align
-with the From domain and DMARC cannot pass. It is delivered today; that is Gmail
-being lenient, not a guarantee. Authenticating a real domain removes the "via"
-and is the step to take before a driver ever sees a reset link.
+**→ [AUTHENTICATION.md](AUTHENTICATION.md)** has the whole of it: the password
+recipe and why it must match ColdFusion byte for byte, the ordering of the login
+sequence and what each step defends against, sessions, the registration and
+reset flow and why no password is ever emailed, the configuration, the runbook,
+and the three platform behaviours that each cost an outage.
 
 ### Retrying a POST
 
@@ -608,7 +497,8 @@ src/components/
   LoadTable.jsx         renders a list, handles the empty case
   LoadRow.jsx           pure presentation
   AddLoadForm.jsx       owns local form state, posts it, reports up
-public/staticwebapp.config.json   routing, SPA fallback, and the login gate
+AUTHENTICATION.md       how signing in works, and why it is shaped that way
+public/staticwebapp.config.json   routing and SPA fallback
 api/src/functions/loads.js        GET and POST /api/loads, against dbo.Loads
 api/package.json        the Function App's own dependencies (mssql)
 .github/workflows/      builds and deploys on push to main
