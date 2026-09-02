@@ -109,6 +109,16 @@ async function main() {
   assert.ok(Array.isArray(r.body) && r.body.length > 0)
   ok(`anonymous: the board is public (${r.body.length} loads)`)
 
+  // The board stays public; the delivered history does not. Every one of those
+  // rows names a driver and a date, so serving them anonymously published who
+  // hauled what, when, and for how much.
+  assert.ok(!r.body.some((l) => l.status === 'Delivered'), 'delivered history must not be public')
+  assert.ok(!r.body.some((l) => l.driverCode), 'no load may name a driver anonymously')
+  assert.ok(!r.body.some((l) => l.deliveredDate), 'no load may carry a delivery date anonymously')
+  const anonCount = r.body.length
+
+  ok('anonymous: no delivered history, no driver names, no dates')
+
   r = await get('/api/me')
   assert.strictEqual(r.status, 200)
   assert.strictEqual(r.body.user, null)
@@ -127,6 +137,13 @@ async function main() {
   assert.strictEqual(r.body.user.role, 'admin')
   assert.strictEqual(r.body.user.pendingApproval, false)
   ok(`admin: /api/me reports role=${r.body.user.role}`)
+
+  // A signed-in account with a role sees the history the public does not.
+  r = await get('/api/loads', people.admin.cookie)
+  assert.strictEqual(r.status, 200)
+  assert.ok(r.body.length > anonCount, `admin should see more than ${anonCount} loads`)
+  assert.ok(r.body.some((l) => l.driverCode), 'admin should see driver attribution')
+  ok(`admin: sees the full board (${r.body.length} loads, history included)`)
 
   r = await get('/api/settlements', people.admin.cookie)
   assert.strictEqual(r.status, 200, JSON.stringify(r.body))

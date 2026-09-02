@@ -5,10 +5,17 @@
 //   node api/checks/cleanup-strays.js            # report only, deletes nothing
 //   node api/checks/cleanup-strays.js --delete   # actually remove them
 //
-// Deliberately narrow. It matches only the two email prefixes the checks
-// generate and the ZZ- load ids, never a date range and never "everything
-// created recently" -- a cleanup script that reasons about time is one clock
-// skew away from deleting somebody's real account.
+// Deliberately narrow, and narrow in the right dimension. It matches
+// claude-%@example.invalid and the ZZ- load ids -- never a date range and
+// never "everything created recently", because a cleanup that reasons about
+// time is one clock skew away from deleting somebody's real account.
+//
+// One pattern rather than a list of prefixes: the list version missed
+// claude-live-% when that check was added, and two orphans sat in a live table
+// until somebody happened to count.
+//
+// @example.invalid is reserved by RFC 2606 and can never be a real domain, so
+// no address this matches could belong to a person.
 //
 // Run the report first and read it. This is production.
 // ---------------------------------------------------------------------------
@@ -26,8 +33,7 @@ async function main() {
   // --- what is there -------------------------------------------------------
   const users = await pool.request().query(`
     SELECT UserId, Email FROM auth.Users
-    WHERE (EmailNormalized LIKE 'claude-check-%@example.invalid'
-        OR EmailNormalized LIKE 'claude-authz-%@example.invalid')
+    WHERE EmailNormalized LIKE 'claude-%@example.invalid'
       AND UserId <> 1;`)
 
   const loads = await pool.request().query(`
@@ -75,8 +81,7 @@ async function main() {
       DECLARE @ids TABLE (UserId INT PRIMARY KEY);
       INSERT INTO @ids (UserId)
       SELECT UserId FROM auth.Users
-       WHERE (EmailNormalized LIKE 'claude-check-%@example.invalid'
-           OR EmailNormalized LIKE 'claude-authz-%@example.invalid')
+       WHERE EmailNormalized LIKE 'claude-%@example.invalid'
          AND UserId <> 1;
 
       DELETE FROM auth.AuthEvents     WHERE UserId IN (SELECT UserId FROM @ids) OR IpAddress = @ip;
