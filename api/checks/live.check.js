@@ -24,6 +24,7 @@ const store = require('../src/authStore')
 const ORIGIN = (process.argv[2] || 'https://wonderful-tree-0a929e80f.7.azurestaticapps.net').replace(/\/+$/, '')
 const IP = '203.0.113.199'
 const SUFFIX = crypto.randomUUID()
+const PASSWORD = 'a passphrase for the live check'
 
 const people = {}
 let passed = 0
@@ -54,8 +55,36 @@ async function makePerson(role, driverCode) {
       .query('UPDATE auth.Users SET [Role]=@r, DriverCode=@d, ModifiedUtc=SYSUTCDATETIME() WHERE UserId=@u;')
   }
 
-  const { token } = await store.createSession(created.UserId, IP, 'live-check/1.0')
-  people[role] = { userId: created.UserId, cookie: `lb_session=${token}` }
+  // Sign in over HTTP and keep the cookie the LOGIN ROUTE hands back, rather
+  // than minting a session directly in the database.
+  //
+  // That distinction is the whole point. This check used to create its own
+  // session row and present that cookie, which tested the lock and never
+  // tested that anyone is given a key -- and for one deploy nobody was:
+  // /api/login answered 200 with a user and no Set-Cookie header at all,
+  // because @azure/functions silently discards a cookie that is not its
+  // Cookie object shape. Every other check passed throughout.
+  const res = await fetch(ORIGIN + '/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password: PASSWORD }),
+    redirect: 'manual',
+  })
+  assert.strictEqual(res.status, 200, `login for ${role} returned ${res.status}`)
+
+  const setCookie = res.headers.getSetCookie()
+  assert.ok(setCookie.length, `login for ${role} sent NO Set-Cookie -- the browser gets no session`)
+
+  const m = /lb_session=([^;]+)/.exec(setCookie.join('; '))
+  assert.ok(m, `no lb_session in Set-Cookie for ${role}`)
+
+  // The flags a session cookie must carry, read off the real header.
+  const raw = setCookie.find((c) => c.startsWith('lb_session=')).toLowerCase()
+  for (const flag of ['httponly', 'secure', 'samesite=lax', 'path=/']) {
+    assert.ok(raw.includes(flag), `session cookie missing ${flag}: ${raw}`)
+  }
+
+  people[role] = { userId: created.UserId, cookie: `lb_session=${m[1]}` }
   return people[role]
 }
 
@@ -71,7 +100,8 @@ async function main() {
 
   await makePerson('admin')
   await makePerson('driver', MINE)
-  ok(`minted a live admin and a live driver (${MINE})`)
+  ok(`signed in a live admin and a live driver (${MINE}) over HTTP`)
+  ok('login returns a Set-Cookie with HttpOnly, Secure, SameSite=Lax and Path=/')
 
   // --- anonymous ----------------------------------------------------------
   let r = await get('/api/loads')
@@ -128,6 +158,22 @@ async function main() {
   r = await get('/api/settlements', 'lb_session=' + crypto.randomBytes(32).toString('base64url'))
   assert.strictEqual(r.status, 401)
   ok('a random session token is worth nothing -> 401')
+
+  // --- logout must expire the cookie AND kill the session -----------------
+  const out = await fetch(ORIGIN + '/api/logout', {
+    method: 'POST',
+    headers: { cookie: people.driver.cookie, 'Content-Type': 'application/json' },
+    body: '{}',
+    redirect: 'manual',
+  })
+  assert.strictEqual(out.status, 200)
+  const cleared = out.headers.getSetCookie().find((c) => c.startsWith('lb_session='))
+  assert.ok(cleared, 'logout must send a Set-Cookie that clears the session')
+  assert.ok(/max-age=0|expires=/i.test(cleared), `logout cookie does not expire: ${cleared}`)
+
+  r = await get(`/api/drivers/${MINE}/settlements`, people.driver.cookie)
+  assert.strictEqual(r.status, 401, 'the token must be dead server-side after logout')
+  ok('logout expires the cookie and kills the session server-side')
 
   // --- and the pages the browser needs ------------------------------------
   for (const path of ['/', '/?signin=1', '/?register=1']) {
