@@ -113,6 +113,33 @@ async function verifyPassword(password, stored, algorithm) {
   }
 }
 
+// ---------------------------------------------------------------------------
+// burnVerify -- spend the same CPU on a login that was never going to succeed.
+//
+// Mirrors the dummyHash dance in Security.cfc. Without it, an unknown address
+// returns in about a millisecond while a known one takes 316, and that
+// difference is a free account-enumeration oracle: anyone can discover who has
+// an account here by timing the failures. Every rejection has to cost what a
+// real verify costs.
+//
+// The dummy is hashed once per process, from random bytes nobody knows, and
+// cached. The result is discarded -- the point is the elapsed time, not the
+// answer, and the answer is always false.
+// ---------------------------------------------------------------------------
+let dummyHashPromise = null
+
+async function burnVerify(password) {
+  if (!dummyHashPromise) {
+    dummyHashPromise = hashPassword(crypto.randomBytes(32).toString('hex'))
+  }
+  try {
+    await bcrypt.compare(preparePassword(typeof password === 'string' ? password : ''), await dummyHashPromise)
+  } catch {
+    // Irrelevant. This function exists to take time, not to decide anything.
+  }
+  return false
+}
+
 // Does this stored hash use a weaker version or cost than we now require?
 // Mirrors needsRehash() in Security.cfc, including checking BOTH -- comparing
 // only the cost would leave every $2a$12$ row reporting "fine forever" and the
@@ -229,6 +256,7 @@ module.exports = {
   isPepperConfigured,
   hashPassword,
   verifyPassword,
+  burnVerify,
   needsRehash,
   mintToken,
   hashToken,
