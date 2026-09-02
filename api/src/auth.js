@@ -1,176 +1,155 @@
 const crypto = require('node:crypto')
-const { promisify } = require('node:util')
-
-const scrypt = promisify(crypto.scrypt)
+const bcrypt = require('bcryptjs')
 
 // ---------------------------------------------------------------------------
-// The cryptographic core of the login. Pure functions, no database, no HTTP --
-// so it can be reasoned about, and eventually tested, on its own.
+// The cryptographic core of the login.
 //
-// Nothing in here is novel, and that is the point. Every choice below is the
-// boring one; the interesting ones are how people lose password databases.
+// Every choice in this file is dictated by C:\Websites\app-scaffold, the
+// ColdFusion app that already owns the auth schema in Millstream. That app and
+// this one share one set of accounts, so they must agree on the password
+// recipe byte for byte -- a password set here has to verify there, and the
+// other way round. Where this file looks like it is following someone else's
+// decisions, it is, and deliberately: see services/Security.cfc.
+//
+// The one thing NOT shared is the session cookie. Cookies do not cross
+// origins, so ColdFusion on localhost:8500 and this app on
+// azurestaticapps.net are always separate sign-ins against the same accounts.
 // ---------------------------------------------------------------------------
 
 // ---------------------------------------------------------------------------
-// Password hashing: scrypt, from Node's own crypto module.
+// The pepper.
 //
-// Why not bcrypt: the `bcrypt` package is a native module compiled at install
-// time, and the machine that builds this deploy is a GitHub Actions runner we
-// do not control. A native build failure there is a deploy that dies in a
-// compiler error. `bcryptjs` avoids that by being pure JavaScript, but it is
-// still a dependency, and scrypt ships in Node already.
+// A secret that lives outside the database -- in the Function App's settings
+// here, in config/env.json for ColdFusion. A stolen database backup is
+// useless without it, because every stored hash is over an HMAC keyed with it
+// rather than over the password.
 //
-// Why not argon2id, which is the current first recommendation: same native
-// module problem, and no pure-JS fallback worth having.
+// It is therefore a SHARED SECRET BETWEEN TWO APPLICATIONS. Rotating it
+// invalidates every password in both at once and forces a universal reset.
+// Both must be changed together.
 //
-// scrypt is memory-hard, which is the property that matters. A GPU can try
-// billions of SHA-512 guesses a second -- which is exactly what the
-// ColdFusion original stored -- because SHA-512 needs no memory. Making each
-// guess cost 64 MB makes a GPU no better at this than a CPU.
+// Read at call time rather than at module load: a Function can be started
+// before its settings are applied, and caching an empty string here would
+// silently produce hashes nobody can ever verify.
 // ---------------------------------------------------------------------------
+function pepper() {
+  return process.env.AUTH_PEPPER || ''
+}
 
-// OWASP's scrypt guidance gives several equivalent-work settings; this is the
-// N=2^16 / r=8 / p=2 one, about 64 MB per hash.
+// Matches Security.cfc's `bcryptRounds` and `bcryptVersion`.
+const BCRYPT_ROUNDS = 12
+const BCRYPT_VERSION = '$2b'
+
+// Goes into auth.UserPasswords.Algorithm. ColdFusion writes
+// "bcrypt-" & rounds, so this must produce the identical string -- the column
+// is how each app decides whether it can verify a given row at all.
+const PASSWORD_ALGORITHM = `bcrypt-${BCRYPT_ROUNDS}`
+
+// ---------------------------------------------------------------------------
+// preparePassword -- Security.cfc's prepareForBcrypt(), reproduced exactly.
 //
-// These are recorded IN each hash rather than only here, so raising them later
-// upgrades new passwords without invalidating existing ones -- see
-// needsRehash().
-const SCRYPT = { N: 65536, r: 8, p: 2, keylen: 32, saltBytes: 16 }
-
-// Goes into auth.UserPasswords.Algorithm on every row this code writes.
+// Two problems solved at once, and the comments there are worth repeating
+// because getting either wrong breaks interop silently rather than loudly:
 //
-// That column is why the one bcrypt password already in the table is a choice
-// rather than a problem: two algorithms can coexist while a migration runs.
-// We do not implement bcrypt -- one account does not justify a dependency, and
-// every candidate is either a native module that can fail the CI build or a
-// pure-JS reimplementation to be trusted -- so verifyPassword refuses any
-// algorithm it does not know instead of guessing at the format.
-const PASSWORD_ALGORITHM = 'scrypt'
-
-// Node caps scrypt's memory at 32 MB by default and throws above it. The real
-// requirement is 128 * N * r, which for the settings above is 64 MB, so the
-// default would reject every hash we ask for. Doubling it leaves headroom to
-// raise N later without tripping over this again.
-const SCRYPT_MAXMEM = 128 * SCRYPT.N * SCRYPT.r * 2
-
-async function derive(password, salt, params) {
-  // Normalise to NFC first. Two visually identical passwords can be different
-  // byte sequences in Unicode -- an accented character composed one way or
-  // two -- and a password typed on a Mac then re-typed on Windows should not
-  // stop working.
+//   1. bcrypt truncates at 72 bytes and stops at the first null byte. A
+//      90-character passphrase would have its tail ignored. Pre-hashing to 64
+//      hex characters removes the cliff -- and hex specifically, because
+//      base64 has a documented null-byte interaction. Hex is pure ASCII.
+//
+//   2. The pepper is applied here, via HMAC, so it never reaches the database.
+//
+// ColdFusion's hash()/hmac() return UPPERCASE hex and are wrapped in lCase().
+// Node's digest('hex') is already lower case, so the two agree -- but that is
+// a coincidence worth stating, since an upper-case digest here would produce
+// hashes ColdFusion could never verify.
+// ---------------------------------------------------------------------------
+function preparePassword(password) {
   const normalised = password.normalize('NFC')
-  return scrypt(normalised, salt, params.keylen, {
-    N: params.N,
-    r: params.r,
-    p: params.p,
-    maxmem: SCRYPT_MAXMEM,
-  })
-}
+  const key = pepper()
 
-// Stored form:  scrypt$N$r$p$<salt base64>$<hash base64>
-//
-// Self-describing, like bcrypt's. The parameters travel with the hash, so
-// verification uses whatever settings produced it rather than today's, and
-// old hashes keep working after the cost is raised.
-async function hashPassword(password) {
-  const salt = crypto.randomBytes(SCRYPT.saltBytes)
-  const hash = await derive(password, salt, SCRYPT)
-  return [
-    'scrypt',
-    SCRYPT.N,
-    SCRYPT.r,
-    SCRYPT.p,
-    salt.toString('base64'),
-    hash.toString('base64'),
-  ].join('$')
-}
-
-function parseStored(stored) {
-  if (typeof stored !== 'string') return null
-  const parts = stored.split('$')
-  if (parts.length !== 6 || parts[0] !== 'scrypt') return null
-
-  const [, N, r, p, salt, hash] = parts
-  const params = { N: Number(N), r: Number(r), p: Number(p) }
-  if (!Number.isInteger(params.N) || !Number.isInteger(params.r) || !Number.isInteger(params.p)) {
-    return null
+  if (key.length) {
+    return crypto.createHmac('sha256', Buffer.from(key, 'utf8')).update(normalised, 'utf8').digest('hex')
   }
-
-  const saltBuf = Buffer.from(salt, 'base64')
-  const hashBuf = Buffer.from(hash, 'base64')
-  if (!saltBuf.length || !hashBuf.length) return null
-
-  return { params: { ...params, keylen: hashBuf.length }, salt: saltBuf, hash: hashBuf }
+  // The no-pepper branch exists because Security.cfc has it. It must never be
+  // taken in production -- a missing AUTH_PEPPER would otherwise hash happily
+  // and produce rows the ColdFusion app cannot verify. Callers check.
+  return crypto.createHash('sha256').update(normalised, 'utf8').digest('hex')
 }
 
-async function verifyPassword(password, stored, algorithm = PASSWORD_ALGORITHM) {
-  // auth.UserPasswords records the algorithm beside the hash, so this does not
-  // have to be inferred from the shape of the string. Anything we do not
-  // implement is refused outright rather than guessed at -- a bcrypt hash fed
-  // to the scrypt parser would simply fail to parse, but relying on that is
-  // relying on an accident.
-  if (algorithm !== PASSWORD_ALGORITHM) return false
+function isPepperConfigured() {
+  return pepper().length > 0
+}
 
-  const parsed = parseStored(stored)
+async function hashPassword(password) {
+  // bcryptjs, not bcrypt: the native package compiles at install time on a CI
+  // runner we do not control, and a build failure there is a deploy that dies
+  // in a compiler error. Measured at 333 ms to hash and 316 ms to verify at
+  // these settings, which is the cost we want anyway.
+  //
+  // genSalt is given the version explicitly so the output carries $2b$ and
+  // matches what ColdFusion writes.
+  const salt = await bcrypt.genSalt(BCRYPT_ROUNDS, BCRYPT_VERSION.slice(1))
+  return bcrypt.hash(preparePassword(password), salt)
+}
 
-  // An unparseable stored value means a row this code did not write. Refuse
-  // it rather than reaching for a fallback: the ColdFusion original's login
-  // had exactly that fallback -- "or the password matches in plaintext" -- and
-  // it is the reason none of those credentials can be trusted.
-  if (!parsed) return false
-
+async function verifyPassword(password, stored, algorithm) {
   if (typeof password !== 'string' || password.length === 0) return false
+  if (typeof stored !== 'string' || stored.length === 0) return false
 
-  const candidate = await derive(password, parsed.salt, parsed.params)
+  // auth.UserPasswords.Algorithm records what wrote the row. Anything that is
+  // not a bcrypt variant is refused rather than guessed at -- the scrypt rows
+  // this file used to write are exactly that case.
+  if (algorithm && !/^bcrypt(-\d+)?$/.test(algorithm)) return false
 
-  // timingSafeEqual, not ===. String comparison stops at the first differing
-  // byte, so how long it takes leaks how much of the guess was right. It also
-  // throws on length mismatch, which parseStored has already made impossible.
-  if (candidate.length !== parsed.hash.length) return false
-  return crypto.timingSafeEqual(candidate, parsed.hash)
+  try {
+    // bcrypt.compare is constant-time internally and reads the cost and salt
+    // out of the stored string, so a row written at a different cost still
+    // verifies. That is what makes raising BCRYPT_ROUNDS later safe.
+    return await bcrypt.compare(preparePassword(password), stored)
+  } catch {
+    // A malformed stored hash must be a refusal, not a throw: a throw on the
+    // login route is a 500, and a 500 on login is a denial of service.
+    return false
+  }
 }
 
-// True when a stored hash was made with weaker settings than today's. Call it
-// after a successful login, while the plaintext is in hand and re-hashing is
-// free -- it is the only moment the upgrade can happen.
+// Does this stored hash use a weaker version or cost than we now require?
+// Mirrors needsRehash() in Security.cfc, including checking BOTH -- comparing
+// only the cost would leave every $2a$12$ row reporting "fine forever" and the
+// version migration would never happen.
 function needsRehash(stored) {
-  const parsed = parseStored(stored)
-  if (!parsed) return true
-  const { N, r, p, keylen } = parsed.params
-  return N < SCRYPT.N || r < SCRYPT.r || p < SCRYPT.p || keylen < SCRYPT.keylen
+  if (typeof stored !== 'string') return true
+
+  const m = /^\$(2[aby])\$(\d{2})\$/.exec(stored)
+  if (!m) return true
+
+  return `$${m[1]}` !== BCRYPT_VERSION || Number(m[2]) < BCRYPT_ROUNDS
 }
 
 // ---------------------------------------------------------------------------
-// Single-use tokens: the emailed registration and password-reset links, and
-// the session cookie.
+// Single-use tokens: the emailed registration and reset links, and the session
+// cookie.
 //
-// 32 random bytes from the OS CSPRNG. Not a timestamp, not a counter, not
-// anything derived from the user -- the ColdFusion original's "temporary
-// password" was the request time with the dot removed, which anyone who
-// triggered the reset could compute.
+// 32 random bytes from the OS CSPRNG. Not a timestamp, not a counter -- the
+// 2023 ColdFusion original derived its "temporary password" from the request
+// clock, so whoever triggered the reset could compute it.
 //
-// What is stored is the SHA-256 of the token, never the token. If the table
-// leaks, the rows in it cannot be used to log in or to complete a reset. This
-// is the same reasoning as password hashing, minus the need for a slow KDF:
-// the input here already has 256 bits of entropy, so there is nothing to
-// brute-force and no reason to pay scrypt's cost on every request.
+// Stored as a plain SHA-256 rather than bcrypt, which is correct and not a
+// shortcut: these are already 256 bits of pure randomness, so there is no
+// low-entropy secret to brute-force and no reason to pay a slow KDF on every
+// request. Security.cfc says the same thing in its own words.
 // ---------------------------------------------------------------------------
 function mintToken() {
-  // base64url: safe in a URL and in a cookie with no escaping, which is where
-  // both of these end up.
   const token = crypto.randomBytes(32).toString('base64url')
   return { token, lookup: hashToken(token) }
 }
 
-// Returns a Buffer, not hex, because auth.SecurityTokens.TokenHash and
-// auth.Sessions.TokenHash are binary(32) -- half the storage of hex, and it
-// removes the question of whether the column is upper or lower case, which is
-// the kind of mismatch that makes a lookup silently return nothing.
-//
-// mssql maps a Buffer to VarBinary directly, so this goes into a parameter
-// with no conversion at either end.
+// Lower-case hex, 64 characters. NOT a Buffer, even though the columns are
+// binary(32): every stored procedure takes @TokenHashHex as varchar(64) and
+// does the conversion itself. The proc signature is the contract, not the
+// column type.
 function hashToken(token) {
-  return crypto.createHash('sha256').update(token, 'utf8').digest()
+  return crypto.createHash('sha256').update(token, 'utf8').digest('hex')
 }
 
 // ---------------------------------------------------------------------------
@@ -178,32 +157,29 @@ function hashToken(token) {
 // ---------------------------------------------------------------------------
 const SESSION_COOKIE = 'lb_session'
 
-// Eight hours: a shift. Long enough that a driver checking a statement is not
-// asked to log in twice, short enough that a session left open on a shared
-// terminal in a truck stop expires on its own.
-const SESSION_MAX_AGE_S = 8 * 60 * 60
+// 480 minutes -- the same eight hours Security.cfc uses, so a session means
+// the same thing in both apps even though the cookies are separate.
+const SESSION_MAX_AGE_S = 480 * 60
 
 function sessionCookie(token, maxAgeSeconds = SESSION_MAX_AGE_S) {
   return [
     `${SESSION_COOKIE}=${token}`,
     'Path=/',
-    // HttpOnly: JavaScript cannot read it, so an XSS bug on the page cannot
-    // steal the session. This is the single most valuable flag here.
+    // HttpOnly: JavaScript cannot read it, so an XSS bug cannot steal the
+    // session. The single most valuable flag here.
     'HttpOnly',
-    // Secure: never sent over plain HTTP. Static Web Apps is HTTPS-only, so
-    // this costs nothing and closes the downgrade case.
+    // Secure: never sent over plain HTTP. Static Web Apps is HTTPS-only.
     'Secure',
-    // Lax, not Strict. Strict would drop the cookie on the first navigation
-    // in from an emailed link, which is exactly how people arrive here. Lax
-    // still refuses to send it on a cross-site POST, which is the case CSRF
-    // actually needs.
+    // Lax, not Strict. Strict drops the cookie on the first navigation in from
+    // an emailed link, which is how people arrive. Lax still refuses to send
+    // it on a cross-site POST, which is the case CSRF needs.
     'SameSite=Lax',
     `Max-Age=${maxAgeSeconds}`,
   ].join('; ')
 }
 
-// Max-Age=0 with an empty value. Setting a cookie to expire is the only way to
-// delete one; there is no delete.
+// Max-Age=0 with an empty value. Expiring a cookie is the only way to delete
+// one; there is no delete.
 function clearSessionCookie() {
   return `${SESSION_COOKIE}=; Path=/; HttpOnly; Secure; SameSite=Lax; Max-Age=0`
 }
@@ -227,35 +203,30 @@ function readSessionToken(request) {
 // Email addresses.
 //
 // Deliberately loose. The only test that means anything is whether mail to it
-// arrives, which the registration flow performs anyway by sending a link there
-// -- so this rejects the obviously malformed and gets out of the way. A strict
-// regex here would reject valid addresses and prove nothing about the rest.
+// arrives, which registration performs anyway by sending a link there.
 // ---------------------------------------------------------------------------
 function normaliseEmail(value) {
   if (typeof value !== 'string') return null
 
   // Lower-cased so one person cannot hold two accounts differing only in case.
-  // The local part is technically case-sensitive; no mail provider anyone uses
-  // treats it that way, and matching their behaviour beats matching the RFC.
+  // auth.Users.EmailNormalized is the unique key and ColdFusion lower-cases
+  // it the same way, so both apps find the same row.
   const email = value.trim().toLowerCase()
 
-  // 254 is the longest address that can actually be delivered. The column is
-  // NVARCHAR(320) -- the theoretical maximum, 64 for the local part plus 255
-  // for the domain -- so this is stricter than the schema on purpose: an
-  // address the mail system cannot reach is not one worth storing, and the
-  // registration link would go nowhere.
   if (email.length < 3 || email.length > 254) return null
 
   // The final segment must be at least two characters, because
-  // CK_Users_EmailShape in the database says so: Email LIKE '%_@_%.__%'.
-  // Anything this accepts and the constraint rejects arrives as a 500 from a
-  // failed INSERT instead of a 400 naming the field -- so the looser of the
-  // two rules has to be the database's, never this one.
+  // CK_Users_EmailShape says Email LIKE '%_@_%.__%'. Anything this accepts and
+  // the constraint rejects arrives as a 500 from a failed INSERT instead of a
+  // 400 naming the field, so the looser of the two rules has to be the
+  // database's.
   if (!/^[^\s@]+@[^\s@.]+(\.[^\s@.]+)*\.[^\s@.]{2,}$/.test(email)) return null
   return email
 }
 
 module.exports = {
+  preparePassword,
+  isPepperConfigured,
   hashPassword,
   verifyPassword,
   needsRehash,
@@ -266,6 +237,8 @@ module.exports = {
   readSessionToken,
   normaliseEmail,
   PASSWORD_ALGORITHM,
+  BCRYPT_ROUNDS,
+  BCRYPT_VERSION,
   SESSION_COOKIE,
   SESSION_MAX_AGE_S,
 }

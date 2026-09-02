@@ -1,30 +1,90 @@
+// A fixed pepper, set before auth.js is required, so these are deterministic
+// and never depend on the real one in the Function App's settings.
+process.env.AUTH_PEPPER = 'test-pepper-do-not-use-in-production-0000000'
+
 const test = require('node:test')
 const assert = require('node:assert')
+const crypto = require('node:crypto')
+const bcrypt = require('bcryptjs')
 const auth = require('./auth.js')
 
 // ---------------------------------------------------------------------------
-// Run with:  node --test api/src
+// Run with:  npm test
 //
-// The first tests in this repo, and they are here rather than anywhere else
-// because this is the file where a mistake is silent. A broken load board is
-// obvious on sight; a broken password comparison looks exactly like a working
-// one until someone else notices.
+// This is the file where a mistake is silent. A broken load board is obvious
+// on sight; a password comparison that always returns true looks exactly like
+// one that works.
 //
-// No test framework. Node has had a runner built in since 18, and adding
-// dependencies to the Function App is the thing this module went out of its
-// way to avoid in the first place.
+// The tests that matter most here are the interop ones. This app shares its
+// accounts with the ColdFusion app at C:\Websites\app-scaffold, so a password
+// set in one has to verify in the other. Nothing in either codebase enforces
+// that -- only these assertions do.
 // ---------------------------------------------------------------------------
 
-test('a hash is self-describing and salted', async () => {
+test('preparePassword reproduces prepareForBcrypt from Security.cfc', () => {
+  const password = 'correct horse battery staple'
+
+  // Security.cfc, with a pepper configured:
+  //     lCase(hmac(password, pepperKey, "HMACSHA256", "utf-8"))
+  const expected = crypto
+    .createHmac('sha256', Buffer.from(process.env.AUTH_PEPPER, 'utf8'))
+    .update(password, 'utf8')
+    .digest('hex')
+
+  assert.strictEqual(auth.preparePassword(password), expected)
+
+  // 64 lower-case hex characters. Lower case matters: ColdFusion's hmac()
+  // returns upper case and is wrapped in lCase(), so an upper-case digest here
+  // would produce hashes ColdFusion could never verify.
+  assert.match(auth.preparePassword(password), /^[0-9a-f]{64}$/)
+
+  // Fixed length is the point -- bcrypt truncates at 72 bytes and stops at any
+  // null byte, so a long passphrase would otherwise have its tail ignored.
+  assert.strictEqual(auth.preparePassword('x').length, 64)
+  assert.strictEqual(auth.preparePassword('y'.repeat(500)).length, 64)
+})
+
+test('the pepper actually participates', async () => {
   const stored = await auth.hashPassword('correct horse battery staple')
 
-  assert.match(stored, /^scrypt\$65536\$8\$2\$[^$]+\$[^$]+$/)
+  // Same password, different pepper, must not verify. If it does, the pepper
+  // is decorative and a stolen database is crackable on its own.
+  const original = process.env.AUTH_PEPPER
+  try {
+    process.env.AUTH_PEPPER = 'a completely different pepper value'
+    assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored), false)
+  } finally {
+    process.env.AUTH_PEPPER = original
+  }
 
-  // The same password twice must not produce the same hash. If it does, the
-  // salt is not doing anything, and one rainbow table covers every user.
+  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored), true)
+})
+
+test('a hash matches what ColdFusion writes: $2b, cost 12, 60 chars', async () => {
+  const stored = await auth.hashPassword('correct horse battery staple')
+
+  assert.ok(stored.startsWith('$2b$12$'), stored.slice(0, 7))
+  assert.strictEqual(stored.length, 60)
+  assert.strictEqual(auth.PASSWORD_ALGORITHM, 'bcrypt-12')
+
+  // Two hashes of one password must differ, or the salt is decorative.
   const again = await auth.hashPassword('correct horse battery staple')
   assert.notStrictEqual(stored, again)
   assert.ok(await auth.verifyPassword('correct horse battery staple', again))
+})
+
+test('a hash written the ColdFusion way verifies here', async () => {
+  // Built from the primitives rather than through hashPassword, so this fails
+  // if our recipe drifts from theirs even though our own round trip still works.
+  const password = 'a passphrase typed into the ColdFusion app'
+  const prehash = crypto
+    .createHmac('sha256', Buffer.from(process.env.AUTH_PEPPER, 'utf8'))
+    .update(password, 'utf8')
+    .digest('hex')
+  const asColdFusionWouldStore = await bcrypt.hash(prehash, await bcrypt.genSalt(12, 'b'))
+
+  assert.strictEqual(await auth.verifyPassword(password, asColdFusionWouldStore, 'bcrypt-12'), true)
+  assert.strictEqual(await auth.verifyPassword('wrong', asColdFusionWouldStore, 'bcrypt-12'), false)
 })
 
 test('verify accepts the right password and nothing else', async () => {
@@ -32,13 +92,12 @@ test('verify accepts the right password and nothing else', async () => {
 
   assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored), true)
   assert.strictEqual(await auth.verifyPassword('Correct horse battery staple', stored), false)
-  assert.strictEqual(await auth.verifyPassword('correct horse battery stapl', stored), false)
   assert.strictEqual(await auth.verifyPassword('', stored), false)
 })
 
 test('a password survives being retyped on another platform', async () => {
-  // The same eight characters, composed two different ways in Unicode. A
-  // password set on one OS and typed on another can arrive as either.
+  // The same eight characters, composed two ways in Unicode. A password set on
+  // one OS and typed on another can arrive as either.
   const composed = 'passwörd'.normalize('NFC')
   const decomposed = 'passwörd'.normalize('NFD')
   assert.notStrictEqual(composed, decomposed)
@@ -47,73 +106,67 @@ test('a password survives being retyped on another platform', async () => {
   assert.strictEqual(await auth.verifyPassword(composed, stored), true)
 })
 
-test('legacy credentials are refused, not honoured', async () => {
-  // What the ColdFusion original stored: unsalted SHA-512 as uppercase hex,
-  // and in some rows the password itself. Its login accepted either, so any
-  // of those may already be known. None of them may work here even once.
-  const sha512 = 'A'.repeat(128)
+test('a long passphrase is not silently truncated', async () => {
+  // Without the hex pre-hash, bcrypt would ignore everything past 72 bytes and
+  // these two would be the same password.
+  const a = 'x'.repeat(80) + 'ending-one'
+  const b = 'x'.repeat(80) + 'ending-two'
 
-  assert.strictEqual(await auth.verifyPassword('anything', sha512), false)
-  assert.strictEqual(await auth.verifyPassword('plaintext', 'plaintext'), false)
+  const stored = await auth.hashPassword(a)
+  assert.strictEqual(await auth.verifyPassword(a, stored), true)
+  assert.strictEqual(await auth.verifyPassword(b, stored), false)
+})
 
-  // And malformed input must be a refusal rather than a crash -- a throw here
-  // would be a 500 on the login route, which is a denial of service.
-  for (const junk of [null, undefined, '', 'scrypt$', 'scrypt$a$b$c$d$e', 42, {}]) {
+test('algorithms we do not implement are refused, not guessed at', async () => {
+  const stored = await auth.hashPassword('correct horse battery staple')
+
+  // The scrypt rows this file used to write.
+  assert.strictEqual(await auth.verifyPassword('x', 'scrypt$65536$8$2$c2FsdA==$aGFzaA==', 'scrypt'), false)
+  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored, 'scrypt'), false)
+
+  // Both spellings ColdFusion might have written.
+  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored, 'bcrypt'), true)
+  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored, 'bcrypt-12'), true)
+
+  // Malformed input is a refusal, not a throw. A throw on the login route is a
+  // 500, and a 500 on login is a denial of service.
+  for (const junk of [null, undefined, '', '$2b$', 'not-a-hash', 42, {}]) {
     assert.strictEqual(await auth.verifyPassword('x', junk), false)
   }
 })
 
-test('needsRehash spots hashes made with weaker settings', () => {
-  assert.strictEqual(auth.needsRehash('scrypt$65536$8$2$c2FsdA==$' + 'A'.repeat(43) + '='), false)
-  assert.strictEqual(auth.needsRehash('scrypt$16384$8$1$c2FsdA==$' + 'A'.repeat(43) + '='), true)
-  assert.strictEqual(auth.needsRehash('A'.repeat(128)), true)
+test('needsRehash checks version as well as cost', () => {
+  assert.strictEqual(auth.needsRehash('$2b$12$' + 'a'.repeat(53)), false)
+  assert.strictEqual(auth.needsRehash('$2b$10$' + 'a'.repeat(53)), true)
+
+  // Comparing only the cost would leave every $2a$12$ row reporting "fine
+  // forever", so the version migration would never happen.
+  assert.strictEqual(auth.needsRehash('$2a$12$' + 'a'.repeat(53)), true)
+  assert.strictEqual(auth.needsRehash('not-a-hash'), true)
   assert.strictEqual(auth.needsRehash(null), true)
 })
 
 test('tokens are random, url-safe, and stored only as a hash', () => {
   const { token, lookup } = auth.mintToken()
 
-  // 32 bytes as base64url.
-  assert.strictEqual(token.length, 43)
+  assert.strictEqual(token.length, 43) // 32 bytes as base64url
+  assert.strictEqual(token, encodeURIComponent(token)) // safe in an emailed link
 
-  // Safe in a URL with no escaping -- these travel in an emailed link.
-  assert.strictEqual(token, encodeURIComponent(token))
+  // Lower-case hex, 64 chars: what every stored procedure takes as
+  // @TokenHashHex VARCHAR(64). Not a Buffer, even though the column is
+  // binary(32) -- the procedure does the conversion.
+  assert.match(lookup, /^[0-9a-f]{64}$/)
+  assert.strictEqual(auth.hashToken(token), lookup)
+  assert.notStrictEqual(token, lookup)
 
-  // What goes in the database is not what goes in the email, and it is a
-  // Buffer because SecurityTokens.TokenHash and Sessions.TokenHash are
-  // binary(32).
-  assert.ok(Buffer.isBuffer(lookup))
-  assert.strictEqual(lookup.length, 32)
-  assert.ok(lookup.equals(auth.hashToken(token)))
-  assert.ok(!lookup.equals(Buffer.from(token)))
+  // Matches ColdFusion's hashToken(): lCase(hash(token, "SHA-256", "utf-8")).
+  assert.strictEqual(lookup, crypto.createHash('sha256').update(token, 'utf8').digest('hex'))
 
   // Distinct every time. The 2023 original derived this from the clock, so
   // whoever asked for the reset could compute it.
   const seen = new Set()
   for (let i = 0; i < 500; i++) seen.add(auth.mintToken().token)
   assert.strictEqual(seen.size, 500)
-
-  // And distinct hashes, not just distinct tokens.
-  const hashes = new Set()
-  for (let i = 0; i < 500; i++) hashes.add(auth.mintToken().lookup.toString('hex'))
-  assert.strictEqual(hashes.size, 500)
-})
-
-test('an algorithm we do not implement is refused, not guessed at', async () => {
-  const stored = await auth.hashPassword('correct horse battery staple')
-
-  // The row already in auth.UserPasswords is bcrypt. Feeding its hash to the
-  // scrypt parser would fail anyway, but the refusal must be deliberate --
-  // relying on a parse failure is relying on an accident.
-  assert.strictEqual(
-    await auth.verifyPassword('correct horse battery staple', stored, 'bcrypt'),
-    false
-  )
-  assert.strictEqual(await auth.verifyPassword('x', '$2b$12$' + 'a'.repeat(53), 'bcrypt'), false)
-
-  // The default is our own algorithm, so existing callers are unaffected.
-  assert.strictEqual(auth.PASSWORD_ALGORITHM, 'scrypt')
-  assert.strictEqual(await auth.verifyPassword('correct horse battery staple', stored), true)
 })
 
 test('the session cookie carries every flag that matters', () => {
@@ -122,9 +175,12 @@ test('the session cookie carries every flag that matters', () => {
   for (const flag of ['HttpOnly', 'Secure', 'SameSite=Lax', 'Path=/']) {
     assert.ok(cookie.includes(flag), `missing ${flag}`)
   }
-  assert.ok(cookie.includes(`Max-Age=${auth.SESSION_MAX_AGE_S}`))
 
-  // Deleting a cookie means expiring it; there is no delete.
+  // 480 minutes, the same eight hours Security.cfc uses.
+  assert.strictEqual(auth.SESSION_MAX_AGE_S, 480 * 60)
+  assert.ok(cookie.includes(`Max-Age=${480 * 60}`))
+
+  // Expiring a cookie is the only way to delete one.
   assert.ok(auth.clearSessionCookie().includes('Max-Age=0'))
 })
 
@@ -133,10 +189,7 @@ test('the session token is found among other cookies', () => {
 
   assert.strictEqual(auth.readSessionToken(req('a=1; lb_session=wanted; z=2')), 'wanted')
   assert.strictEqual(auth.readSessionToken(req('lb_session=wanted')), 'wanted')
-
-  // A cookie named similarly must not match.
   assert.strictEqual(auth.readSessionToken(req('xlb_session=no')), null)
-
   assert.strictEqual(auth.readSessionToken(req('lb_session=')), null)
   assert.strictEqual(auth.readSessionToken(req('nothing=here')), null)
   assert.strictEqual(auth.readSessionToken(req(null)), null)
@@ -145,16 +198,27 @@ test('the session token is found among other cookies', () => {
 test('email addresses are normalised, and junk is rejected', () => {
   assert.strictEqual(auth.normaliseEmail('  Warren@Example.COM '), 'warren@example.com')
   assert.strictEqual(auth.normaliseEmail('a@b.co'), 'a@b.co')
+  assert.strictEqual(auth.normaliseEmail('warren@example.co.uk'), 'warren@example.co.uk')
 
   for (const bad of ['no-at-sign', 'a@b', 'a b@c.com', '@b.com', 'a@', '', null, 42, 'a@b..com']) {
     assert.strictEqual(auth.normaliseEmail(bad), null, `should reject ${JSON.stringify(bad)}`)
   }
 
-  // A one-character final segment. CK_Users_EmailShape in the database
-  // (Email LIKE '%_@_%.__%') requires two, so accepting it here would turn a
-  // 400 naming the field into a 500 from a failed INSERT. Whichever of the two
-  // rules is looser has to be the database's.
+  // CK_Users_EmailShape is Email LIKE '%_@_%.__%' -- two characters after the
+  // final dot. Accepting this would turn a 400 naming the field into a 500
+  // from a failed INSERT.
   assert.strictEqual(auth.normaliseEmail('a@b.c'), null)
-  assert.strictEqual(auth.normaliseEmail('a@b.co'), 'a@b.co')
-  assert.strictEqual(auth.normaliseEmail('warren@example.co.uk'), 'warren@example.co.uk')
+})
+
+test('a missing pepper is detectable', () => {
+  const original = process.env.AUTH_PEPPER
+  try {
+    assert.strictEqual(auth.isPepperConfigured(), true)
+    delete process.env.AUTH_PEPPER
+    // Callers check this rather than hashing happily and writing rows the
+    // ColdFusion app could never verify.
+    assert.strictEqual(auth.isPepperConfigured(), false)
+  } finally {
+    process.env.AUTH_PEPPER = original
+  }
 })

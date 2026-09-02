@@ -2,38 +2,30 @@ const { getPool, sql } = require('./db')
 const { hashToken, mintToken, PASSWORD_ALGORITHM, SESSION_MAX_AGE_S } = require('./auth')
 
 // ---------------------------------------------------------------------------
-// Every read and write the login makes against the auth schema.
+// Thin wrappers over the auth stored procedures.
 //
-// It lives apart from the route handlers for the same reason auth.js lives
-// apart from this: the routes decide what should happen, and these decide how
-// to say it in SQL. Mixing them is how a query ends up written twice, slightly
-// differently, and only one of the two checks whether the session was revoked.
+// The procedures are the shared API, not an implementation detail. The
+// ColdFusion app at C:\Websites\app-scaffold calls exactly these, and every
+// rule that matters -- lockout, sliding session expiry, single-use tokens,
+// audit rows, which failures count toward a throttle -- lives inside them.
 //
-// Two rules hold throughout.
+// This file previously wrote raw SQL against the tables. That worked, and it
+// was wrong: two implementations of the same rules drift, and the drift is
+// invisible until the day one app locks an account the other still lets in.
+// Anything below that looks thin is thin on purpose. The logic is in the
+// database, deliberately, so that both callers get the same answer.
 //
-// Every value is a parameter. Not one of these strings is built by
-// concatenation -- the ColdFusion original this replaces had
-// `WHERE userEmail = '#form.email#'`, and an email of  ' OR 1=1 --  was a
-// login.
-//
-// The database enforces single-use, not this code. Where a token may be spent
-// exactly once, the spending is an UPDATE whose WHERE clause contains the
-// "not yet spent" condition. Two simultaneous requests both run it; SQL Server
-// serialises them; the second updates zero rows and is refused. Reading first
-// and then writing would let both pass.
+// One consequence worth stating: @TokenHashHex is VARCHAR(64) lower-case hex
+// on every one of these, even though the underlying columns are BINARY(32).
+// The procs do `CONVERT(BINARY(32), @TokenHashHex, 2)` themselves. The
+// procedure signature is the contract; the column type is not.
 // ---------------------------------------------------------------------------
 
-// How long an emailed link is good for. Long enough to walk to a laptop, far
-// too short to be worth attacking -- and single-use regardless.
 const TOKEN_TTL_MINUTES = 60
 
-// The only three values CK_SecurityTokens_Purpose permits. They are the
-// schema's vocabulary, not ours, and inventing a fourth ('register', say) is a
-// constraint violation surfacing as a 500 -- which is how this was found.
-//
-// Registration uses EmailVerify rather than a purpose of its own, and that is
-// the honest name for it: the link proves the address, and setting the first
-// password is what the person does once it has. EmailChange is unused so far.
+// CK_SecurityTokens_Purpose permits exactly these three. They are the schema's
+// vocabulary, not ours. Registration uses EmailVerify rather than a purpose of
+// its own, which is the honest name for it: the link proves the address.
 const PURPOSE = {
   VERIFY: 'EmailVerify',
   RESET: 'PasswordReset',
@@ -44,378 +36,275 @@ const PURPOSE = {
 // Users
 // ---------------------------------------------------------------------------
 
-// The current password comes back with the user, because every caller that
-// wants one wants the other, and a LEFT JOIN here is one round trip instead of
-// two. It is a LEFT join because a registered account has no password until it
-// has followed the emailed link -- that row genuinely does not exist yet.
-async function findUserByEmail(emailNormalized) {
+// Returns the account plus its current password hash, algorithm, and whether
+// it is locked out right now -- everything a login decision needs, in one
+// call, computed server-side so the answer cannot drift between callers.
+async function getUserForLogin(email) {
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('email', sql.NVarChar(320), emailNormalized)
-    .query(`
-      SELECT u.UserId, u.PublicId, u.Email, u.DisplayName, u.IsActive,
-             u.LockoutEndUtc, u.EmailConfirmedUtc, u.[Role], u.DriverCode,
-             p.PasswordHash, p.Algorithm
-      FROM auth.Users u
-      LEFT JOIN auth.UserPasswords p
-             ON p.UserId = u.UserId AND p.IsCurrent = 1
-      WHERE u.EmailNormalized = @email;
-    `)
+    .input('Email', sql.NVarChar(320), email)
+    .execute('auth.usp_User_GetForLogin')
 
   return result.recordset[0] || null
 }
 
-// IsActive = 1 and Role = 'none' (the column default): the account may sign in
-// from the start, and can do nothing at all until an admin gives it a role.
-// Those are two different questions and the schema keeps them apart -- see
-// auth_01_roles.sql.
+// Role and DriverCode are not returned by the shared procedures: those were
+// written before auth_01_roles.sql added the columns, and this app is not
+// going to quietly rewrite a procedure the ColdFusion app depends on.
 //
-// EmailConfirmedUtc stays NULL. Following the emailed link is what proves the
-// address, and setPassword is what records it.
-async function createUser(email, emailNormalized, displayName) {
+// So it is a separate read. Cheap -- a clustered-index seek on the primary key
+// -- and honest about who owns what. If ColdFusion ever grows roles too, the
+// right move is to fold these into usp_User_GetForLogin and delete this.
+async function getAuthorization(userId) {
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('email', sql.NVarChar(320), email)
-    .input('norm', sql.NVarChar(320), emailNormalized)
-    .input('name', sql.NVarChar(100), displayName || null)
-    .query(`
-      INSERT INTO auth.Users (PublicId, Email, EmailNormalized, DisplayName,
-                              IsActive, CreatedUtc, ModifiedUtc)
-      OUTPUT inserted.UserId, inserted.PublicId
-      VALUES (NEWID(), @email, @norm, @name, 1, SYSUTCDATETIME(), SYSUTCDATETIME());
-    `)
+    .input('userId', sql.Int, userId)
+    .query('SELECT [Role], DriverCode FROM auth.Users WHERE UserId = @userId;')
+
+  return result.recordset[0] || null
+}
+
+// The account is created with its password in one transaction inside the
+// procedure, so there is never a row that exists without one. Role defaults to
+// 'none' -- registration is open and a new account can do nothing until an
+// admin approves it.
+async function createUser(email, passwordHash, displayName, ip) {
+  const pool = await getPool()
+  const result = await pool
+    .request()
+    .input('Email', sql.NVarChar(320), email)
+    .input('PasswordHash', sql.VarChar(255), passwordHash)
+    .input('Algorithm', sql.VarChar(32), PASSWORD_ALGORITHM)
+    .input('DisplayName', sql.NVarChar(100), displayName || null)
+    .input('IpAddress', sql.VarChar(45), ip || null)
+    .execute('auth.usp_User_Create')
 
   return result.recordset[0]
 }
 
 // ---------------------------------------------------------------------------
 // Passwords
-//
-// UserPasswords is a history, not a single value: the current one carries
-// IsCurrent = 1 and the rest are retired. That is what makes "you cannot reuse
-// your last five" possible later, and it means setting a password is two
-// writes that must both happen or neither.
-//
-// Hence the explicit transaction. Without it, a failure between the UPDATE and
-// the INSERT leaves an account with no current password -- which the LEFT JOIN
-// above reports as "never set one", and the person can no longer log in.
-//
-// The order is also forced, not merely tidy. UX_UserPasswords_OneCurrent is a
-// UNIQUE index on UserId filtered to IsCurrent = 1, so the database itself
-// guarantees at most one current password per account -- and inserting the new
-// row before retiring the old one violates it. Retire first, then insert.
-//
-// CK_UserPasswords_Retired pairs the two columns the other way: IsCurrent = 0
-// requires a RetiredUtc, and IsCurrent = 1 requires none. So a retired row
-// must be given its timestamp in the same statement that retires it.
 // ---------------------------------------------------------------------------
-async function setPassword(userId, passwordHash, algorithm = PASSWORD_ALGORITHM) {
+
+// The procedure retires the old row, inserts the new one, writes the audit
+// event and revokes other sessions -- all in one transaction. RevokeOtherSessions
+// defaults on here for the reason it should: if the password changed because it
+// leaked, leaving the attacker's session alive makes the change pointless.
+//
+// KeepSessionId exists so a signed-in user changing their own password is not
+// logged out of the tab they are sitting in. Pass null when nobody should
+// survive, which is the case for a reset from an emailed link.
+async function setPassword(userId, passwordHash, { keepSessionId = null, ip = null, eventType = 'PasswordChanged' } = {}) {
   const pool = await getPool()
   await pool
     .request()
-    .input('userId', sql.Int, userId)
-    .input('hash', sql.VarChar(255), passwordHash)
-    .input('alg', sql.VarChar(32), algorithm)
-    .query(`
-      SET XACT_ABORT ON;
-      BEGIN TRANSACTION;
+    .input('UserId', sql.Int, userId)
+    .input('PasswordHash', sql.VarChar(255), passwordHash)
+    .input('Algorithm', sql.VarChar(32), PASSWORD_ALGORITHM)
+    .input('RevokeOtherSessions', sql.Bit, 1)
+    .input('KeepSessionId', sql.BigInt, keepSessionId)
+    .input('IpAddress', sql.VarChar(45), ip)
+    .input('EventType', sql.VarChar(40), eventType)
+    .execute('auth.usp_Password_Set')
+}
 
-        UPDATE auth.UserPasswords
-           SET IsCurrent = 0, RetiredUtc = SYSUTCDATETIME()
-         WHERE UserId = @userId AND IsCurrent = 1;
-
-        INSERT INTO auth.UserPasswords (UserId, PasswordHash, Algorithm, IsCurrent, CreatedUtc)
-        VALUES (@userId, @hash, @alg, 1, SYSUTCDATETIME());
-
-        -- Setting a password through an emailed link also proves the address,
-        -- so confirm it if it was not already. COALESCE keeps the FIRST
-        -- confirmation date rather than moving it on every password change.
-        UPDATE auth.Users
-           SET ModifiedUtc = SYSUTCDATETIME(),
-               EmailConfirmedUtc = COALESCE(EmailConfirmedUtc, SYSUTCDATETIME())
-         WHERE UserId = @userId;
-
-        -- Every existing session dies. If the password was changed because it
-        -- leaked, leaving the attacker's session alive would make the change
-        -- pointless -- and this is the case a JWT cannot handle at all.
-        UPDATE auth.Sessions
-           SET RevokedUtc = SYSUTCDATETIME(), RevokedReason = 'password-changed'
-         WHERE UserId = @userId AND RevokedUtc IS NULL;
-
-      COMMIT TRANSACTION;
-    `)
+async function confirmEmail(userId, ip) {
+  const pool = await getPool()
+  await pool
+    .request()
+    .input('UserId', sql.Int, userId)
+    .input('IpAddress', sql.VarChar(45), ip || null)
+    .execute('auth.usp_User_ConfirmEmail')
 }
 
 // ---------------------------------------------------------------------------
 // Security tokens -- the emailed registration and reset links
 // ---------------------------------------------------------------------------
 
-// Returns the raw token, which exists only in the returned string and in the
-// email that carries it. What is stored is its SHA-256.
-//
-// Any earlier unspent link for the same purpose is invalidated first, so
-// asking again really does replace the last one. Otherwise every request would
-// leave another working key lying in an inbox.
-async function issueToken(userId, purpose, requestIp) {
+// Returns the raw token, which exists only here and in the email that carries
+// it. What reaches the database is its SHA-256 as hex, so a stolen table
+// cannot complete a registration or a reset.
+async function issueToken(userId, purpose, ip, lifetimeMinutes = TOKEN_TTL_MINUTES) {
   const { token, lookup } = mintToken()
   const pool = await getPool()
 
   await pool
     .request()
-    .input('userId', sql.Int, userId)
-    .input('purpose', sql.VarChar(30), purpose)
-    .input('hash', sql.Binary(32), lookup)
-    .input('ttl', sql.Int, TOKEN_TTL_MINUTES)
-    .input('ip', sql.VarChar(45), requestIp || null)
-    .query(`
-      SET XACT_ABORT ON;
-      BEGIN TRANSACTION;
-
-        UPDATE auth.SecurityTokens
-           SET InvalidatedUtc = SYSUTCDATETIME()
-         WHERE UserId = @userId AND Purpose = @purpose
-           AND ConsumedUtc IS NULL AND InvalidatedUtc IS NULL;
-
-        INSERT INTO auth.SecurityTokens
-            (UserId, Purpose, TokenHash, CreatedUtc, ExpiresUtc, RequestIp)
-        VALUES (@userId, @purpose, @hash, SYSUTCDATETIME(),
-                DATEADD(minute, @ttl, SYSUTCDATETIME()), @ip);
-
-      COMMIT TRANSACTION;
-    `)
+    .input('UserId', sql.Int, userId)
+    .input('Purpose', sql.VarChar(30), purpose)
+    .input('TokenHashHex', sql.VarChar(64), lookup)
+    .input('LifetimeMinutes', sql.Int, lifetimeMinutes)
+    .input('RequestIp', sql.VarChar(45), ip || null)
+    .execute('auth.usp_Token_Issue')
 
   return token
 }
 
-// Spends the token and says whose it was, or null.
+// Spends the token and returns the account, or null.
 //
-// One statement on purpose. The conditions that make a token usable -- right
-// purpose, not consumed, not invalidated, not expired -- are in the WHERE
-// clause of the UPDATE that consumes it, so the check and the spend cannot be
-// separated. Two requests arriving with the same token at the same instant are
-// serialised by the row lock: the first updates one row, the second updates
-// none and gets null.
-//
-// A SELECT followed by an UPDATE would look identical and let both through.
-async function consumeToken(purpose, token) {
+// The procedure does the check and the spend in one UPDATE whose WHERE clause
+// carries every condition -- right purpose, not consumed, not invalidated, not
+// expired. Two requests arriving with the same token at the same instant are
+// serialised by the row lock: one wins, one gets nothing. A SELECT followed by
+// an UPDATE would read identically and let both through.
+async function redeemToken(purpose, token) {
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('purpose', sql.VarChar(30), purpose)
-    .input('hash', sql.Binary(32), hashToken(token))
-    .query(`
-      UPDATE auth.SecurityTokens
-         SET ConsumedUtc = SYSUTCDATETIME()
-      OUTPUT inserted.UserId
-       WHERE TokenHash = @hash
-         AND Purpose = @purpose
-         AND ConsumedUtc IS NULL
-         AND InvalidatedUtc IS NULL
-         AND ExpiresUtc > SYSUTCDATETIME();
-    `)
+    .input('Purpose', sql.VarChar(30), purpose)
+    .input('TokenHashHex', sql.VarChar(64), hashToken(token))
+    .execute('auth.usp_Token_Redeem')
 
-  return result.recordset.length ? result.recordset[0].UserId : null
+  return result.recordset[0] || null
 }
 
 // ---------------------------------------------------------------------------
 // Sessions
 // ---------------------------------------------------------------------------
-async function createSession(userId, ip, userAgent, maxAgeSeconds = SESSION_MAX_AGE_S) {
+async function createSession(userId, ip, userAgent, lifetimeMinutes = SESSION_MAX_AGE_S / 60) {
   const { token, lookup } = mintToken()
   const pool = await getPool()
 
-  await pool
+  const result = await pool
     .request()
-    .input('userId', sql.Int, userId)
-    .input('hash', sql.Binary(32), lookup)
-    .input('seconds', sql.Int, maxAgeSeconds)
-    .input('ip', sql.VarChar(45), ip || null)
+    .input('UserId', sql.Int, userId)
+    .input('TokenHashHex', sql.VarChar(64), lookup)
+    .input('LifetimeMinutes', sql.Int, lifetimeMinutes)
+    .input('IpAddress', sql.VarChar(45), ip || null)
     // Truncated rather than rejected: a user agent longer than the column is a
     // curiosity, not a reason to refuse someone a session.
-    .input('ua', sql.NVarChar(400), userAgent ? userAgent.slice(0, 400) : null)
-    .query(`
-      INSERT INTO auth.Sessions (UserId, TokenHash, IssuedUtc, ExpiresUtc,
-                                 LastSeenUtc, IpAddress, UserAgent)
-      VALUES (@userId, @hash, SYSUTCDATETIME(),
-              DATEADD(second, @seconds, SYSUTCDATETIME()),
-              SYSUTCDATETIME(), @ip, @ua);
-    `)
+    .input('UserAgent', sql.NVarChar(400), userAgent ? userAgent.slice(0, 400) : null)
+    .execute('auth.usp_Session_Create')
 
-  return token
+  return { token, session: result.recordset[0] }
 }
 
-// Who this cookie belongs to, or null. Called on every request that needs an
-// identity, so it is one round trip: the touch and the lookup travel together.
-//
-// IsActive is checked HERE and not only at login. An account disabled at 14:00
-// must stop working at 14:00, not whenever its eight-hour session happens to
-// run out.
-async function resolveSession(token) {
+// Called on every request that needs an identity. The procedure slides the
+// expiry, touches LastSeenUtc, and refuses a session whose user has since been
+// deactivated -- so an account disabled at 14:00 stops working at 14:00 rather
+// than whenever its eight hours happen to run out.
+async function validateSession(token, slideMinutes = SESSION_MAX_AGE_S / 60) {
   if (!token) return null
 
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('hash', sql.Binary(32), hashToken(token))
-    .query(`
-      DECLARE @hit TABLE (UserId INT);
-
-      UPDATE auth.Sessions
-         SET LastSeenUtc = SYSUTCDATETIME()
-      OUTPUT inserted.UserId INTO @hit
-       WHERE TokenHash = @hash
-         AND RevokedUtc IS NULL
-         AND ExpiresUtc > SYSUTCDATETIME();
-
-      SELECT u.UserId, u.PublicId, u.Email, u.DisplayName, u.[Role], u.DriverCode
-      FROM @hit h
-      JOIN auth.Users u ON u.UserId = h.UserId
-      WHERE u.IsActive = 1;
-    `)
+    .input('TokenHashHex', sql.VarChar(64), hashToken(token))
+    .input('SlideMinutes', sql.Int, slideMinutes)
+    .execute('auth.usp_Session_Validate')
 
   return result.recordset[0] || null
 }
 
-// Revoked, not deleted, so "signed out at 14:02" survives as an answer.
-async function revokeSession(token, reason = 'signed-out') {
+async function revokeSession(token, reason = 'Logout', ip = null) {
   if (!token) return
   const pool = await getPool()
   await pool
     .request()
-    .input('hash', sql.Binary(32), hashToken(token))
-    .input('reason', sql.VarChar(40), reason)
-    .query(`
-      UPDATE auth.Sessions
-         SET RevokedUtc = SYSUTCDATETIME(), RevokedReason = @reason
-       WHERE TokenHash = @hash AND RevokedUtc IS NULL;
-    `)
+    .input('TokenHashHex', sql.VarChar(64), hashToken(token))
+    .input('Reason', sql.VarChar(40), reason)
+    .input('IpAddress', sql.VarChar(45), ip)
+    .execute('auth.usp_Session_Revoke')
 }
 
-// ---------------------------------------------------------------------------
-// Attempts, rate limits and the audit trail
-// ---------------------------------------------------------------------------
-
-// EmailNormalized is recorded only when it matched a real account. A table of
-// every address anyone ever typed at the login form is a list worth stealing,
-// and it would answer "does this person have an account here" to anyone who
-// later reads it.
-async function recordLoginAttempt({ userId, emailNormalized, ip, succeeded, failureReason }) {
+async function revokeAllSessions(userId, reason = 'PasswordChanged', ip = null) {
   const pool = await getPool()
   await pool
     .request()
-    .input('userId', sql.Int, userId || null)
-    .input('email', sql.NVarChar(320), userId ? emailNormalized : null)
-    .input('ip', sql.VarChar(45), ip || '0.0.0.0')
-    .input('ok', sql.Bit, succeeded ? 1 : 0)
-    .input('reason', sql.VarChar(40), failureReason || null)
-    .query(`
-      INSERT INTO auth.LoginAttempts
-          (EmailNormalized, UserId, IpAddress, AttemptedUtc, WasSuccessful, FailureReason)
-      VALUES (@email, @userId, @ip, SYSUTCDATETIME(), @ok, @reason);
-    `)
+    .input('UserId', sql.Int, userId)
+    .input('Reason', sql.VarChar(40), reason)
+    .input('IpAddress', sql.VarChar(45), ip)
+    .execute('auth.usp_Session_RevokeAllForUser')
 }
 
-// Two counts from one round trip, because both matter and for different
-// reasons: by account, guessing one person's password; by address, guessing
-// everyone's -- and, just as importantly, exhausting memory. Each scrypt hash
-// costs about 64 MB against a Function's 1.5 GB, so an unthrottled /api/login
-// is a denial-of-service lever whether or not any guess ever lands.
-async function recentFailures({ userId, ip, minutes = 15 }) {
+// ---------------------------------------------------------------------------
+// Throttling
+//
+// Ask BEFORE spending 316 ms on a bcrypt verify, not after. That ordering is
+// the whole point: the hash is deliberately expensive, so an unthrottled login
+// route is a CPU-exhaustion lever whether or not any guess ever lands.
+//
+// The procedure excludes the app's own throttle rejections from the counts,
+// which matters more than it looks. Counting them would let every retry extend
+// the window over rows the throttle itself generated, so the only escape would
+// be to send nothing for the full window -- the opposite of what a locked-out
+// person does. It is worse on the per-IP counter, which a whole office shares
+// behind one NAT address.
+// ---------------------------------------------------------------------------
+async function getThrottleState(email, ip, windowMinutes = 15) {
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('userId', sql.Int, userId || null)
-    .input('ip', sql.VarChar(45), ip || '0.0.0.0')
-    .input('minutes', sql.Int, minutes)
-    .query(`
-      DECLARE @since DATETIME2(7) = DATEADD(minute, -@minutes, SYSUTCDATETIME());
+    .input('Email', sql.NVarChar(320), email)
+    .input('IpAddress', sql.VarChar(45), ip || '0.0.0.0')
+    .input('WindowMinutes', sql.Int, windowMinutes)
+    .execute('auth.usp_Login_GetThrottleState')
 
-      SELECT
-        (SELECT COUNT(*) FROM auth.LoginAttempts
-          WHERE UserId = @userId AND WasSuccessful = 0 AND AttemptedUtc >= @since) AS byUser,
-        (SELECT COUNT(*) FROM auth.LoginAttempts
-          WHERE IpAddress = @ip AND WasSuccessful = 0 AND AttemptedUtc >= @since) AS byIp;
-    `)
-
-  const row = result.recordset[0]
-  return { byUser: row.byUser, byIp: row.byIp }
+  return result.recordset[0]
 }
 
-// A general-purpose counter for the things that are not logins -- how many
-// registration links this address has asked for, how many resets from this IP.
-// Recorded and counted separately from LoginAttempts because the questions
-// have different windows and different thresholds.
-async function hitRateLimit(bucket, subjectKey, ip) {
-  const pool = await getPool()
-  await pool
-    .request()
-    .input('bucket', sql.VarChar(30), bucket)
-    .input('subject', sql.NVarChar(320), subjectKey || null)
-    .input('ip', sql.VarChar(45), ip || '0.0.0.0')
-    .query(`
-      INSERT INTO auth.RateLimits (Bucket, SubjectKey, IpAddress, OccurredUtc)
-      VALUES (@bucket, @subject, @ip, SYSUTCDATETIME());
-    `)
-}
-
-async function rateLimitCount(bucket, subjectKey, ip, minutes = 60) {
+// Records the attempt and applies a lockout when the limit is crossed. The
+// email is passed through to the procedure, which decides what to keep.
+async function recordLoginAttempt({
+  email,
+  ip,
+  succeeded,
+  userId = null,
+  failureReason = null,
+  windowMinutes = 15,
+  failureLimit = 10,
+  lockoutMinutes = 15,
+}) {
   const pool = await getPool()
   const result = await pool
     .request()
-    .input('bucket', sql.VarChar(30), bucket)
-    .input('subject', sql.NVarChar(320), subjectKey || null)
-    .input('ip', sql.VarChar(45), ip || '0.0.0.0')
-    .input('minutes', sql.Int, minutes)
-    .query(`
-      DECLARE @since DATETIME2(7) = DATEADD(minute, -@minutes, SYSUTCDATETIME());
+    .input('Email', sql.NVarChar(320), email || null)
+    .input('IpAddress', sql.VarChar(45), ip || '0.0.0.0')
+    .input('WasSuccessful', sql.Bit, succeeded ? 1 : 0)
+    .input('UserId', sql.Int, userId)
+    .input('FailureReason', sql.VarChar(40), failureReason)
+    .input('WindowMinutes', sql.Int, windowMinutes)
+    .input('FailureLimit', sql.Int, failureLimit)
+    .input('LockoutMinutes', sql.Int, lockoutMinutes)
+    .execute('auth.usp_Login_RecordAttempt')
 
-      SELECT
-        (SELECT COUNT(*) FROM auth.RateLimits
-          WHERE Bucket = @bucket AND SubjectKey = @subject AND OccurredUtc >= @since) AS bySubject,
-        (SELECT COUNT(*) FROM auth.RateLimits
-          WHERE Bucket = @bucket AND IpAddress = @ip AND OccurredUtc >= @since) AS byIp;
-    `)
-
-  const row = result.recordset[0]
-  return { bySubject: row.bySubject, byIp: row.byIp }
+  return result.recordset[0] || null
 }
 
-// The audit trail. Deliberately never fails a request: if writing history
-// breaks, the thing that made the history should still have happened.
-async function logEvent(userId, eventType, ip, detail) {
-  try {
-    const pool = await getPool()
-    await pool
-      .request()
-      .input('userId', sql.Int, userId || null)
-      .input('type', sql.VarChar(40), eventType)
-      .input('ip', sql.VarChar(45), ip || null)
-      .input('detail', sql.NVarChar(500), detail ? String(detail).slice(0, 500) : null)
-      .query(`
-        INSERT INTO auth.AuthEvents (UserId, EventType, OccurredUtc, IpAddress, Detail)
-        VALUES (@userId, @type, SYSUTCDATETIME(), @ip, @detail);
-      `)
-  } catch {
-    // Swallowed on purpose. The caller has already done the real work.
-  }
+// The general-purpose counter, for the things that are not logins: how many
+// registration links an address has asked for, how many resets from one IP.
+async function hitRateLimit(bucket, subjectKey, ip, { windowMinutes = 60, subjectLimit = 5, ipLimit = 20 } = {}) {
+  const pool = await getPool()
+  const result = await pool
+    .request()
+    .input('Bucket', sql.VarChar(30), bucket)
+    .input('IpAddress', sql.VarChar(45), ip || '0.0.0.0')
+    .input('SubjectKey', sql.NVarChar(320), subjectKey || null)
+    .input('WindowMinutes', sql.Int, windowMinutes)
+    .input('SubjectLimit', sql.Int, subjectLimit)
+    .input('IpLimit', sql.Int, ipLimit)
+    .execute('auth.usp_RateLimit_Hit')
+
+  return result.recordset[0] || null
 }
 
 module.exports = {
-  findUserByEmail,
+  getUserForLogin,
+  getAuthorization,
   createUser,
   setPassword,
+  confirmEmail,
   issueToken,
-  consumeToken,
+  redeemToken,
   createSession,
-  resolveSession,
+  validateSession,
   revokeSession,
+  revokeAllSessions,
+  getThrottleState,
   recordLoginAttempt,
-  recentFailures,
   hitRateLimit,
-  rateLimitCount,
-  logEvent,
   PURPOSE,
   TOKEN_TTL_MINUTES,
 }
