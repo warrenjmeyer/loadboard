@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions')
 const { getPool, sql } = require('../db')
+const identity = require('../identity')
 
 // ---------------------------------------------------------------------------
 // The company-driver settlement (pay statement).
@@ -13,6 +14,17 @@ const { getPool, sql } = require('../db')
 // Every value that comes from the URL is passed as a bound parameter. The
 // ColdFusion original interpolated #url.id# straight into its SQL, which meant
 // the driver code was executable; here it can only ever be data.
+//
+// ALL FOUR ROUTES NOW REQUIRE A SIGNED-IN USER. They were anonymous until
+// today, which meant /api/drivers/JSMITH/settlements handed anyone's pay
+// statement to anyone who knew the driver code -- and driver codes are on the
+// load board. The money in there is invented, the names are real.
+//
+// The rule differs by route. The board and the driver list are aggregate
+// views, so they need dispatcher or admin. A single driver's statement is
+// readable by that driver, and the comparison is against the DriverCode on
+// their account -- never against anything in the URL, because the URL is the
+// question, not the answer.
 // ---------------------------------------------------------------------------
 
 const DRIVER_CODE = /^[A-Za-z0-9_-]{1,20}$/
@@ -29,6 +41,17 @@ app.http('settlementBoard', {
   route: 'settlements',
   handler: async (request, context) => {
     try {
+      // An aggregate view of everybody's pay. Dispatchers and admins only.
+      const user = await identity.currentUser(request)
+      if (!user) return identity.unauthorized('Sign in to view settlements.')
+      if (!identity.can(user, 'viewAllSettlements')) {
+        return identity.forbidden(
+          user.role === 'driver'
+            ? 'Drivers can only open their own settlement.'
+            : 'Your account does not have access to settlements.'
+        )
+      }
+
       const pool = await getPool()
 
       // Totals are computed here rather than stored, the same way the detail
@@ -96,6 +119,17 @@ app.http('driverList', {
   route: 'drivers',
   handler: async (request, context) => {
     try {
+      // An aggregate view of everybody's pay. Dispatchers and admins only.
+      const user = await identity.currentUser(request)
+      if (!user) return identity.unauthorized('Sign in to view settlements.')
+      if (!identity.can(user, 'viewAllSettlements')) {
+        return identity.forbidden(
+          user.role === 'driver'
+            ? 'Drivers can only open their own settlement.'
+            : 'Your account does not have access to settlements.'
+        )
+      }
+
       const pool = await getPool()
 
       // Only drivers who actually have a settlement. A link to an empty
@@ -134,6 +168,20 @@ app.http('settlementList', {
 
     if (!DRIVER_CODE.test(driverCode)) {
       return { status: 400, jsonBody: { error: 'Invalid driver code.' } }
+    }
+
+    // A driver may open their own statement and nobody else's; dispatchers and
+    // admins may open anyone's. The comparison happens inside canViewDriver
+    // against the DriverCode on the account -- the code in the URL is what is
+    // being asked about, never what grants the access.
+    //
+    // 403 rather than 404 for a driver asking after someone else. Hiding it as
+    // "not found" would be tidier, but it would also mean a driver could probe
+    // which codes exist by watching 403 turn into 404.
+    const user = await identity.currentUser(request)
+    if (!user) return identity.unauthorized('Sign in to view this settlement.')
+    if (!identity.canViewDriver(user, driverCode)) {
+      return identity.forbidden('You can only open your own settlement.')
     }
 
     try {
@@ -177,6 +225,20 @@ app.http('settlementDetail', {
     }
     if (!ISO_DATE.test(checkDate)) {
       return { status: 400, jsonBody: { error: 'Check date must be YYYY-MM-DD.' } }
+    }
+
+    // A driver may open their own statement and nobody else's; dispatchers and
+    // admins may open anyone's. The comparison happens inside canViewDriver
+    // against the DriverCode on the account -- the code in the URL is what is
+    // being asked about, never what grants the access.
+    //
+    // 403 rather than 404 for a driver asking after someone else. Hiding it as
+    // "not found" would be tidier, but it would also mean a driver could probe
+    // which codes exist by watching 403 turn into 404.
+    const user = await identity.currentUser(request)
+    if (!user) return identity.unauthorized('Sign in to view this settlement.')
+    if (!identity.canViewDriver(user, driverCode)) {
+      return identity.forbidden('You can only open your own settlement.')
     }
 
     try {

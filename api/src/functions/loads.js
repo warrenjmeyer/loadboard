@@ -1,5 +1,6 @@
 const { app } = require('@azure/functions')
 const { getPool, sql } = require('../db')
+const identity = require('../identity')
 
 // ---------------------------------------------------------------------------
 // /api/loads -- the rows behind the load board, read live from SQL on every
@@ -36,31 +37,6 @@ function rowToLoad(r) {
     // end never has to handle a delivery date with nobody attached to it.
     driverCode: r.driver_code,
     deliveredDate: r.delivered_date ? r.delivered_date.toISOString().slice(0, 10) : null,
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Who is asking.
-//
-// Static Web Apps terminates the login itself and hands the Function a base64
-// JSON header describing the user. The header is injected by the platform on
-// the way in and cannot be forged from outside: SWA strips any
-// x-ms-client-principal a client sends before the request reaches us.
-//
-// So this is trustworthy *in production, behind SWA*. Run the Functions host
-// directly on port 7071 and nothing sets the header -- which is why the gate
-// is also a route rule in staticwebapp.config.json, not this check alone.
-// ---------------------------------------------------------------------------
-function getPrincipal(request) {
-  const header = request.headers.get('x-ms-client-principal')
-  if (!header) return null
-  try {
-    const parsed = JSON.parse(Buffer.from(header, 'base64').toString('utf8'))
-    return parsed && parsed.userId ? parsed : null
-  } catch {
-    // A malformed header is not an authenticated user. Treat it as anonymous
-    // rather than throwing a 500 at someone holding a stale cookie.
-    return null
   }
 }
 
@@ -130,9 +106,24 @@ async function handleGet() {
 }
 
 async function handlePost(request, context) {
-  const principal = getPrincipal(request)
-  if (!principal) {
-    return { status: 401, jsonBody: { error: 'Sign in to add a load.' } }
+  // Authorization comes from the auth.Users row, whichever door they came in
+  // by -- the app's own session cookie or Static Web Apps' platform login.
+  // Before this, the only gate was a route rule in staticwebapp.config.json,
+  // which asked "are you signed in to GitHub" and never "are you anyone we
+  // know". Any GitHub account on earth satisfied that.
+  const user = await identity.currentUser(request)
+
+  if (!user) return identity.unauthorized('Sign in to add a load.')
+
+  if (!identity.can(user, 'addLoad')) {
+    // 403, not 401: signing in again will not help. A pending account is told
+    // that specifically, because "your account is waiting for approval" and
+    // "you may not do this" call for different next steps.
+    return identity.forbidden(
+      user.role === 'none'
+        ? 'Your account is waiting for approval before you can add loads.'
+        : 'Your account does not have permission to add loads.'
+    )
   }
 
   let body
@@ -185,7 +176,7 @@ async function handlePost(request, context) {
   // adding one is DDL against Millstream. The log answers "who added this"
   // today, and the column is a small migration away when it needs to be a
   // thing the board can show.
-  context.log(`Load ${load.id} created by ${principal.userDetails} (${principal.identityProvider})`)
+  context.log(`Load ${load.id} created by ${user.email} (${user.role}, via ${user.via})`)
 
   // 201 with the row the database actually wrote, not the row that was sent.
   // They differ: status was filled in here, and DECIMAL(10,2) has already
