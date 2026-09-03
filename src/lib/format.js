@@ -34,6 +34,23 @@ export function formatRate(value) {
   return `$${rate.format(value ?? 0)}`
 }
 
+// A percentage driver's pay_rate is stored as the fraction it is -- 0.68, not
+// 68 -- because that is the number the pay is actually multiplied by. Showing
+// it as "68%" is a presentation choice, so the conversion lives here and not
+// in the database.
+//
+// One decimal place: contracts are written at 68% and 72.5%, and trailing
+// ".0%" on every whole number is noise.
+const percent = new Intl.NumberFormat('en-US', {
+  style: 'percent',
+  minimumFractionDigits: 0,
+  maximumFractionDigits: 1,
+})
+
+export function formatPercent(fraction) {
+  return percent.format(fraction ?? 0)
+}
+
 // Dates arrive as plain 'YYYY-MM-DD'. Splitting the string beats new Date(),
 // which reads a bare date as UTC midnight and then renders it in local time --
 // so a check dated the 28th displays as the 27th anywhere west of Greenwich.

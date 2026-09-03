@@ -22,7 +22,20 @@ export default function SettlementRow({ settlement }) {
       <td className="mono">
         <Link to={to}>{settlement.documentNo}</Link>
       </td>
-      <td>{settlement.driverName}</td>
+      {/* The badge matters more than it looks. Two different documents are
+          listed in one table, and the Total column means different things in
+          each: a company driver's is gross pay with tax still to come out, an
+          owner/operator's is the cheque less every cost of running the truck.
+          Sorting the column and reading down it without knowing which is which
+          is how someone concludes the contractors are underpaid. */}
+      <td>
+        {settlement.driverName}
+        {settlement.driverType === 'OWNER' && (
+          <span className="badge-oo" title="Owner/operator — 1099 contractor">
+            O/O
+          </span>
+        )}
+      </td>
       <td>{formatDate(settlement.checkDate)}</td>
       <td className="muted">
         {formatDate(settlement.periodStart)} – {formatDate(settlement.periodEnd)}

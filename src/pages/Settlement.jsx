@@ -1,13 +1,21 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { fetchJson } from '../lib/api.js'
-import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
-import EarningsByLoad from '../components/settlement/EarningsByLoad.jsx'
-import LineSection from '../components/settlement/LineSection.jsx'
+import { formatDate } from '../lib/format.js'
+import CompanyStatement from '../components/settlement/CompanyStatement.jsx'
+import OwnerStatement from '../components/settlement/OwnerStatement.jsx'
 import AccessNotice from '../components/AccessNotice.jsx'
 
 // ---------------------------------------------------------------------------
-// The company-driver settlement (pay statement).
+// The settlement page -- a shell around one of two statements.
+//
+// It owns everything that is the same either way: reading the URL, fetching,
+// the loading and refusal states, the back links and the check-date dropdown.
+// What a settlement LOOKS like is not its business -- it hands the payload to
+// CompanyStatement or OwnerStatement and lets that component draw. The two
+// documents diverge enough (see OwnerStatement for how much) that interleaving
+// them here with conditionals would make both harder to read than either is
+// alone.
 //
 // *** This file is the worked example for the router migration. ***
 //
@@ -32,18 +40,10 @@ import AccessNotice from '../components/AccessNotice.jsx'
 // dropdown changed state only, Back left the statement entirely, and the
 // ?date= a link arrived with was forgotten the moment you touched the select.
 //
-// The company block is hardcoded. In the original it came from the payroll
-// system, which this app has no equivalent of; inventing a table for one
-// address would be worse than saying plainly that it is fixed.
+// The carrier's own name and address moved to lib/company.js when the second
+// statement arrived -- both mastheads print it, and two copies is one copy too
+// many for a document whose job is to be trusted.
 // ---------------------------------------------------------------------------
-
-const COMPANY = {
-  name: 'Millstream',
-  address: '2633 Jackson Street',
-  city: 'Dubuque',
-  state: 'IA',
-  postalCode: '52001',
-}
 
 export default function Settlement() {
   // The path parameter. Named by the ":driverCode" in main.jsx's Route -- the
@@ -222,8 +222,22 @@ export default function Settlement() {
     )
   }
 
-  const { driver, settlement, routes, revenue, perDiem, reimbursements, deductions, totals, ytd } =
-    statement
+  // ONE ROUTE, TWO DOCUMENTS.
+  //
+  // The driver's type decides which statement this is, and it arrives with the
+  // data rather than being encoded in the URL. That is the whole reason
+  // /settlements/:driverCode stays the only address: a driver following a link
+  // to their own statement should not have to know which kind of contract they
+  // are on, and the settlements board should not have to look it up to build a
+  // href. Change a driver from company to owner/operator in the database and
+  // every existing link to them keeps working and starts showing the right
+  // document.
+  //
+  // Defaulting to the company statement is deliberate. driver_type is NOT NULL
+  // with a default of COMPANY, so 'OWNER' is the only value that can branch --
+  // but if this API ever answers with a type nobody has taught this page about,
+  // rendering the familiar document beats rendering nothing.
+  const isOwnerOperator = statement.driver.driverType === 'OWNER'
 
   return (
     <div className="page stmt">
@@ -251,115 +265,11 @@ export default function Settlement() {
         </label>
       </div>
 
-      {/* Masthead: who paid, who was paid, for what period, and the number
-          that matters. The total goes here because it is the first thing a
-          driver looks for -- everything below is the explanation for it. */}
-      <div className="stmt-masthead">
-        <div>
-          <div className="stmt-company">{COMPANY.name}</div>
-          <div className="muted">
-            {COMPANY.address}
-            <br />
-            {COMPANY.city}, {COMPANY.state} {COMPANY.postalCode}
-          </div>
-        </div>
-
-        <div className="stmt-meta">
-          <div className="stmt-meta-title">Pay Statement</div>
-          <div>
-            <span>Period start</span> {formatDate(settlement.periodStart)}
-          </div>
-          <div>
-            <span>Period end</span> {formatDate(settlement.periodEnd)}
-          </div>
-          <div>
-            <span>Pay date</span> {formatDate(settlement.checkDate)}
-          </div>
-          <div>
-            <span>Document</span> {settlement.documentNo}
-          </div>
-          <div className="stmt-netpay">
-            <span>Settlement total</span> {formatMoney(totals.settlementTotal)}
-          </div>
-        </div>
-      </div>
-
-      <div className="stmt-block stmt-driver">
-        <div>
-          <strong>
-            {driver.firstName} {driver.lastName}
-          </strong>
-          <br />
-          {driver.address1}
-          {driver.address2 && (
-            <>
-              <br />
-              {driver.address2}
-            </>
-          )}
-          <br />
-          {driver.city}, {driver.state} {driver.postalCode}
-        </div>
-        <div>
-          <div>
-            <span>Employee no</span> {driver.driverCode}
-          </div>
-          <div>
-            <span>SSN</span> ***-**-{driver.ssnLast4}
-          </div>
-          <div>
-            <span>Job</span> {driver.job}
-          </div>
-          <div>
-            <span>Pay rate</span> {driver.payRate.toFixed(4)}
-          </div>
-        </div>
-        <div>
-          <div>
-            <span>Pay group</span> {driver.payGroup}
-          </div>
-          <div>
-            <span>Location</span> {driver.location}
-          </div>
-          <div>
-            <span>Department</span> {driver.department}
-          </div>
-          <div>
-            <span>Job type</span> {driver.jobType}
-          </div>
-        </div>
-      </div>
-
-      <EarningsByLoad routes={routes} totals={totals} />
-
-      <div className="stmt-block">
-        <h2>Adjustments</h2>
-        <div className="stmt-table stmt-lines">
-          <LineSection title="Other Earnings" lines={revenue} subtotal={totals.revenue} />
-          <LineSection title="Per Diem" lines={perDiem} subtotal={totals.perDiem} />
-          <LineSection
-            title="Reimbursements"
-            lines={reimbursements}
-            subtotal={totals.reimbursements}
-          />
-          <LineSection title="Deductions" lines={deductions} subtotal={totals.deductions} />
-        </div>
-      </div>
-
-      <div className="stmt-block stmt-summary">
-        <div className="stmt-row">
-          <div>Year-to-date miles</div>
-          <div className="num">{formatMiles(ytd.totalMiles)}</div>
-        </div>
-        <div className="stmt-row stmt-net">
-          <div>Settlement total</div>
-          <div className="num">{formatMoney(totals.settlementTotal)}</div>
-        </div>
-        <p className="stmt-note muted">
-          Earnings less the deductions shown above. Payroll withholds tax
-          separately, so this is not take-home pay.
-        </p>
-      </div>
+      {isOwnerOperator ? (
+        <OwnerStatement statement={statement} />
+      ) : (
+        <CompanyStatement statement={statement} />
+      )}
     </div>
   )
 }
