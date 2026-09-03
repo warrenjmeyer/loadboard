@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 
 const BLANK = {
   id: '',
@@ -82,7 +83,7 @@ export default function AddLoadForm({ onAddLoad, user, canAdd }) {
   if (!user) {
     return (
       <p className="muted signin-note">
-        <a className="signin" href="?signin=1">Sign in</a> to add a load.
+        <Link className="signin" to="/signin">Sign in</Link> to add a load.
       </p>
     )
   }

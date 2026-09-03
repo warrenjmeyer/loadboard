@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { login, requestReset } from '../lib/auth.js'
 
 // ---------------------------------------------------------------------------
@@ -56,7 +57,11 @@ export default function SignIn({ onSignedIn }) {
           look in your spam folder.
         </p>
         <nav className="board-nav">
-          <a href="?signin=1" onClick={() => setSent(null)}>← Back to sign in</a>
+          {/* Already on /signin, so this navigates nowhere -- the onClick is
+              what does the work. It used to rely on the full page load to
+              clear `sent`; with Link nothing remounts, so clearing it here is
+              no longer belt-and-braces, it is the whole mechanism. */}
+          <Link to="/signin" onClick={() => setSent(null)}>← Back to sign in</Link>
         </nav>
       </div>
     )
@@ -119,8 +124,8 @@ export default function SignIn({ onSignedIn }) {
       </form>
 
       <nav className="board-nav">
-        <a href="?register=1">Create an account</a>
-        <a href="/">← The load board</a>
+        <Link to="/register">Create an account</Link>
+        <Link to="/">← The load board</Link>
       </nav>
     </div>
   )

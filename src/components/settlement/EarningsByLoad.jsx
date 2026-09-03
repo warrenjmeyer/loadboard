@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { formatMoney, formatMiles, formatRate } from '../../lib/format.js'
 
 // ---------------------------------------------------------------------------
@@ -31,10 +32,17 @@ export default function EarningsByLoad({ routes, totals }) {
             {/* Linked to the load it was, so a driver can trace a line on
                 their statement back to the freight. A SPECIAL line -- layover,
                 breakdown -- has no load, so it stays plain text rather than
-                pretending to lead somewhere. */}
+                pretending to lead somewhere.
+
+                The leading "/" is the whole point. This was `?search=...`,
+                which a browser resolves against the current directory -- and
+                the current directory here is /settlements/JSMITH, which is
+                still the settlement route. Clicking a load number reloaded the
+                same statement instead of taking anyone to the board. The
+                target is the board, so the path has to say so. */}
             <div>
               {r.loadId ? (
-                <a href={`?search=${encodeURIComponent(r.loadId)}`}>{r.orderNo}</a>
+                <Link to={`/?search=${encodeURIComponent(r.loadId)}`}>{r.orderNo}</Link>
               ) : (
                 r.orderNo
               )}

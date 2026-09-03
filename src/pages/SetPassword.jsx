@@ -50,7 +50,12 @@ export default function SetPassword({ token }) {
         <h1>Password changed</h1>
         <p className="muted">{done}</p>
         <nav className="board-nav">
-          <a href="?signin=1">Sign in</a>
+    {/* This page renders OUTSIDE the router (see main.jsx: it is reached from
+        an email, with a credential that must be scrubbed before the router
+        mounts). So <Link> would throw "useHref() may be used only in the
+        context of a <Router>" here -- these stay plain <a> elements, and a
+        full page load into the app is the right thing after a token is spent. */}
+          <a href="/signin">Sign in</a>
         </nav>
       </div>
     )

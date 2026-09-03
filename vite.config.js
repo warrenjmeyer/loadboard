@@ -5,11 +5,24 @@ import react from '@vitejs/plugin-react'
 // `npm run build` compiles everything into a plain static ./dist folder, which
 // is what Azure Static Web Apps publishes.
 //
-// base: './' makes the built index.html reference its assets with relative
-// paths. Absolute paths ("/assets/...") also work, but relative keeps the build
-// portable if you ever serve it from a subfolder. Note: this has to become '/'
-// the day you add client-side routing, or a deep link like /loads/L-10412 will
-// resolve ./assets against /loads/ and 404.
+// base: '/' -- this WAS './', and changing it is a required part of adding the
+// router, not a tidy-up.
+//
+// With './', the built index.html asks for ./assets/index-abc123.js, resolved
+// relative to the directory of the current URL. At / that is /assets/... and
+// everything works. Open the deep link /settlements/JSMITH and the browser
+// resolves it against /settlements/, asks for /settlements/assets/index-...js,
+// and gets the SPA fallback -- index.html, with a 200 and a text/html
+// content-type where a script was expected. The tab renders blank and the only
+// clue is a console line about an unexpected MIME type.
+//
+// '/' makes the paths absolute, so they are the same from any depth.
+//
+// The other half of this is public/staticwebapp.config.json: navigationFallback
+// rewrites unmatched paths to /index.html, because /settlements/JSMITH is not a
+// file on disk and Static Web Apps would otherwise 404 before React ever runs.
+// It already excludes /assets/* -- that exclusion is what makes a genuinely
+// missing bundle 404 honestly instead of silently returning HTML.
 
 // Where the dev server sends /api. Defaults to the deployed app; point
 // VITE_API_TARGET at http://localhost:7071 to use a local Functions host
@@ -65,7 +78,7 @@ function refuseDevWrites() {
 
 export default defineConfig({
   plugins: [react(), refuseDevWrites()],
-  base: './',
+  base: '/',
 
   // Dev-only. Vite serves the front end but has no /api of its own, so an
   // unproxied request falls through to the SPA fallback and returns

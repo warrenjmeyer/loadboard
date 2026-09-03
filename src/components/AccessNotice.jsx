@@ -10,6 +10,8 @@
 // not load data" is honest about a database that fell over and would be a lie
 // about a permission check that worked exactly as designed.
 // ---------------------------------------------------------------------------
+import { Link } from 'react-router-dom'
+
 export default function AccessNotice({ error, status }) {
   if (status === 401) {
     return (
@@ -17,9 +19,9 @@ export default function AccessNotice({ error, status }) {
         <h1>Sign in to continue</h1>
         <p className="muted">{error}</p>
         <nav className="board-nav">
-          <a href="?signin=1">Sign in</a>
-          <a href="?register=1">Create an account</a>
-          <a href="/">← The load board</a>
+          <Link to="/signin">Sign in</Link>
+          <Link to="/register">Create an account</Link>
+          <Link to="/">← The load board</Link>
         </nav>
       </div>
     )
@@ -31,7 +33,7 @@ export default function AccessNotice({ error, status }) {
         <h1>Not available to your account</h1>
         <p className="muted">{error}</p>
         <nav className="board-nav">
-          <a href="/">← The load board</a>
+          <Link to="/">← The load board</Link>
         </nav>
       </div>
     )

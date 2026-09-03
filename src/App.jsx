@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import LoadFilters from './components/LoadFilters.jsx'
 import LoadTable from './components/LoadTable.jsx'
 import AddLoadForm from './components/AddLoadForm.jsx'
@@ -13,7 +14,39 @@ import { fetchMe, logout } from './lib/auth.js'
 // piece of data, that data lives in their closest common parent. LoadFilters
 // changes the filter, LoadTable reads it -- so the filter lives here, in App.
 // ---------------------------------------------------------------------------
-export default function App({ initialSearch = '' }) {
+export default function App() {
+  // The search box IS the URL -- there is no useState behind it.
+  //
+  // It used to be seeded from ?search= once and then kept in component state,
+  // which meant the address bar went stale the moment anyone typed: still
+  // saying ?search=1234 while the box showed something else. Holding it in one
+  // place removes that possibility rather than managing it, and a filtered
+  // board becomes something you can link, bookmark, and reload.
+  //
+  // `replace` and not push: pushing would stack one history entry per
+  // KEYSTROKE, so backing out of a ten-character search would take ten presses.
+  // With replace the board's filter is part of where you are, not part of how
+  // you got there.
+  //
+  // An empty box deletes the parameter instead of setting it to "", so a
+  // cleared search leaves "/" rather than "/?search=".
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('search') || ''
+  const setSearch = (next) => {
+    setSearchParams(
+      (prev) => {
+        // Built from prev rather than from scratch so this stays correct when
+        // the board grows a second parameter -- writing { search } would drop
+        // every other one.
+        const params = new URLSearchParams(prev)
+        if (next) params.set('search', next)
+        else params.delete('search')
+        return params
+      },
+      { replace: true }
+    )
+  }
+
   // useState gives you a value plus a setter. Calling the setter is what tells
   // React "this changed, re-run this component and update the screen."
   // Assigning to a plain variable would NOT do that -- React would never know.
@@ -26,10 +59,9 @@ export default function App({ initialSearch = '' }) {
   // are waiting on it." Worth saying out loud, because it takes up to a minute.
   const [waking, setWaking] = useState(false)
 
-  // Seeded from ?search= so a link from a pay statement lands on the board
-  // already filtered to that load. It is still ordinary state afterwards --
-  // typing in the box does not touch the URL.
-  const [search, setSearch] = useState(initialSearch)
+  // equipment and availableOnly stay ordinary state on purpose. The load link
+  // on a pay statement carries a search term, so that one has to survive being
+  // pasted somewhere; nothing links to a particular equipment filter.
   const [equipment, setEquipment] = useState('All')
   const [availableOnly, setAvailableOnly] = useState(false)
 
@@ -171,6 +203,34 @@ export default function App({ initialSearch = '' }) {
 
   return (
     <div className="page">
+      {/* Links, not buttons: these change the page, and a link is what the
+          browser already knows how to open in a new tab.
+
+          Settlements used to list every driver. That was fine at two and
+          unreadable at twenty, which is what the settlements board is for --
+          it filters, which a wall of names cannot.
+
+          <Link to> rather than <a href>: an anchor makes the browser discard
+          the whole app and build it again from nothing, so every move between
+          pages re-ran /api/me. Link asks the router to swap the component and
+          leaves React running, so the answer we already have is still there.
+          It still renders a real <a> underneath -- middle-click and "open in
+          new tab" work exactly as before.
+
+          Above the header rather than below the table: the board is long
+          enough that the bottom of the page is only reachable by scrolling
+          past 177 rows, which made "Sign in" effectively hidden to anyone who
+          did not already know it was there. */}
+      <nav className="board-nav board-nav-top">
+        <Link to="/settlements">Driver settlements →</Link>
+        {/* Rendered only when nobody is signed in. `user === undefined` means
+            /api/me has not answered, and offering "sign in" to somebody who
+            already is looks broken. */}
+        {user === null && <Link to="/signin">Sign in →</Link>}
+        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}        
+        {user === null && <Link to="/register">Create an account</Link>}
+      </nav>
+
       <header>
         <h1>Load Board</h1>
         <p className="sub">
@@ -254,21 +314,6 @@ export default function App({ initialSearch = '' }) {
         </p>
       )}
 
-      {/* A plain anchor, not a button: this changes the page, and a link is
-          what the browser already knows how to open in a new tab.
-
-          This used to list every driver. That was fine at two and unreadable
-          at twenty, which is what the settlements board is for -- it filters,
-          which a wall of names cannot. */}
-      <nav className="board-nav">
-        <a href="?view=settlements">Driver settlements →</a>
-        {/* Rendered only when nobody is signed in. `user === undefined` means
-            /api/me has not answered, and offering "sign in" to somebody who
-            already is looks broken. */}
-        {user && user.role === 'admin' && <a href="?view=admin">Accounts →</a>}
-        {user === null && <a href="?signin=1">Sign in</a>}
-        {user === null && <a href="?register=1">Create an account</a>}
-      </nav>
     </div>
   )
 }

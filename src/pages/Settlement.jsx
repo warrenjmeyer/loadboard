@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Link, useParams, useSearchParams } from 'react-router-dom'
 import { fetchJson } from '../lib/api.js'
 import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
 import EarningsByLoad from '../components/settlement/EarningsByLoad.jsx'
@@ -8,9 +9,28 @@ import AccessNotice from '../components/AccessNotice.jsx'
 // ---------------------------------------------------------------------------
 // The company-driver settlement (pay statement).
 //
-// Reached as ?id=JSMITH, the same way the ColdFusion original used url.id, and
-// the check date is chosen from a dropdown exactly as it was there. Two
-// fetches: the list of check dates, then the selected statement.
+// *** This file is the worked example for the router migration. ***
+//
+// It was reached as ?id=JSMITH&date=2026-08-28, the same way the ColdFusion
+// original used url.id, and main.jsx read both parameters and passed them down
+// as props. It now lives at:
+//
+//   /settlements/JSMITH?date=2026-08-28
+//
+// which splits one thing into two on purpose, and the split is the lesson:
+//
+//   :driverCode is part of the PATH, read with useParams(). It identifies
+//   which resource this page is. Change it and you are on a different page.
+//
+//   ?date= is a SEARCH parameter, read with useSearchParams(). It is a view
+//   setting on the same resource -- which pay period of this driver's. Change
+//   it and you are on the same page, looking at it differently.
+//
+// The practical payoff is the back button. Because the date now lives in the
+// URL rather than in useState, picking three check dates from the dropdown
+// leaves three history entries, and Back walks them. Under the old code the
+// dropdown changed state only, Back left the statement entirely, and the
+// ?date= a link arrived with was forgotten the moment you touched the select.
 //
 // The company block is hardcoded. In the original it came from the payroll
 // system, which this app has no equivalent of; inventing a table for one
@@ -25,10 +45,28 @@ const COMPANY = {
   postalCode: '52001',
 }
 
-export default function Settlement({ driverCode, initialCheckDate }) {
+export default function Settlement() {
+  // The path parameter. Named by the ":driverCode" in main.jsx's Route -- the
+  // string has to match, and a typo here is an undefined that only shows up as
+  // a 404 from the API three steps later.
+  const { driverCode } = useParams()
+
+  // The search parameter. useSearchParams is deliberately shaped like
+  // useState: a value and a setter. The difference is where the value lives --
+  // in the URL, so it survives a reload, a bookmark, and a paste into Slack.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const requestedDate = searchParams.get('date')
+
   const [checkDates, setCheckDates] = useState([])
-  const [selected, setSelected] = useState('')
   const [statement, setStatement] = useState(null)
+
+  // NOT state. The selected date is derived: it is whatever the URL asks for,
+  // but only once we know that date actually exists for this driver. Keeping a
+  // `selected` useState in sync with the URL by hand is the two-sources-of-
+  // truth bug that this whole exercise exists to teach you to avoid.
+  const selected = checkDates.some((d) => d.checkDate === requestedDate)
+    ? requestedDate
+    : ''
 
   const [loading, setLoading] = useState(true)
   const [waking, setWaking] = useState(false)
@@ -39,8 +77,12 @@ export default function Settlement({ driverCode, initialCheckDate }) {
   // end -- they are already signed in; that is the whole problem.
   const [errorStatus, setErrorStatus] = useState(null)
 
-  // First effect: which check dates does this driver have? Also picks the most
-  // recent one, which is what someone opening their pay statement wants to see.
+  // First effect: which check dates does this driver have?
+  //
+  // It no longer picks one. Choosing the default is now a separate concern,
+  // because the answer lives in the URL and this effect must not re-run every
+  // time the URL changes -- that would re-fetch the date list on every move of
+  // the dropdown. Note the dependency array is [driverCode] alone.
   useEffect(() => {
     let cancelled = false
 
@@ -54,14 +96,7 @@ export default function Settlement({ driverCode, initialCheckDate }) {
         if (cancelled) return
         setCheckDates(dates)
         setWaking(false)
-        if (dates.length) {
-          // A ?date= from the settlements board wins, so a link lands on the
-          // statement it named. Falling back to the newest matters when the
-          // date is stale or absent: showing a driver the wrong pay period is
-          // worse than ignoring the parameter.
-          const wanted = dates.find((d) => d.checkDate === initialCheckDate)
-          setSelected(wanted ? wanted.checkDate : dates[0].checkDate)
-        } else {
+        if (!dates.length) {
           setStatement(null)
           setLoading(false)
         }
@@ -81,11 +116,31 @@ export default function Settlement({ driverCode, initialCheckDate }) {
     return () => {
       cancelled = true
     }
-  }, [driverCode, initialCheckDate])
+  }, [driverCode])
 
-  // Second effect: load the selected statement. Depends on `selected`, so
-  // changing the dropdown re-runs it -- this is the case the empty dependency
-  // array in App.jsx deliberately does not have.
+  // Canonicalise the URL once the dates are known.
+  //
+  // A ?date= from the settlements board wins, so a link lands on the statement
+  // it named. Falling back to the newest matters when the date is stale or
+  // absent: showing a driver the wrong pay period is worse than ignoring the
+  // parameter, and a bare /settlements/JSMITH has to resolve to something.
+  //
+  // { replace: true } is the important half. This rewrite is not a navigation
+  // the person made -- it is the app finishing their sentence. Pushing it
+  // would mean Back returns to the un-canonical URL, which immediately
+  // rewrites itself again, and the back button stops working. Any redirect you
+  // perform on someone's behalf wants replace.
+  useEffect(() => {
+    if (!checkDates.length) return
+    if (checkDates.some((d) => d.checkDate === requestedDate)) return
+
+    setSearchParams({ date: checkDates[0].checkDate }, { replace: true })
+  }, [checkDates, requestedDate, setSearchParams])
+
+  // Second effect: load the selected statement. Depends on `selected`, which
+  // now comes from the URL -- so changing the dropdown, following a link, and
+  // pressing Back all arrive here by the same path. That uniformity is most of
+  // what a router buys you.
   useEffect(() => {
     if (!selected) return
 
@@ -131,7 +186,11 @@ export default function Settlement({ driverCode, initialCheckDate }) {
         </header>
         <div className="error">{error}</div>
         <p>
-          <a href="?view=settlements">Back to the settlements board</a>
+          {/* <Link> renders a real <a> with a real href -- so middle-click,
+              "open in new tab" and copy-link all still work -- but it
+              intercepts the plain click and swaps the component instead of
+              reloading the document. That is the entire difference. */}
+          <Link to="/settlements">Back to the settlements board</Link>
         </p>
       </div>
     )
@@ -170,12 +229,19 @@ export default function Settlement({ driverCode, initialCheckDate }) {
     <div className="page stmt">
       <div className="stmt-toolbar">
         <nav className="stmt-back">
-          <a href="?view=settlements">← Settlements</a>
-          <a href="./">Load board</a>
+          <Link to="/settlements">← Settlements</Link>
+          <Link to="/">Load board</Link>
         </nav>
         <label>
           Check date
-          <select value={selected} onChange={(e) => setSelected(e.target.value)}>
+          {/* Still a controlled input -- value comes from above, onChange
+              reports up. The only change is what "above" means: the URL rather
+              than a useState. Because this one pushes (no replace), every date
+              you look at is a history entry you can walk back through. */}
+          <select
+            value={selected}
+            onChange={(e) => setSearchParams({ date: e.target.value })}
+          >
             {checkDates.map((d) => (
               <option key={d.checkDate} value={d.checkDate}>
                 {formatDate(d.checkDate)}

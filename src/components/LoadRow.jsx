@@ -1,3 +1,5 @@
+import { Link } from 'react-router-dom'
+
 // A presentational component: data in, markup out, no state, no side effects.
 // Notice it is just a function that returns markup. That is the whole idea of
 // a React component -- the closest ColdFusion analog is a custom tag or a
@@ -23,8 +25,17 @@ export default function LoadRow({ load }) {
       {/* Only a delivered load has a driver, and the database enforces that --
           so an empty cell here means "not delivered", never "we lost track of
           who ran it". */}
+      {/* No ?date= here on purpose: this link means "show me this driver's
+          pay", not a specific period. Settlement.jsx canonicalises the bare
+          URL to the newest statement, which is the right default. */}
       <td className="mono">
-        {load.driverCode ? <a href={`?id=${load.driverCode}`}>{load.driverCode}</a> : ''}
+        {load.driverCode ? (
+          <Link to={`/settlements/${encodeURIComponent(load.driverCode)}`}>
+            {load.driverCode}
+          </Link>
+        ) : (
+          ''
+        )}
       </td>
     </tr>
   )
