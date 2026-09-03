@@ -329,6 +329,45 @@ rewrite what they were paid last March. For the same reason the total is *not* a
 column — it is computed, so a stored total can never disagree with its own
 detail.
 
+### Two kinds of driver, one route
+
+`settlement_06_owner.sql` adds owner/operators — 1099 contractors who own the
+truck. The original had two ColdFusion pages (`coDrvSettlement.cfm` and
+`ownDrvSettlement.cfm`) reading two sets of DB2 tables, `CODRIVERS_*` and
+`OWNER_OPERATOR_*`, which held the same columns under different names. Here it
+is **one set of tables and one URL**: `dbo.Drivers.driver_type` is `COMPANY` or
+`OWNER`, and `/settlements/:driverCode` renders whichever document the driver's
+type calls for. A driver following a link to their own statement never has to
+know which kind of contract they are on, and reclassifying someone in the
+database changes their statement without breaking a single existing link.
+
+What the owner/operator statement adds:
+
+| | Why |
+|---|---|
+| Every figure weekly **and** year-to-date | A contractor is running a business; one week in isolation says nothing about whether it works |
+| `dbo.SettlementEscrow` | Maintenance and tire funds the carrier holds on their behalf — no company-driver equivalent |
+| `Drivers.pay_basis` | `MILEAGE` or `PERCENTAGE`. It is what makes `pay_rate` readable: `0.68` is 68% of the linehaul on one contract and 68¢ a mile on the other |
+| `SettlementRoutes.linehaul_revenue` | What the load billed. A percentage driver's pay is a share of it, so without it their pay is unverifiable |
+
+`CK_Escrow_chain` enforces `current_balance = beginning_balance +
+transaction_amount`. The original printed those three as independent columns,
+so a bad feed could show an ending balance that did not follow from the change
+above it. That row now cannot be written.
+
+Two things in the original were deliberately **not** ported. It derived a
+percentage-vs-mileage flag by sniffing for `REVENUE_CODE = '15'`, and used it
+only to decide whether deduction code `66` or `61` got a `'FUEL-'` prefix —
+a workaround for their data, replaced here by an explicit `pay_basis`. And its
+escrow block hid any row whose beginning or current balance was zero, which
+silently dropped a newly opened account; those rows are shown.
+
+The settlement total is **not** net pay on either statement, but for different
+reasons — a company driver still has tax to come out via payroll, while an
+owner/operator is paid in full and owes quarterly estimated tax on it. Each
+page says its own version, because a number this consequential should not have
+to be interpreted.
+
 ### More test drivers
 
 `geotab-add-drivers.ps1` adds drivers to a MyGeotab database over the API:
@@ -510,13 +549,16 @@ settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
 settlement_02_data.sql  sample settlements for the two GeoTab drivers
 settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
 settlement_04_fleet2.sql eight more, bringing the fleet to twenty
+settlement_05_link.sql  ties SettlementRoutes.load_id to dbo.Loads
+settlement_06_owner.sql owner/operators: driver_type, escrow, four contractors
+tools/gen_owner_settlements.mjs   generates the file above — edit this, not it
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
-src/pages/Settlement.jsx          the pay statement — the router worked example
-src/components/settlement/        its load table and adjustment blocks
+src/pages/Settlement.jsx          the statement shell — the router worked example
+src/components/settlement/        both statements, and the blocks they share
 src/lib/api.js          fetchJson / postJson / fetchUser — and the cold-start retry
 src/lib/format.js       money, miles and date formatting in one place
 ```

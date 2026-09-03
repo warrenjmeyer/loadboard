@@ -112,6 +112,22 @@ table.loads {
 .badge-covered   { background: #eef2ff; color: #33418c; border-color: #c3cbf0; }
 .badge-delivered { background: #f1f2f4; color: #5b636d; border-color: #dfe3e8; }
 
+/* Marks an owner/operator on the settlements board. Quieter than the status
+   badges above -- it qualifies a name rather than being the cell's content --
+   but it has to be legible, because the Total column beside it means something
+   different on these rows. */
+.badge-oo {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: #fdf1e3;
+  color: #8a5216;
+  border: 1px solid #f0d8ba;
+}
+
 button {
   font: inherit;
   padding: 8px 16px;
@@ -219,10 +235,23 @@ button.primary {
 
 .stmt-meta { font-size: 14px; min-width: 260px; }
 .stmt-meta-title { font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+/* The label column in the masthead and the contractor block.
+
+   The column stays narrow ON PURPOSE. The owner/operator statement first
+   shipped with "Settlement basis" and "Settlement group", which overflowed
+   104px and left their values butted straight against them -- those two rows
+   read as run-on text while every other row lined up. Widening the column to
+   fit them is the obvious fix and the wrong one: the value column loses what
+   the label gains, and "2021 Freightliner Cascadia" starts wrapping to three
+   lines. The labels were shortened instead.
+
+   padding-right is the belt to that braces: a longer label added later loses
+   the alignment, but never the word space. */
 .stmt-meta span,
 .stmt-driver span {
   display: inline-block;
   min-width: 104px;
+  padding-right: 12px;
   color: var(--muted);
 }
 
@@ -307,6 +336,65 @@ button.primary {
 
 .stmt-lines .stmt-subtotal { border-top: 1px solid var(--line); }
 
+/* Eight columns for a percentage contract: the same load table plus Revenue,
+   because pay on that contract is a share of what the load billed and the
+   share is meaningless without the number it is a share of. */
+.stmt-table-pct > .stmt-row {
+  grid-template-columns: 1fr 2.1fr 0.7fr 0.7fr 0.7fr 1fr 0.7fr 1fr;
+}
+
+/* Description | Weekly | Year to Date. Used four times on the owner/operator
+   statement -- once as the summary and once per detail section. */
+.stmt-wy .stmt-row {
+  display: grid;
+  grid-template-columns: 2.4fr 1fr 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: none;
+}
+
+.stmt-wy .stmt-subtotal { border-top: 1px solid var(--line); }
+
+/* The summary is the answer to the page, so it gets the weight the detail
+   sections do not: a heavier rule above its total and a slightly larger type
+   size than the tables below it. */
+.stmt-wy-summary .stmt-wy { font-size: 15px; }
+.stmt-wy-summary .stmt-subtotal {
+  border-top: 2px solid var(--ink);
+  font-size: 16px;
+}
+
+.stmt-details { display: grid; gap: 22px; }
+
+/* Order | Dispatch | Type | Amount */
+.stmt-byload .stmt-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 3fr 1fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.stmt-byload .stmt-subtotal { border-bottom: none; }
+
+/* Account | Beginning | Change | Ending
+
+   The numeric columns are wider than the figures need because the HEADINGS are
+   what set the width here: uppercased and letter-spaced, "Beginning Balance"
+   wrapped to two lines at 1fr while "Ending Balance" sat on one, which left the
+   header row looking broken in print. */
+.stmt-escrow .stmt-row {
+  display: grid;
+  grid-template-columns: 1.4fr 1.2fr 1fr 1.3fr;
+  gap: 8px;
+  padding: 5px 0;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+
+.stmt-escrow .stmt-subtotal { border-bottom: none; }
+
 .stmt-summary { font-size: 15px; }
 .stmt-summary .stmt-row {
   display: grid;
@@ -324,11 +412,33 @@ button.primary {
 @media (max-width: 700px) {
   .stmt-table > .stmt-row { grid-template-columns: 1fr 1fr; }
   .stmt-table > .stmt-row .stmt-route { grid-column: 1 / -1; }
+
+  /* The percentage table's eight columns have to collapse too, or the
+     override above leaves it at eight on a phone. */
+  .stmt-table-pct > .stmt-row { grid-template-columns: 1fr 1fr; }
+
+  /* Weekly and YTD stay side by side down to the smallest screen -- putting
+     them one above the other destroys the only comparison the page is for. */
+  .stmt-wy .stmt-row { grid-template-columns: 1.6fr 1fr 1fr; }
+
+  .stmt-byload .stmt-row { grid-template-columns: 1fr 1fr; }
+  .stmt-escrow .stmt-row { grid-template-columns: 1fr 1fr; }
 }
 
 @media print {
   .stmt-toolbar, .board-nav { display: none; }
   .stmt-block, .stmt-masthead { border: none; padding: 0 0 12px; }
+
+  /* Keep a section with its rows. "Reimbursements by Load" printed its heading
+     and column headers at the foot of page 1 and its two lines at the top of
+     page 2, which reads as an empty table followed by orphaned numbers.
+
+     A block taller than a page cannot honour this and the browser ignores it
+     rather than overflowing, so it is safe on the Details block too. */
+  .stmt-block, .stmt-section, .stmt-row { break-inside: avoid; }
+
+  /* A heading alone at the bottom of a page is the same bug one level down. */
+  .stmt-block h2, .stmt-section-title, .stmt-head { break-after: avoid; }
 }
 
 .stmt-note {
