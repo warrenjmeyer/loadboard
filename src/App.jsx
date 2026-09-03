@@ -203,6 +203,34 @@ export default function App() {
 
   return (
     <div className="page">
+      {/* Links, not buttons: these change the page, and a link is what the
+          browser already knows how to open in a new tab.
+
+          Settlements used to list every driver. That was fine at two and
+          unreadable at twenty, which is what the settlements board is for --
+          it filters, which a wall of names cannot.
+
+          <Link to> rather than <a href>: an anchor makes the browser discard
+          the whole app and build it again from nothing, so every move between
+          pages re-ran /api/me. Link asks the router to swap the component and
+          leaves React running, so the answer we already have is still there.
+          It still renders a real <a> underneath -- middle-click and "open in
+          new tab" work exactly as before.
+
+          Above the header rather than below the table: the board is long
+          enough that the bottom of the page is only reachable by scrolling
+          past 177 rows, which made "Sign in" effectively hidden to anyone who
+          did not already know it was there. */}
+      <nav className="board-nav board-nav-top">
+        <Link to="/settlements">Driver settlements →</Link>
+        {/* Rendered only when nobody is signed in. `user === undefined` means
+            /api/me has not answered, and offering "sign in" to somebody who
+            already is looks broken. */}
+        {user === null && <Link to="/signin">Sign in →</Link>}
+        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}        
+        {user === null && <Link to="/register">Create an account</Link>}
+      </nav>
+
       <header>
         <h1>Load Board</h1>
         <p className="sub">
@@ -286,28 +314,6 @@ export default function App() {
         </p>
       )}
 
-      {/* A link, not a button: this changes the page, and a link is what the
-          browser already knows how to open in a new tab.
-
-          This used to list every driver. That was fine at two and unreadable
-          at twenty, which is what the settlements board is for -- it filters,
-          which a wall of names cannot.
-
-          <Link to> rather than <a href>: an anchor makes the browser discard
-          the whole app and build it again from nothing, so every move between
-          pages re-ran /api/me. Link asks the router to swap the component and
-          leaves React running, so the answer we already have is still there.
-          It still renders a real <a> underneath -- middle-click and "open in
-          new tab" work exactly as before. */}
-      <nav className="board-nav">
-        <Link to="/settlements">Driver settlements →</Link>
-        {/* Rendered only when nobody is signed in. `user === undefined` means
-            /api/me has not answered, and offering "sign in" to somebody who
-            already is looks broken. */}
-        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}
-        {user === null && <Link to="/signin">Sign in</Link>}
-        {user === null && <Link to="/register">Create an account</Link>}
-      </nav>
     </div>
   )
 }

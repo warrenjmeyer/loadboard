@@ -180,6 +180,20 @@ button.primary {
 }
 .board-nav a { margin-right: 12px; }
 
+/* The board's own nav sits above the header instead of below the table, so the
+   rule has to move with it: a border-top here would draw a line separating the
+   links from the top of the window. Only the board opts in -- the settlement,
+   admin and auth pages are short, so their nav stays at the foot where "back"
+   belongs after you have read the page. */
+.board-nav-top {
+  margin-top: 0;
+  margin-bottom: 20px;
+  padding-top: 0;
+  padding-bottom: 12px;
+  border-top: none;
+  border-bottom: 1px solid var(--line);
+}
+
 .stmt-toolbar {
   display: flex;
   align-items: flex-end;
