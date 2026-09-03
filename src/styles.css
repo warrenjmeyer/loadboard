@@ -235,10 +235,23 @@ button.primary {
 
 .stmt-meta { font-size: 14px; min-width: 260px; }
 .stmt-meta-title { font-weight: 600; font-size: 16px; margin-bottom: 8px; }
+/* The label column in the masthead and the contractor block.
+
+   The column stays narrow ON PURPOSE. The owner/operator statement first
+   shipped with "Settlement basis" and "Settlement group", which overflowed
+   104px and left their values butted straight against them -- those two rows
+   read as run-on text while every other row lined up. Widening the column to
+   fit them is the obvious fix and the wrong one: the value column loses what
+   the label gains, and "2021 Freightliner Cascadia" starts wrapping to three
+   lines. The labels were shortened instead.
+
+   padding-right is the belt to that braces: a longer label added later loses
+   the alignment, but never the word space. */
 .stmt-meta span,
 .stmt-driver span {
   display: inline-block;
   min-width: 104px;
+  padding-right: 12px;
   color: var(--muted);
 }
 
@@ -365,10 +378,15 @@ button.primary {
 
 .stmt-byload .stmt-subtotal { border-bottom: none; }
 
-/* Account | Beginning | Change | Ending */
+/* Account | Beginning | Change | Ending
+
+   The numeric columns are wider than the figures need because the HEADINGS are
+   what set the width here: uppercased and letter-spaced, "Beginning Balance"
+   wrapped to two lines at 1fr while "Ending Balance" sat on one, which left the
+   header row looking broken in print. */
 .stmt-escrow .stmt-row {
   display: grid;
-  grid-template-columns: 2fr 1fr 1fr 1fr;
+  grid-template-columns: 1.4fr 1.2fr 1fr 1.3fr;
   gap: 8px;
   padding: 5px 0;
   border-bottom: 1px solid var(--line);
@@ -410,6 +428,17 @@ button.primary {
 @media print {
   .stmt-toolbar, .board-nav { display: none; }
   .stmt-block, .stmt-masthead { border: none; padding: 0 0 12px; }
+
+  /* Keep a section with its rows. "Reimbursements by Load" printed its heading
+     and column headers at the foot of page 1 and its two lines at the top of
+     page 2, which reads as an empty table followed by orphaned numbers.
+
+     A block taller than a page cannot honour this and the browser ignores it
+     rather than overflowing, so it is safe on the Details block too. */
+  .stmt-block, .stmt-section, .stmt-row { break-inside: avoid; }
+
+  /* A heading alone at the bottom of a page is the same bug one level down. */
+  .stmt-block h2, .stmt-section-title, .stmt-head { break-after: avoid; }
 }
 
 .stmt-note {

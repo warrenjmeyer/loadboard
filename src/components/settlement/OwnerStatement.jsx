@@ -114,8 +114,13 @@ export default function OwnerStatement({ statement }) {
           <div>
             <span>Tax ID</span> ***-**-{driver.ssnLast4}
           </div>
+          {/* "Pay basis" and "Pay group" rather than "Settlement basis" and
+              "Settlement group": the document is already titled a settlement,
+              so the word earns nothing here, and both fit the label column
+              without squeezing the value beside them. "Pay group" is also what
+              the company statement calls the same field. */}
           <div>
-            <span>Settlement basis</span>{' '}
+            <span>Pay basis</span>{' '}
             {driver.payBasis === 'PERCENTAGE' ? 'Percentage of linehaul' : 'Per mile'}
           </div>
           <div>
@@ -136,7 +141,7 @@ export default function OwnerStatement({ statement }) {
             <span>Location</span> {driver.location}
           </div>
           <div>
-            <span>Settlement group</span> {driver.payGroup}
+            <span>Pay group</span> {driver.payGroup}
           </div>
         </div>
       </div>
