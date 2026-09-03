@@ -15,18 +15,37 @@ import { fetchMe, logout } from './lib/auth.js'
 // changes the filter, LoadTable reads it -- so the filter lives here, in App.
 // ---------------------------------------------------------------------------
 export default function App() {
-  // main.jsx used to read ?search= and pass it down as initialSearch. It now
-  // renders a bare <App />, so the seed is read here instead. Same behaviour:
-  // the URL only seeds the box, and typing afterwards does not touch the URL.
+  // The search box IS the URL -- there is no useState behind it.
   //
-  // TODO (yours): decide whether that is still what you want. Making search a
-  // real search param -- setSearchParams({ search }, { replace: true }) on
-  // every change -- would make a filtered board linkable, which is half the
-  // point of having a router. The catch is that replace on every keystroke
-  // spams history-adjacent work, so most apps debounce it. Try the naive
-  // version first and watch what it does to typing.
-  const [searchParams] = useSearchParams()
-  const initialSearch = searchParams.get('search') || ''
+  // It used to be seeded from ?search= once and then kept in component state,
+  // which meant the address bar went stale the moment anyone typed: still
+  // saying ?search=1234 while the box showed something else. Holding it in one
+  // place removes that possibility rather than managing it, and a filtered
+  // board becomes something you can link, bookmark, and reload.
+  //
+  // `replace` and not push: pushing would stack one history entry per
+  // KEYSTROKE, so backing out of a ten-character search would take ten presses.
+  // With replace the board's filter is part of where you are, not part of how
+  // you got there.
+  //
+  // An empty box deletes the parameter instead of setting it to "", so a
+  // cleared search leaves "/" rather than "/?search=".
+  const [searchParams, setSearchParams] = useSearchParams()
+  const search = searchParams.get('search') || ''
+  const setSearch = (next) => {
+    setSearchParams(
+      (prev) => {
+        // Built from prev rather than from scratch so this stays correct when
+        // the board grows a second parameter -- writing { search } would drop
+        // every other one.
+        const params = new URLSearchParams(prev)
+        if (next) params.set('search', next)
+        else params.delete('search')
+        return params
+      },
+      { replace: true }
+    )
+  }
 
   // useState gives you a value plus a setter. Calling the setter is what tells
   // React "this changed, re-run this component and update the screen."
@@ -40,10 +59,9 @@ export default function App() {
   // are waiting on it." Worth saying out loud, because it takes up to a minute.
   const [waking, setWaking] = useState(false)
 
-  // Seeded from ?search= so a link from a pay statement lands on the board
-  // already filtered to that load. It is still ordinary state afterwards --
-  // typing in the box does not touch the URL.
-  const [search, setSearch] = useState(initialSearch)
+  // equipment and availableOnly stay ordinary state on purpose. The load link
+  // on a pay statement carries a search term, so that one has to survive being
+  // pasted somewhere; nothing links to a particular equipment filter.
   const [equipment, setEquipment] = useState('All')
   const [availableOnly, setAvailableOnly] = useState(false)
 
