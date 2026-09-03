@@ -163,6 +163,34 @@ const cases = [
   ['AddLoadForm dispatcher', '/src/components/AddLoadForm.jsx',
     { user: { email: 'a@b.co', role: 'dispatcher', pendingApproval: false }, canAdd: true, onAddLoad() {} }],
 
+  // The settlements board, with both kinds of driver in it. The $/mi column
+  // means different things per row and one of them declines to answer, which
+  // is the sort of rule that is invisible until someone screenshots it.
+  ['SettlementTable mixed', '/src/components/SettlementTable.jsx', {
+    settlements: [
+      {
+        driverCode: 'JSMITH', driverName: 'James Smith', driverType: 'COMPANY',
+        checkDate: '2026-08-21', periodStart: '2026-08-09', periodEnd: '2026-08-15',
+        documentNo: 'CK-260821-0015', loadCount: 4, miles: 2055,
+        settlementTotal: 1570.35, perMile: 0.76, hasDeductions: true,
+      },
+      {
+        driverCode: 'RVASQUEZ', driverName: 'Rey Vasquez', driverType: 'OWNER',
+        checkDate: '2026-08-21', periodStart: '2026-08-09', periodEnd: '2026-08-15',
+        documentNo: 'CK-260821-2002', loadCount: 4, miles: 1226,
+        settlementTotal: 875.34, perMile: 0.71, hasDeductions: true,
+      },
+      // All flat pay, no miles: the other reason the cell dashes.
+      {
+        driverCode: 'SOAKS', driverName: 'Sherman Oaks', driverType: 'COMPANY',
+        checkDate: '2026-08-14', periodStart: '2026-08-02', periodEnd: '2026-08-08',
+        documentNo: 'CK-260814-0010', loadCount: 1, miles: 0,
+        settlementTotal: 150.0, perMile: null, hasDeductions: false,
+      },
+    ],
+  }],
+  ['SettlementTable empty', '/src/components/SettlementTable.jsx', { settlements: [] }],
+
   // The two settlements. Both are reached at the same URL and chosen by
   // driverType, so both have to render from one payload shape -- which is
   // exactly what these three cases check.
