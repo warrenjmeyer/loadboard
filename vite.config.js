@@ -94,6 +94,14 @@ export default defineConfig({
   // so without it the request arrives at Azure looking like it was meant for
   // localhost and does not reach the Function.
   server: {
+    // Listen on both IP stacks. Vite otherwise binds "localhost", which Node
+    // resolves to ::1 alone on Windows -- so http://localhost:5173 works while
+    // http://127.0.0.1:5173 is refused outright, with nothing listening on the
+    // IPv4 address at all. Chrome papers over the difference for the hostname;
+    // anything pinned to the numeric address does not, which covers pasted
+    // links, Postman, WSL, and `netstat -p tcp` when you go looking for why.
+    host: true,
+
     proxy: {
       '/api': {
         target: apiTarget,
