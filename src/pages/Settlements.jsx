@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchJson } from '../lib/api.js'
 import { formatMoney, formatMiles } from '../lib/format.js'
 import SettlementFilters from '../components/SettlementFilters.jsx'
@@ -13,7 +14,8 @@ import AccessNotice from '../components/AccessNotice.jsx'
 // read one you can read the other, and that is worth more than any cleverness
 // that would make them differ.
 //
-// The individual statement lives at ?id=DRIVERCODE. This board links to it.
+// The individual statement lives at /settlements/:driverCode. This board links
+// to it -- see SettlementRow.jsx for how the link is built.
 // ---------------------------------------------------------------------------
 export default function Settlements() {
   const [settlements, setSettlements] = useState([])
@@ -48,16 +50,7 @@ export default function Settlements() {
         setLoading(false)
       })
 
-    // A refusal replaces the page rather than appearing inside it. Rendering it
-  // inline left "Not available to your account" sandwiched between the header
-  // and a filter bar over an empty table, which reads as a broken page rather
-  // than an answer -- and still showed "0 of 0 settlements" as if the number
-  // were real.
-  if (error && (errorStatus === 401 || errorStatus === 403)) {
-    return <AccessNotice error={error} status={errorStatus} />
-  }
-
-  return () => {
+    return () => {
       cancelled = true
     }
   }, [])
@@ -87,6 +80,22 @@ export default function Settlements() {
   // whose summary still describes everything is worse than no summary.
   const totalPaid = visible.reduce((sum, s) => sum + s.settlementTotal, 0)
   const totalMiles = visible.reduce((sum, s) => sum + s.miles, 0)
+
+  // A refusal replaces the page rather than appearing inside it. Rendering it
+  // inline left "Not available to your account" sandwiched between the header
+  // and a filter bar over an empty table, which reads as a broken page rather
+  // than an answer -- and still showed "0 of 0 settlements" as if the number
+  // were real.
+  //
+  // NOTE: this guard was previously stranded INSIDE the useEffect above, where
+  // it was unreachable (`error` is always null when that effect runs) and it
+  // sat in front of the cleanup function's return. It is a component-level
+  // early return, so it belongs here -- after every hook has been called, and
+  // before the JSX. Hooks must run in the same order on every render, which is
+  // exactly why an early return can never go above one.
+  if (error && (errorStatus === 401 || errorStatus === 403)) {
+    return <AccessNotice error={error} status={errorStatus} />
+  }
 
   return (
     <div className="page">
@@ -127,7 +136,7 @@ export default function Settlements() {
       )}
 
       <nav className="board-nav">
-        <a href="./">← Load board</a>
+        <Link to="/">← Load board</Link>
       </nav>
     </div>
   )

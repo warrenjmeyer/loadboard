@@ -490,7 +490,7 @@ the SQL string, which made the driver code executable.
 
 ```
 index.html              the empty shell React mounts into
-src/main.jsx            entry point — connects React to the DOM
+src/main.jsx            entry point — the <Routes> table, and the token pre-read
 src/App.jsx             owns the data + filter state, wires everything together
 src/components/
   LoadFilters.jsx       controlled inputs, no state of its own
@@ -515,7 +515,7 @@ geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
-src/pages/Settlement.jsx          the pay statement
+src/pages/Settlement.jsx          the pay statement — the router worked example
 src/components/settlement/        its load table and adjustment blocks
 src/lib/api.js          fetchJson / postJson / fetchUser — and the cold-start retry
 src/lib/format.js       money, miles and date formatting in one place
@@ -549,13 +549,48 @@ build on each other.
    functions that call other hooks. This is the thing that makes React click
    for most people.
 
-6. **Add routing.** `npm i react-router-dom`, give each load its own URL at
-   `/loads/L-10412`. *Teaches:* client-side routing, and why
-   `public/staticwebapp.config.json` sets `navigationFallback` to
-   `/index.html` — a deep link isn't a real file, so Static Web Apps has to
-   serve the app and let the router sort it out. Note: this is also the moment
-   `base: './'` in `vite.config.js` has to become `'/'`, or the assets a deep
-   link pulls in resolve relative to `/loads/` and 404.
+6. **Add routing.** *Partly done — scaffolded, the rest is yours.*
+
+   `npm i react-router-dom` first; nothing runs until you do.
+
+   Already converted, as the worked example: `main.jsx` is a `<Routes>` table,
+   and the settlement moved from `?id=JSMITH&date=...` to
+   `/settlements/JSMITH?date=...`. Read `src/pages/Settlement.jsx` top to
+   bottom — it is commented as the reference for the pattern.
+
+   The split it teaches: **the path identifies the resource** (`:driverCode`,
+   read with `useParams`), **the query string is a view setting on it**
+   (`?date=`, read with `useSearchParams`). Get that boundary right and the
+   back button works for free; get it wrong and you have two sources of truth
+   for the same value.
+
+   Also done: `base: './'` → `'/'` in `vite.config.js`. A deep link like
+   `/settlements/JSMITH` resolves `./assets/...` against `/settlements/` and
+   404s, and because `public/staticwebapp.config.json` has a
+   `navigationFallback`, what comes back is `index.html` with a 200 — a blank
+   page whose only clue is a MIME-type warning.
+
+   **Still yours to do** (every spot is marked `TODO (yours)`):
+
+   - Swap the remaining `<a href="?...">` for `<Link to="...">` in `App.jsx`,
+     `AccessNotice.jsx`, `AddLoadForm.jsx`, `SignIn.jsx`, `Register.jsx` and
+     `Admin.jsx`. Do `App.jsx` first and watch the network tab: `/api/me`
+     stops being re-requested on every page move.
+   - `VerifyEmail.jsx` and `SetPassword.jsx` are the exception. They render
+     *outside* the router (see the comment at the top of `main.jsx`) because
+     the token has to be scrubbed from the URL before `BrowserRouter` snapshots
+     it. `<Link>` throws there. Only their `href` targets need updating.
+   - Decide whether the load board's search belongs in the URL. Making it a
+     search param makes a filtered board linkable; doing it naively on every
+     keystroke is worse than not doing it.
+   - Then the original exercise: give each load its own URL at
+     `/loads/L-10412`, which needs a detail page that does not exist yet.
+
+   Why the token pages keep `/?verify=TOKEN` rather than becoming
+   `/verify/:token`: a path parameter is *more* exposed, not less. Both sit in
+   history, but only a query string can be rewritten away without navigating.
+   It also means no already-sent email breaks — the links in
+   `api/src/functions/register.js` are unchanged.
 
 7. ~~**Swap the JSON for a real API.**~~ **Done** — see "Where the load data
    comes from" above. `App.jsx` now fetches `/api/loads`, served by an Azure

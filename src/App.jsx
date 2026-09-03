@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Link, useSearchParams } from 'react-router-dom'
 import LoadFilters from './components/LoadFilters.jsx'
 import LoadTable from './components/LoadTable.jsx'
 import AddLoadForm from './components/AddLoadForm.jsx'
@@ -13,7 +14,20 @@ import { fetchMe, logout } from './lib/auth.js'
 // piece of data, that data lives in their closest common parent. LoadFilters
 // changes the filter, LoadTable reads it -- so the filter lives here, in App.
 // ---------------------------------------------------------------------------
-export default function App({ initialSearch = '' }) {
+export default function App() {
+  // main.jsx used to read ?search= and pass it down as initialSearch. It now
+  // renders a bare <App />, so the seed is read here instead. Same behaviour:
+  // the URL only seeds the box, and typing afterwards does not touch the URL.
+  //
+  // TODO (yours): decide whether that is still what you want. Making search a
+  // real search param -- setSearchParams({ search }, { replace: true }) on
+  // every change -- would make a filtered board linkable, which is half the
+  // point of having a router. The catch is that replace on every keystroke
+  // spams history-adjacent work, so most apps debounce it. Try the naive
+  // version first and watch what it does to typing.
+  const [searchParams] = useSearchParams()
+  const initialSearch = searchParams.get('search') || ''
+
   // useState gives you a value plus a setter. Calling the setter is what tells
   // React "this changed, re-run this component and update the screen."
   // Assigning to a plain variable would NOT do that -- React would never know.
@@ -254,20 +268,27 @@ export default function App({ initialSearch = '' }) {
         </p>
       )}
 
-      {/* A plain anchor, not a button: this changes the page, and a link is
-          what the browser already knows how to open in a new tab.
+      {/* A link, not a button: this changes the page, and a link is what the
+          browser already knows how to open in a new tab.
 
           This used to list every driver. That was fine at two and unreadable
           at twenty, which is what the settlements board is for -- it filters,
-          which a wall of names cannot. */}
+          which a wall of names cannot.
+
+          <Link to> rather than <a href>: an anchor makes the browser discard
+          the whole app and build it again from nothing, so every move between
+          pages re-ran /api/me. Link asks the router to swap the component and
+          leaves React running, so the answer we already have is still there.
+          It still renders a real <a> underneath -- middle-click and "open in
+          new tab" work exactly as before. */}
       <nav className="board-nav">
-        <a href="?view=settlements">Driver settlements →</a>
+        <Link to="/settlements">Driver settlements →</Link>
         {/* Rendered only when nobody is signed in. `user === undefined` means
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}
-        {user && user.role === 'admin' && <a href="?view=admin">Accounts →</a>}
-        {user === null && <a href="?signin=1">Sign in</a>}
-        {user === null && <a href="?register=1">Create an account</a>}
+        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}
+        {user === null && <Link to="/signin">Sign in</Link>}
+        {user === null && <Link to="/register">Create an account</Link>}
       </nav>
     </div>
   )

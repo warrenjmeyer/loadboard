@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { register } from '../lib/auth.js'
 
 const MIN_PASSWORD = 12
@@ -64,8 +65,8 @@ export default function Register() {
           before it can do anything.
         </p>
         <nav className="board-nav">
-          <a href="?signin=1">Sign in</a>
-          <a href="/">← The load board</a>
+          <Link to="/signin">Sign in</Link>
+          <Link to="/">← The load board</Link>
         </nav>
       </div>
     )
@@ -143,8 +144,8 @@ export default function Register() {
       </form>
 
       <nav className="board-nav">
-        <a href="?signin=1">Already have an account? Sign in</a>
-        <a href="/">← The load board</a>
+        <Link to="/signin">Already have an account? Sign in</Link>
+        <Link to="/">← The load board</Link>
       </nav>
     </div>
   )

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react'
+import { Link } from 'react-router-dom'
 import { fetchJson, postJson } from '../lib/api.js'
 import AccessNotice from '../components/AccessNotice.jsx'
 
@@ -220,8 +221,8 @@ export default function Admin() {
       </p>
 
       <nav className="board-nav">
-        <a href="/">← The load board</a>
-        <a href="?view=settlements">Driver settlements</a>
+        <Link to="/">← The load board</Link>
+        <Link to="/settlements">Driver settlements</Link>
       </nav>
     </div>
   )

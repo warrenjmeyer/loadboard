@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
 
 // Presentational: data in, markup out, no state, no side effects -- the same
@@ -7,12 +8,19 @@ import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
 // something the browser already knows how to open in a new tab, copy, or
 // middle-click; a row with an onClick is none of those things.
 export default function SettlementRow({ settlement }) {
-  const href = `?id=${settlement.driverCode}&date=${settlement.checkDate}`
+  // The driver code identifies the resource, so it goes in the path. The check
+  // date selects a view of it, so it stays in the query string. Same split as
+  // Settlement.jsx reads it back out with useParams / useSearchParams.
+  //
+  // encodeURIComponent on the path segment because a driver code is data, and
+  // data with a "/" or a "?" in it would otherwise rewrite the route. Nothing
+  // in the current fleet contains one; that is luck, not a guarantee.
+  const to = `/settlements/${encodeURIComponent(settlement.driverCode)}?date=${settlement.checkDate}`
 
   return (
     <tr>
       <td className="mono">
-        <a href={href}>{settlement.documentNo}</a>
+        <Link to={to}>{settlement.documentNo}</Link>
       </td>
       <td>{settlement.driverName}</td>
       <td>{formatDate(settlement.checkDate)}</td>
