@@ -18,8 +18,14 @@
 # number of a GO unit somebody actually owns, and you cannot invent those. An
 # untracked asset is Geotab's own answer to "I want this thing in the fleet
 # list but nothing is transmitting for it" -- a trailer, a yard truck, or in
-# this case a tractor that exists only in a demo database. No hardware, no
-# serial number, no subscription.
+# this case a tractor that exists only in a demo database. No hardware and no
+# subscription.
+#
+# It DOES still want a serial number: demo_millstream rejects the Add with
+# "Missing serial number" without one, untracked or not. So the script sends a
+# generated one. -SerialNumberFormat is a format and not a value on purpose --
+# serials are unique per device, so one literal string would create the first
+# vehicle and fail on the second as a duplicate.
 #
 # -Count is how many vehicles should EXIST, not how many to add -- the same
 # meaning it has in geotab-add-drivers.ps1. Twenty trucks and -Count 24 creates
@@ -62,9 +68,18 @@ param(
 
     [string]$CompanyGroupId = 'GroupCompanyId',
 
-    # Only used when the database insists on one. Left empty the field is
-    # omitted entirely, which is what an untracked asset expects.
-    [string]$SerialNumber = '',
+    # demo_millstream rejects an Add with "Missing serial number" even for an
+    # untracked asset, so one is always sent. {0} is the vehicle's number.
+    #
+    # A FORMAT RATHER THAN A VALUE, because serial numbers are unique per
+    # device: passing one literal string would create the first truck and then
+    # fail on the second as a duplicate. Ask for four and you want four
+    # serials, not the same one four times.
+    #
+    # If a database rejects this shape, try another -- '000-000-{0:D4}' and
+    # 'UA{0:D10}' are both worth a go, and the format only has to satisfy
+    # Geotab, not mean anything.
+    [string]$SerialNumberFormat = '000-000-{0:D4}',
 
     [switch]$ListDevices,
     [switch]$WhatIf
@@ -137,6 +152,7 @@ $n = $StartNumber
 
 while ($created.Count -lt $needed) {
     $name = '{0}{1:D2}' -f $NamePrefix, $n
+    $serial = $SerialNumberFormat -f $n
     $n++
 
     # Belt and braces. The start number is past everything under this prefix,
@@ -150,20 +166,14 @@ while ($created.Count -lt $needed) {
     }
 
     $entity = @{
-        name       = $name
-        deviceType = $DeviceType
-        groups     = @(@{ id = $CompanyGroupId })
-    }
-
-    # Omitted rather than blank. An empty serialNumber is a value, and Geotab
-    # validates it as one; leaving the field out is what says "there is no
-    # hardware here".
-    if (-not [string]::IsNullOrWhiteSpace($SerialNumber)) {
-        $entity.serialNumber = $SerialNumber
+        name         = $name
+        deviceType   = $DeviceType
+        serialNumber = $serial
+        groups       = @(@{ id = $CompanyGroupId })
     }
 
     if ($WhatIf) {
-        Write-Host ("  would create {0,-12} ({1})" -f $name, $DeviceType)
+        Write-Host ("  would create {0,-12} ({1}, serial {2})" -f $name, $DeviceType, $serial)
         $created += $name
         continue
     }
@@ -180,9 +190,12 @@ while ($created.Count -lt $needed) {
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ''
         Write-Host 'What to try next:' -ForegroundColor Yellow
-        Write-Host '  - If it is complaining about the serial number, some databases want a'
-        Write-Host '    placeholder even for an untracked asset. Re-run with, for example,'
-        Write-Host '      -SerialNumber 000-000-0000'
+        Write-Host '  - If it dislikes the serial number, try another shape. It only has to'
+        Write-Host '    satisfy Geotab and be unique per vehicle:'
+        Write-Host '      -SerialNumberFormat ''UA{0:D10}'''
+        Write-Host '  - If it says the serial is already in use, something already has it.'
+        Write-Host '    Pick a different series rather than reusing one:'
+        Write-Host '      -SerialNumberFormat ''000-000-9{0:D3}'''
         Write-Host '  - If it is complaining about the device type, try'
         Write-Host '      -DeviceType CustomVehicleDevice'
         Write-Host '  - If it refuses either way, add the vehicles by hand in MyGeotab:'
