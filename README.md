@@ -553,7 +553,7 @@ settlement_05_link.sql  ties SettlementRoutes.load_id to dbo.Loads
 settlement_06_owner.sql owner/operators: driver_type, escrow, four contractors
 tools/gen_owner_settlements.mjs   generates the file above — edit this, not it
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
-geotab-add-vehicles.ps1 adds vehicles as untracked assets -- no hardware needed
+geotab-add-vehicles.ps1 adds vehicles -- BLOCKED: Geotab must issue the serials
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination

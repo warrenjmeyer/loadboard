@@ -21,11 +21,40 @@
 # this case a tractor that exists only in a demo database. No hardware and no
 # subscription.
 #
-# It DOES still want a serial number: demo_millstream rejects the Add with
-# "Missing serial number" without one, untracked or not. So the script sends a
-# generated one. -SerialNumberFormat is a format and not a value on purpose --
-# serials are unique per device, so one literal string would create the first
-# vehicle and fail on the second as a duplicate.
+# *** READ THIS BEFORE SPENDING ANY TIME HERE. ***
+#
+# THIS SCRIPT DOES NOT WORK AGAINST demo_millstream, and probably not against
+# your database either. It is kept because what it proves is worth keeping.
+#
+# Adding a vehicle needs a serial number, and a serial number cannot be
+# invented. Geotab issues them: you call ProvisionDevice or
+# ProvisionDeviceToAccount on the MyAdmin API -- a DIFFERENT api from the one
+# every other script here uses, with its own credentials -- passing a Product
+# ID, and it returns a serial. The Product ID decides the first two characters.
+#
+# The failures, in order, and what each one taught:
+#
+#   no serialNumber at all   -> "Missing serial number"
+#                               Untracked or not, the field is required.
+#
+#   serialNumber 000-000-0021 -> "Invalid serial number: GT0-000-0021"
+#                               Note the echo. Geotab rewrote the first two
+#                               characters to a device-type prefix and then
+#                               rejected the result, because it is not a serial
+#                               it ever issued. No format will satisfy this;
+#                               the number has to come FROM Geotab.
+#
+# So the options are: provision properly through MyAdmin (a real integration,
+# needing MyAdmin credentials and a Product ID -- 10032 and 10184 are the
+# documented test ones), add the assets by hand in the MyGeotab UI, or do not
+# put the vehicles in Geotab at all.
+#
+#   https://geotab.github.io/sdk/software/guides/custom-telematics-devices/
+#
+# -SerialNumberFormat survives for the MyAdmin case, where real provisioned
+# serials would be fed in. It is a format and not a value because serials are
+# unique per device: one literal string would create the first vehicle and then
+# fail on the second as a duplicate.
 #
 # -Count is how many vehicles should EXIST, not how many to add -- the same
 # meaning it has in geotab-add-drivers.ps1. Twenty trucks and -Count 24 creates
@@ -189,19 +218,23 @@ while ($created.Count -lt $needed) {
         Write-Host "Geotab refused to create $name." -ForegroundColor Red
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ''
-        Write-Host 'What to try next:' -ForegroundColor Yellow
-        Write-Host '  - If it dislikes the serial number, try another shape. It only has to'
-        Write-Host '    satisfy Geotab and be unique per vehicle:'
-        Write-Host '      -SerialNumberFormat ''UA{0:D10}'''
-        Write-Host '  - If it says the serial is already in use, something already has it.'
-        Write-Host '    Pick a different series rather than reusing one:'
-        Write-Host '      -SerialNumberFormat ''000-000-9{0:D3}'''
-        Write-Host '  - If it is complaining about the device type, try'
-        Write-Host '      -DeviceType CustomVehicleDevice'
-        Write-Host '  - If it refuses either way, add the vehicles by hand in MyGeotab:'
+        if ($_.Exception.Message -match 'serial number') {
+            Write-Host 'This is expected, and trying another serial format will not help.' -ForegroundColor Yellow
+            Write-Host 'Geotab issues serial numbers; they cannot be made up. See the header'
+            Write-Host 'of this script for the whole story, and:'
+            Write-Host '  https://geotab.github.io/sdk/software/guides/custom-telematics-devices/'
+            Write-Host ''
+        }
+        Write-Host 'What to do instead:' -ForegroundColor Yellow
+        Write-Host '  - Add the vehicles by hand in MyGeotab:'
         Write-Host '      Vehicles -> Add -> Untracked Asset, named exactly as above.'
-        Write-Host '    Then re-run geotab-assign-vehicles.ps1 -OnlyNew, which does not care'
+        Write-Host '    Then run geotab-assign-vehicles.ps1 -OnlyNew, which does not care'
         Write-Host '    how the vehicles got there.'
+        Write-Host '  - Or provision real serials through the MyAdmin API and pass them in'
+        Write-Host '    with -SerialNumberFormat. That is a separate integration.'
+        Write-Host '  - Or leave Geotab alone and give the owner/operators their own unit'
+        Write-Host '    numbers in the settlement data. They own the tractors; there is no'
+        Write-Host '    rule saying a contractor''s truck is on the carrier''s telematics.'
         throw
     }
 
