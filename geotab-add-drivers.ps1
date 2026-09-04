@@ -207,7 +207,17 @@ $names = @(
     @{ First = 'Desmond'; Last = 'Frye' },
     @{ First = 'Ingrid';  Last = 'Solberg' },
     @{ First = 'Terrell'; Last = 'Boone' },
-    @{ First = 'Nadia';   Last = 'Pruitt' }
+    @{ First = 'Nadia';   Last = 'Pruitt' },
+
+    # The four owner/operators (settlement_06_owner.sql). APPENDED, never
+    # inserted in alphabetical order: employeeNo and licenseNumber are derived
+    # from a name's INDEX in this list, so putting Brennan up with Boone would
+    # renumber sixteen drivers who already have settlements against their
+    # current numbers. New names go on the end, always.
+    @{ First = 'Rey';     Last = 'Vasquez' },
+    @{ First = 'Kit';     Last = 'Brennan' },
+    @{ First = 'Miriam';  Last = 'Okonkwo' },
+    @{ First = 'Lark';    Last = 'Stavros' }
 )
 
 if ($Count -gt $names.Count) {

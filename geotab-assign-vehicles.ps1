@@ -12,10 +12,23 @@
 # DriverChange record -- "this driver is in this vehicle from this moment" --
 # which is what the Drive app and the HOS logs key off. This adds one per pair.
 #
-# Pairing is by position after sorting both lists by name, so it is stable:
-# running it twice pairs the same people with the same trucks. Drivers are
-# matched one-to-one; surplus vehicles are left unassigned, the way a fleet
-# keeps spare tractors.
+# Pairing is by position after sorting both lists by name. That is stable only
+# while the ROSTER is: running it twice on the same people pairs them with the
+# same trucks, but inserting one driver shifts every driver after them onto the
+# next vehicle along.
+#
+# *** THAT MATTERS MORE THAN IT LOOKS. ***
+#
+# The unit number on a settlement is already written into dbo.SettlementRoutes.
+# Re-pairing a driver here does not update those rows, so a statement goes on
+# saying "Demo - 15" while Geotab says the driver is in Demo - 17, and nothing
+# anywhere reports the disagreement. Adding the four owner/operators to the
+# twenty drivers already here moves EIGHTEEN of them.
+#
+# So: use -OnlyNew when adding drivers to a fleet that already has settlements.
+# It reads the existing DriverChange records, leaves every current pairing
+# alone, and puts the new drivers in the spare trucks. Run the bare form only
+# on a fleet whose settlements do not exist yet.
 #
 # -OutFile writes the pairing as JSON so the settlement unit numbers can be
 # updated to match.
@@ -35,6 +48,16 @@ param(
     [string]$OutFile = 'driver-vehicles.json',
 
     [switch]$ListDevices,
+
+    # Assign ONLY drivers who do not already have a vehicle, to vehicles nobody
+    # is already in. Existing pairings are read from Geotab and left alone.
+    #
+    # USE THIS WHENEVER DRIVERS ARE ADDED TO AN ESTABLISHED FLEET, and see the
+    # warning in the header above for why. Without it this script re-pairs
+    # everyone by position, and adding four drivers to the twenty already here
+    # moves eighteen of them to a different truck.
+    [switch]$OnlyNew,
+
     [switch]$WhatIf
 )
 
@@ -75,6 +98,45 @@ Write-Host "  $($devices.Count) vehicles, $($drivers.Count) drivers" -Foreground
 if ($devices.Count -eq 0) { throw 'No vehicles in this database.' }
 if ($drivers.Count -gt $devices.Count) {
     throw "More drivers ($($drivers.Count)) than vehicles ($($devices.Count)). One vehicle each is not possible."
+}
+
+# --- who is already in a truck --------------------------------------------
+# Only consulted for -OnlyNew, but fetched before the branch so the summary can
+# report it either way. A DriverChange is a moment, not a range, so the CURRENT
+# assignment is the most recent record for that driver -- sort descending by
+# dateTime and take the first one seen.
+if ($OnlyNew) {
+    $changes = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
+        typeName    = 'DriverChange'
+        credentials = $creds
+        search      = @{ driverChangeType = 'Driver' }
+    } | Sort-Object { [datetime]$_.dateTime } -Descending
+
+    $vehicleOfDriver = @{}
+    $driverOfVehicle = @{}
+    foreach ($c in $changes) {
+        $did = $c.driver.id
+        $vid = $c.device.id
+        if (-not $did -or -not $vid) { continue }
+        if (-not $vehicleOfDriver.ContainsKey($did)) { $vehicleOfDriver[$did] = $vid }
+        if (-not $driverOfVehicle.ContainsKey($vid)) { $driverOfVehicle[$vid] = $did }
+    }
+
+    $assignedDrivers = @($drivers | Where-Object { $vehicleOfDriver.ContainsKey($_.id) })
+    $drivers = @($drivers | Where-Object { -not $vehicleOfDriver.ContainsKey($_.id) })
+    $devices = @($devices | Where-Object { -not $driverOfVehicle.ContainsKey($_.id) })
+
+    Write-Host ("  -OnlyNew: {0} drivers already have a truck and are untouched" -f $assignedDrivers.Count) -ForegroundColor DarkGray
+    Write-Host ("  {0} unassigned drivers, {1} free vehicles" -f $drivers.Count, $devices.Count) -ForegroundColor DarkGray
+
+    if ($drivers.Count -eq 0) {
+        Write-Host ''
+        Write-Host 'Every driver already has a vehicle. Nothing to do.' -ForegroundColor Green
+        return
+    }
+    if ($drivers.Count -gt $devices.Count) {
+        throw "$($drivers.Count) unassigned drivers but only $($devices.Count) free vehicles. Add vehicles in MyGeotab, or free some up, before running this."
+    }
 }
 
 # --- pair and assign -------------------------------------------------------
@@ -136,7 +198,24 @@ if ($spare) {
 }
 
 if (-not $WhatIf) {
-    $pairs | ConvertTo-Json -Depth 4 | Set-Content -Path $OutFile -Encoding utf8
+    $toWrite = $pairs
+
+    # -OnlyNew assigned a handful of drivers, so $pairs holds only those. The
+    # file is meant to be the WHOLE fleet -- writing four rows over twenty-four
+    # would look like sixteen drivers had lost their trucks. Merge instead,
+    # letting this run's pairs win for any driver it touched.
+    if ($OnlyNew -and (Test-Path $OutFile)) {
+        $existingPairs = @(Get-Content $OutFile -Raw | ConvertFrom-Json)
+        $justAssigned = @{}
+        foreach ($p in $pairs) { $justAssigned[$p.DriverId] = $true }
+
+        $kept = @($existingPairs | Where-Object { -not $justAssigned.ContainsKey($_.DriverId) })
+        $toWrite = @($kept + $pairs) | Sort-Object Vehicle
+        Write-Host ''
+        Write-Host ("  merged with $OutFile -- {0} kept, {1} added" -f $kept.Count, $pairs.Count) -ForegroundColor DarkGray
+    }
+
+    $toWrite | ConvertTo-Json -Depth 4 | Set-Content -Path $OutFile -Encoding utf8
     Write-Host ''
     Write-Host "Pairing written to $OutFile -- feed this back to update the settlement unit numbers."
 }
