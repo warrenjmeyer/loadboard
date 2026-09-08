@@ -168,6 +168,17 @@ const cases = [
       driverCode: null, deliveredDate: null,
     },
   }],
+  // The same load as a signed-in dispatcher sees it: one more field, linking
+  // out to the lane in MyGeotab. Anonymous visitors get null and no field at
+  // all, which is the state above.
+  ['LoadCard with geotab', '/src/components/LoadCard.jsx', {
+    load: {
+      id: 'L-10412', origin: 'Cedar Rapids, IA', destination: 'Kansas City, MO',
+      miles: 310, rate: 1240, equipment: 'Reefer', status: 'Available',
+      driverCode: null, deliveredDate: null,
+    },
+    geotabUrl: "https://my.geotab.com/demo_millstream/#routes,search:'CEDAR%20RAPIDS,%20IA%20-%20KANSAS%20CITY,%20MO'",
+  }],
 
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],

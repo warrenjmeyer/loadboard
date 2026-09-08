@@ -1,12 +1,18 @@
 import { Link } from 'react-router-dom'
 import { formatMoney, formatMiles, formatDate } from '../lib/format.js'
+import { routeNameFor } from '../lib/geotab.js'
 
 // One load's fields. Presentational: data in, markup out, no state and no
 // fetching -- the same division as LoadTable against App, and it exists for the
 // same practical reason. LoadDetail cannot be smoke-rendered in its interesting
 // states, because reaching them means resolving a fetch; this can, from a
 // literal object, which is what render.check.mjs does with it.
-export default function LoadCard({ load }) {
+//
+// geotabUrl is passed in rather than computed here, and null means "do not
+// show it". Whether the reader should see a link into MyGeotab is a question
+// about who they are, and this component deliberately knows nothing about that
+// -- the same reason it takes a load instead of fetching one.
+export default function LoadCard({ load, geotabUrl = null }) {
   const rpm = load.rate / load.miles
 
   return (
@@ -62,6 +68,19 @@ export default function LoadCard({ load }) {
             {load.deliveredDate ? formatDate(load.deliveredDate) : <span className="muted">—</span>}
           </dd>
         </div>
+        {geotabUrl && (
+          <div>
+            <dt>GeoTab route</dt>
+            <dd>
+              {/* A plain <a>, not a <Link>: this leaves the app entirely.
+                  rel="noreferrer" so the load number this app is showing is
+                  not handed to Geotab in a Referer header. */}
+              <a href={geotabUrl} target="_blank" rel="noreferrer">
+                {routeNameFor(load)}
+              </a>
+            </dd>
+          </div>
+        )}
       </dl>
 
       <nav className="board-nav">

@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { fetchJson } from '../lib/api.js'
+import { fetchMe } from '../lib/auth.js'
+import { geotabRouteUrl } from '../lib/geotab.js'
 import LoadCard from '../components/LoadCard.jsx'
 
 // ---------------------------------------------------------------------------
@@ -36,6 +38,12 @@ export default function LoadDetail() {
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
 
+  // Who is reading. Only used to decide whether the MyGeotab link is worth
+  // showing -- it is useless to somebody with no MyGeotab account, and the
+  // board is public. Its own effect, and [] not [id]: the answer does not
+  // change when you click from one load to the next.
+  const [user, setUser] = useState(undefined)
+
   // [id] and not [] as the dependency array. Clicking from one load straight
   // to another re-uses this component rather than remounting it, so an effect
   // that only ran once would leave the first load on screen at the second
@@ -64,6 +72,16 @@ export default function LoadDetail() {
       cancelled = true
     }
   }, [id])
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((account) => !cancelled && setUser(account))
+      .catch(() => !cancelled && setUser(null))
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   if (loading) {
     return (
@@ -109,9 +127,13 @@ export default function LoadDetail() {
     )
   }
 
+  // A signed-in account with a real role. 'none' is an approved-but-not-yet
+  // -granted account, which is not somebody with a MyGeotab login either.
+  const showGeotab = Boolean(user) && user.role !== 'none'
+
   return (
     <div className="page">
-      <LoadCard load={load} />
+      <LoadCard load={load} geotabUrl={showGeotab ? geotabRouteUrl(load) : null} />
     </div>
   )
 }
