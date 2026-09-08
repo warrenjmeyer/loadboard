@@ -56,12 +56,40 @@
 # related set is sent. Nothing is lost by that: a parent group contains
 # everything its children contain, so the truck is still in both.
 #
-# This can still be refused: Geotab issues serial numbers, and one it never
-# issued may not be accepted however plausible its shape. If it is refused,
-# the options are to provision properly through the MyAdmin API (a DIFFERENT
-# api from the one every other script here uses, with its own credentials and
-# a Product ID -- 10032 and 10184 are the documented test ones), add the assets
-# by hand in the MyGeotab UI, or leave the vehicles out of Geotab.
+# *** AND IT STILL DOES NOT WORK AGAINST demo_millstream. ***
+#
+#   the fleet's own next serial -> "Invalid serial number: G90000000021"
+#
+# Read that echo against the earlier one. G90000000021 came back EXACTLY as
+# sent: no rewritten prefix, so the device type now agrees with the serial and
+# that whole class of complaint is gone. What is left is the plain fact --
+# Geotab did not issue this number, so Geotab will not take it, however
+# perfectly it fits the twenty that came before it.
+#
+# That is worth having proven rather than assumed. The serial is not a
+# formatting puzzle and never was: three shapes were tried, one of them the
+# fleet's own series against the fleet's own device type, and the API refuses
+# all three. Nobody needs to try a fourth.
+#
+# So a serial has to come FROM Geotab, and the ways to get vehicles in are:
+#
+#   - Add them by hand in MyGeotab: Vehicles -> Add -> Untracked Asset, named
+#     exactly "Demo - 21" through "Demo - 24", in the Vehicle group. The UI can
+#     do this because it provisions the serial behind the scenes; the API
+#     cannot, because it makes you supply one. Then run
+#     geotab-assign-vehicles.ps1 -OnlyNew, which does not care how the vehicles
+#     got there. This is the cheap answer, and it is four rows.
+#
+#   - Provision through the MyAdmin API: ProvisionDevice or
+#     ProvisionDeviceToAccount, a DIFFERENT api from the one every other script
+#     here uses, with its own credentials, against a Product ID (10032 and
+#     10184 are the documented test ones). Feed the serials it returns in
+#     through -SerialNumberFormat, which is why that parameter survives. Real
+#     integration, real credentials, for four demo trucks.
+#
+#   - Leave the vehicles out of Geotab. The owner/operators own their tractors;
+#     there is no rule saying a contractor's truck rides on the carrier's
+#     telematics.
 #
 #   https://geotab.github.io/sdk/software/guides/custom-telematics-devices/
 #
@@ -366,9 +394,24 @@ while ($created.Count -lt $needed) {
             Write-Host '  https://geotab.github.io/sdk/software/guides/custom-telematics-devices/'
             Write-Host ''
         }
+        # Name every truck still missing, not just the one that failed. This is
+        # a list somebody is about to retype into a web form, and "named as
+        # above" only ever showed them the first of four.
+        $pending = @($name)
+        $m = $n
+        while ($pending.Count -lt ($needed - $created.Count) -and $m -lt ($StartNumber + $needed + 50)) {
+            $candidate = '{0}{1:D2}' -f $NamePrefix, $m
+            $m++
+            if (-not $existingNames.ContainsKey($candidate.ToLower())) { $pending += $candidate }
+        }
+
         Write-Host 'What to do instead:' -ForegroundColor Yellow
         Write-Host '  - Add the vehicles by hand in MyGeotab:'
-        Write-Host '      Vehicles -> Add -> Untracked Asset, named exactly as above.'
+        Write-Host '      Vehicles -> Add -> Untracked Asset'
+        Write-Host ("    Name them exactly, in the {0} group:" -f ($GroupIds -join ', '))
+        foreach ($p in $pending) { Write-Host ("      {0}" -f $p) }
+        Write-Host '    The UI can do this and the API cannot, because the UI provisions the'
+        Write-Host '    serial for you rather than making you supply one.'
         Write-Host '    Then run geotab-assign-vehicles.ps1 -OnlyNew, which does not care'
         Write-Host '    how the vehicles got there.'
         Write-Host '  - Or provision real serials through the MyAdmin API and pass them in'
