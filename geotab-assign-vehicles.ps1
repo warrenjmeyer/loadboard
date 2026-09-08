@@ -53,6 +53,11 @@ param(
     # from DriverChange, which is where it actually lives -- see the block below.
     [switch]$ListPairing,
 
+    # Give assignments that start LATER than -AssignedFrom a backdated record,
+    # so a truck assigned by hand today still has the history the settlements
+    # already assume. Adds; never moves or deletes. Honours -WhatIf.
+    [switch]$Backfill,
+
     # Assign ONLY drivers who do not already have a vehicle, to vehicles nobody
     # is already in. Existing pairings are read from Geotab and left alone.
     #
@@ -141,6 +146,86 @@ if ($ListPairing) {
     $rows | Format-Table -AutoSize | Out-String | Write-Host
     Write-Host ("{0} vehicles, {1} with a driver." -f $devices.Count,
         (@($rows | Where-Object { $_.Driver -ne '(nobody)' }).Count))
+    return
+}
+
+# --- give a late assignment the history it should have had -----------------
+# A vehicle assigned by hand in the MyGeotab UI starts TODAY, because the UI
+# offers no way to backdate one. The four owner/operator trucks were added that
+# way, so Geotab believes nobody drove them before 2026-09-08 -- while the
+# settlement statements those drivers were paid from cover August.
+#
+# -Backfill adds a SECOND DriverChange for the same pairing, dated
+# -AssignedFrom. It does not move or replace anything: a DriverChange is a
+# moment, so the newest record is still the current driver and the older one
+# simply extends the history backwards. Running it twice adds nothing, because
+# a pairing that already starts at -AssignedFrom is not late any more.
+if ($Backfill) {
+    $changes = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
+        typeName    = 'DriverChange'
+        credentials = $creds
+        search      = @{ driverChangeType = 'Driver' }
+    } | Sort-Object { [datetime]$_.dateTime }
+
+    $driverById = @{}
+    foreach ($d in $drivers) { $driverById[$d.id] = $d }
+
+    # Ascending this time, so the first record seen per vehicle is the EARLIEST
+    # one. That is the question being asked: when does this truck's history
+    # begin, not who is in it now.
+    $earliest = @{}
+    foreach ($c in $changes) {
+        if (-not $c.driver.id -or -not $c.device.id) { continue }
+        if (-not $earliest.ContainsKey($c.device.id)) { $earliest[$c.device.id] = $c }
+    }
+
+    $cutoff = [datetime]$AssignedFrom
+    $late = @()
+    foreach ($dev in $devices) {
+        $c = $earliest[$dev.id]
+        if (-not $c) { continue }
+        if (([datetime]$c.dateTime) -le $cutoff) { continue }
+        $late += [pscustomobject]@{ Device = $dev; Change = $c }
+    }
+
+    if ($late.Count -eq 0) {
+        Write-Host ''
+        Write-Host "Every assignment already starts at or before $AssignedFrom. Nothing to do." -ForegroundColor Green
+        return
+    }
+
+    Write-Host ''
+    Write-Host ("Backdating {0} assignment(s) to {1}:" -f $late.Count, $AssignedFrom) -ForegroundColor Cyan
+
+    foreach ($item in $late) {
+        $d = $driverById[$item.Change.driver.id]
+        $who = if ($d) { ('{0} {1}' -f $d.firstName, $d.lastName).Trim() } else { $item.Change.driver.id }
+        $from = ([datetime]$item.Change.dateTime).ToString('yyyy-MM-dd')
+
+        if ($WhatIf) {
+            Write-Host ("  would backdate {0,-12} {1,-18} {2} -> {3}" -f
+                $item.Device.name, $who, $from, $cutoff.ToString('yyyy-MM-dd'))
+            continue
+        }
+
+        Invoke-Geotab -ApiServer $api -Method 'Add' -Params @{
+            typeName    = 'DriverChange'
+            credentials = $creds
+            entity      = @{
+                dateTime = $AssignedFrom
+                device   = @{ id = $item.Device.id }
+                driver   = @{ id = $item.Change.driver.id }
+                type     = 'Driver'
+            }
+        } | Out-Null
+
+        Write-Host ("  backdated {0,-12} {1,-18} {2} -> {3}" -f
+            $item.Device.name, $who, $from, $cutoff.ToString('yyyy-MM-dd')) -ForegroundColor Green
+    }
+
+    Write-Host ''
+    if ($WhatIf) { Write-Host 'Nothing was written (-WhatIf).' -ForegroundColor Yellow }
+    else { Write-Host 'Check it with -ListPairing.' -ForegroundColor Cyan }
     return
 }
 
