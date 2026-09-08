@@ -86,7 +86,39 @@ $CITY_COORDS = @(
     @{ Name = 'OMAHA, NE';         Lat = 41.2565; Lon = -95.9345 },
     @{ Name = 'SIOUX CITY, IA';    Lat = 42.4999; Lon = -96.4003 },
     @{ Name = 'ST. LOUIS, MO';     Lat = 38.6270; Lon = -90.1994 },
-    @{ Name = 'WATERLOO, IA';      Lat = 42.4928; Lon = -92.3426 }
+    @{ Name = 'WATERLOO, IA';      Lat = 42.4928; Lon = -92.3426 },
+
+    # Added 2026-09-08, for the lanes settlement_06_owner.sql introduced. The
+    # owner/operator settlement roughly doubled the lane network -- 90 lanes
+    # against the 21 zones that existed -- and every one of these was a city
+    # this table had never needed before.
+    #
+    # City centres, to four decimal places, which is about eleven metres. That
+    # is far finer than a zone needs: the zone radius below is measured in
+    # miles, because a lane endpoint means "the Dubuque area", not a particular
+    # dock door. Precision here is free, so it may as well be right.
+    @{ Name = 'ATLANTA, GA';       Lat = 33.7490; Lon = -84.3880 },
+    @{ Name = 'BOISE, ID';         Lat = 43.6150; Lon = -116.2023 },
+    @{ Name = 'BUFFALO, NY';       Lat = 42.8864; Lon = -78.8784 },
+    @{ Name = 'CHARLOTTE, NC';     Lat = 35.2271; Lon = -80.8431 },
+    @{ Name = 'CLEVELAND, OH';     Lat = 41.4993; Lon = -81.6944 },
+    @{ Name = 'COLUMBUS, OH';      Lat = 39.9612; Lon = -82.9988 },
+    @{ Name = 'DETROIT, MI';       Lat = 42.3314; Lon = -83.0458 },
+    @{ Name = 'FARGO, ND';         Lat = 46.8772; Lon = -96.7898 },
+    @{ Name = 'FORT WAYNE, IN';    Lat = 41.0793; Lon = -85.1394 },
+    @{ Name = 'GRAND RAPIDS, MI';  Lat = 42.9634; Lon = -85.6681 },
+    @{ Name = 'HOUSTON, TX';       Lat = 29.7604; Lon = -95.3698 },
+    @{ Name = 'LITTLE ROCK, AR';   Lat = 34.7465; Lon = -92.2896 },
+    @{ Name = 'LOUISVILLE, KY';    Lat = 38.2527; Lon = -85.7585 },
+    @{ Name = 'MADISON, WI';       Lat = 43.0731; Lon = -89.4012 },
+    @{ Name = 'NEW ORLEANS, LA';   Lat = 29.9511; Lon = -90.0715 },
+    @{ Name = 'PEORIA, IL';        Lat = 40.6936; Lon = -89.5890 },
+    @{ Name = 'PITTSBURGH, PA';    Lat = 40.4406; Lon = -79.9959 },
+    @{ Name = 'SALT LAKE CITY, UT'; Lat = 40.7608; Lon = -111.8910 },
+    @{ Name = 'SIOUX FALLS, SD';   Lat = 43.5460; Lon = -96.7313 },
+    @{ Name = 'SPRINGFIELD, MO';   Lat = 37.2089; Lon = -93.2923 },
+    @{ Name = 'TOLEDO, OH';        Lat = 41.6528; Lon = -83.5379 },
+    @{ Name = 'WICHITA, KS';       Lat = 37.6872; Lon = -97.3301 }
 )
 
 if ([string]::IsNullOrWhiteSpace($Database)) { $Database = Read-Host 'MyGeotab database' }
