@@ -5,6 +5,7 @@ import LoadTable from './components/LoadTable.jsx'
 import AddLoadForm from './components/AddLoadForm.jsx'
 import { fetchJson, postJson } from './lib/api.js'
 import { fetchMe, logout } from './lib/auth.js'
+import { sortLoads } from './lib/sortLoads.js'
 
 // ---------------------------------------------------------------------------
 // App is the "container" component. It owns the data and the filter settings,
@@ -32,6 +33,8 @@ export default function App() {
   // cleared search leaves "/" rather than "/?search=".
   const [searchParams, setSearchParams] = useSearchParams()
   const search = searchParams.get('search') || ''
+  const [sortKey, setSortKey] = useState(null) // e.g. 'miles'
+  const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc'
   const setSearch = (next) => {
     setSearchParams(
       (prev) => {
@@ -45,6 +48,17 @@ export default function App() {
       },
       { replace: true }
     )
+  }
+
+  // Clicking a header either flips the direction (same column) or moves the
+  // sort to a new column, starting ascending.
+  const handleSort = (key) => {
+    if (key === sortKey) {
+      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')
+    } else {
+      setSortKey(key)
+      setSortDir('asc')
+    }
   }
 
   // useState gives you a value plus a setter. Calling the setter is what tells
@@ -147,7 +161,8 @@ export default function App() {
   const visibleLoads = useMemo(() => {
     const term = search.trim().toLowerCase()
 
-    return loads.filter((load) => {
+    // WHICH rows to show. One load in, yes or no out.
+    const filtered = loads.filter((load) => {
       if (equipment !== 'All' && load.equipment !== equipment) return false
       if (availableOnly && load.status !== 'Available') return false
       if (term) {
@@ -156,7 +171,12 @@ export default function App() {
       }
       return true
     })
-  }, [loads, search, equipment, availableOnly])
+
+    // WHAT ORDER to show them in. sortLoads returns `filtered` untouched when
+    // no column is chosen, so the board keeps the order the API sent until
+    // somebody clicks a header. See src/lib/sortLoads.js.
+    return sortLoads(filtered, sortKey, sortDir)
+  }, [loads, search, equipment, availableOnly, sortKey, sortDir])
 
   // The load is saved first and shown second. The alternative -- put it on the
   // board immediately, undo it if the POST fails -- feels faster and is worth
@@ -263,7 +283,8 @@ export default function App() {
             : 'Fetching loads...'}
         </p>
       ) : (
-        <LoadTable loads={visibleLoads} />
+        <LoadTable loads={visibleLoads} 
+        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}/>
       )}
 
       {/* The same "database is asleep" message the first load shows, for the

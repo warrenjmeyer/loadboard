@@ -96,7 +96,41 @@ table.loads {
   letter-spacing: .04em;
   color: var(--muted);
   background: #fafbfc;
+  padding: 0;                 /* the button carries the padding now */
 }
+
+/* The sort button has to look like the header text it replaced, so it inherits
+   everything the <th> was already styling and adds only what a button needs. */
+.loads th .sort {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 12px;
+  border: 0;
+  background: none;
+  font: inherit;
+  color: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  cursor: pointer;
+}
+
+.loads th.num .sort { justify-content: flex-end; }
+
+.loads th .sort:hover { color: var(--ink); }
+
+/* Focus is visible on purpose. Removing the outline is the single most common
+   way a keyboard user loses track of where they are on a page. */
+.loads th .sort:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* The idle "↕" is faint but always present, so choosing a column does not
+   shift every other header sideways by the width of an arrow. */
+.loads th .arrow { font-size: 9px; opacity: .35; }
+.loads th[aria-sort]:not([aria-sort='none']) .arrow { opacity: 1; }
 
 .loads tr:last-child td { border-bottom: none; }
 .num { text-align: right; }

@@ -1,0 +1,196 @@
+warning: in the working copy of 'src/components/LoadTable.jsx', LF will be replaced by CRLF the next time Git touches it
+[1mdiff --git a/src/App.jsx b/src/App.jsx[m
+[1mindex 8e60426..d1e0c1b 100644[m
+[1m--- a/src/App.jsx[m
+[1m+++ b/src/App.jsx[m
+[36m@@ -5,6 +5,7 @@[m [mimport LoadTable from './components/LoadTable.jsx'[m
+ import AddLoadForm from './components/AddLoadForm.jsx'[m
+ import { fetchJson, postJson } from './lib/api.js'[m
+ import { fetchMe, logout } from './lib/auth.js'[m
+[32m+[m[32mimport { sortLoads } from './lib/sortLoads.js'[m
+ [m
+ // ---------------------------------------------------------------------------[m
+ // App is the "container" component. It owns the data and the filter settings,[m
+[36m@@ -32,6 +33,8 @@[m [mexport default function App() {[m
+   // cleared search leaves "/" rather than "/?search=".[m
+   const [searchParams, setSearchParams] = useSearchParams()[m
+   const search = searchParams.get('search') || ''[m
+[32m+[m[32m  const [sortKey, setSortKey] = useState(null) // e.g. 'miles'[m
+[32m+[m[32m  const [sortDir, setSortDir] = useState('asc') // 'asc' | 'desc'[m
+   const setSearch = (next) => {[m
+     setSearchParams([m
+       (prev) => {[m
+[36m@@ -47,6 +50,17 @@[m [mexport default function App() {[m
+     )[m
+   }[m
+ [m
+[32m+[m[32m  // Clicking a header either flips the direction (same column) or moves the[m
+[32m+[m[32m  // sort to a new column, starting ascending.[m
+[32m+[m[32m  const handleSort = (key) => {[m
+[32m+[m[32m    if (key === sortKey) {[m
+[32m+[m[32m      setSortDir(sortDir === 'asc' ? 'desc' : 'asc')[m
+[32m+[m[32m    } else {[m
+[32m+[m[32m      setSortKey(key)[m
+[32m+[m[32m      setSortDir('asc')[m
+[32m+[m[32m    }[m
+[32m+[m[32m  }[m
+[32m+[m
+   // useState gives you a value plus a setter. Calling the setter is what tells[m
+   // React "this changed, re-run this component and update the screen."[m
+   // Assigning to a plain variable would NOT do that -- React would never know.[m
+[36m@@ -147,7 +161,8 @@[m [mexport default function App() {[m
+   const visibleLoads = useMemo(() => {[m
+     const term = search.trim().toLowerCase()[m
+ [m
+[31m-    return loads.filter((load) => {[m
+[32m+[m[32m    // WHICH rows to show. One load in, yes or no out.[m
+[32m+[m[32m    const filtered = loads.filter((load) => {[m
+       if (equipment !== 'All' && load.equipment !== equipment) return false[m
+       if (availableOnly && load.status !== 'Available') return false[m
+       if (term) {[m
+[36m@@ -156,7 +171,12 @@[m [mexport default function App() {[m
+       }[m
+       return true[m
+     })[m
+[31m-  }, [loads, search, equipment, availableOnly])[m
+[32m+[m
+[32m+[m[32m    // WHAT ORDER to show them in. sortLoads returns `filtered` untouched when[m
+[32m+[m[32m    // no column is chosen, so the board keeps the order the API sent until[m
+[32m+[m[32m    // somebody clicks a header. See src/lib/sortLoads.js.[m
+[32m+[m[32m    return sortLoads(filtered, sortKey, sortDir)[m
+[32m+[m[32m  }, [loads, search, equipment, availableOnly, sortKey, sortDir])[m
+ [m
+   // The load is saved first and shown second. The alternative -- put it on the[m
+   // board immediately, undo it if the POST fails -- feels faster and is worth[m
+[36m@@ -263,7 +283,8 @@[m [mexport default function App() {[m
+             : 'Fetching loads...'}[m
+         </p>[m
+       ) : ([m
+[31m-        <LoadTable loads={visibleLoads} />[m
+[32m+[m[32m        <LoadTable loads={visibleLoads}[m[41m [m
+[32m+[m[32m        sortKey={sortKey} sortDir={sortDir} onSort={handleSort}/>[m
+       )}[m
+ [m
+       {/* The same "database is asleep" message the first load shows, for the[m
+[1mdiff --git a/src/components/LoadTable.jsx b/src/components/LoadTable.jsx[m
+[1mindex b1f5881..263c2ed 100644[m
+[1m--- a/src/components/LoadTable.jsx[m
+[1m+++ b/src/components/LoadTable.jsx[m
+[36m@@ -1,6 +1,24 @@[m
+ import LoadRow from './LoadRow.jsx'[m
+ [m
+[31m-export default function LoadTable({ loads }) {[m
+[32m+[m[32m// The columns, as data rather than as nine near-identical lines of markup.[m
+[32m+[m[32m//[m
+[32m+[m[32m// `key` is the field name sorting reads (see sortValue in App.jsx); `label` is[m
+[32m+[m[32m// what the person sees; `numeric` only picks the right-aligned CSS class. When[m
+[32m+[m[32m// the header and the sort key are written out separately in nine places, they[m
+[32m+[m[32m// drift -- one gets renamed and the column silently stops sorting.[m
+[32m+[m[32mconst COLUMNS = [[m
+[32m+[m[32m  { key: 'id', label: 'Load #' },[m
+[32m+[m[32m  { key: 'origin', label: 'Origin' },[m
+[32m+[m[32m  { key: 'destination', label: 'Destination' },[m
+[32m+[m[32m  { key: 'miles', label: 'Miles', numeric: true },[m
+[32m+[m[32m  { key: 'rate', label: 'Rate', numeric: true },[m
+[32m+[m[32m  { key: 'rpm', label: '$/mi', numeric: true },[m
+[32m+[m[32m  { key: 'equipment', label: 'Equipment' },[m
+[32m+[m[32m  { key: 'status', label: 'Status' },[m
+[32m+[m[32m  { key: 'driverCode', label: 'Driver' },[m
+[32m+[m[32m][m
+[32m+[m
+[32m+[m[32mexport default function LoadTable({ loads, sortKey, sortDir, onSort }) {[m
+   // Early return for the empty case. Cleaner than nesting the whole table[m
+   // inside a conditional.[m
+   if (loads.length === 0) {[m
+[36m@@ -11,15 +29,35 @@[m [mexport default function LoadTable({ loads }) {[m
+     <table className="loads">[m
+       <thead>[m
+         <tr>[m
+[31m-          <th>Load #</th>[m
+[31m-          <th>Origin</th>[m
+[31m-          <th>Destination</th>[m
+[31m-          <th className="num">Miles</th>[m
+[31m-          <th className="num">Rate</th>[m
+[31m-          <th className="num">$/mi</th>[m
+[31m-          <th>Equipment</th>[m
+[31m-          <th>Status</th>[m
+[31m-          <th>Driver</th>[m
+[32m+[m[32m          {COLUMNS.map((col) => {[m
+[32m+[m[32m            const active = sortKey === col.key[m
+[32m+[m
+[32m+[m[32m            return ([m
+[32m+[m[32m              // `key` here is React's own list bookkeeping and has nothing to[m
+[32m+[m[32m              // do with col.key being a sort key -- it just needs to be stable[m
+[32m+[m[32m              // and unique among siblings, and the column name is both.[m
+[32m+[m[32m              <th[m
+[32m+[m[32m                key={col.key}[m
+[32m+[m[32m                className={col.numeric ? 'num' : undefined}[m
+[32m+[m[32m                // aria-sort is how a screen reader announces "sorted by this[m
+[32m+[m[32m                // column, ascending". The arrow below is the same fact drawn[m
+[32m+[m[32m                // for people who can see it.[m
+[32m+[m[32m                aria-sort={active ? (sortDir === 'asc' ? 'ascending' : 'descending') : 'none'}[m
+[32m+[m[32m              >[m
+[32m+[m[32m                {/* A button, not a click handler on the <th>. A div or a cell[m
+[32m+[m[32m                    that responds to clicks is invisible to the keyboard; a[m
+[32m+[m[32m                    button is focusable, works on Enter and Space, and[m
+[32m+[m[32m                    announces itself as something you can press. The styling[m
+[32m+[m[32m                    makes it look like the header text it replaced. */}[m
+[32m+[m[32m                <button type="button" className="sort" onClick={() => onSort(col.key)}>[m
+[32m+[m[32m                  {col.label}[m
+[32m+[m[32m                  <span className="arrow" aria-hidden="true">[m
+[32m+[m[32m                    {active ? (sortDir === 'asc' ? '▲' : '▼') : '↕'}[m
+[32m+[m[32m                  </span>[m
+[32m+[m[32m                </button>[m
+[32m+[m[32m              </th>[m
+[32m+[m[32m            )[m
+[32m+[m[32m          })}[m
+         </tr>[m
+       </thead>[m
+       <tbody>[m
+[1mdiff --git a/src/styles.css b/src/styles.css[m
+[1mindex 33bc32b..464e4f5 100644[m
+[1m--- a/src/styles.css[m
+[1m+++ b/src/styles.css[m
+[36m@@ -96,8 +96,42 @@[m [mtable.loads {[m
+   letter-spacing: .04em;[m
+   color: var(--muted);[m
+   background: #fafbfc;[m
+[32m+[m[32m  padding: 0;                 /* the button carries the padding now */[m
+ }[m
+ [m
+[32m+[m[32m/* The sort button has to look like the header text it replaced, so it inherits[m
+[32m+[m[32m   everything the <th> was already styling and adds only what a button needs. */[m
+[32m+[m[32m.loads th .sort {[m
+[32m+[m[32m  width: 100%;[m
+[32m+[m[32m  display: inline-flex;[m
+[32m+[m[32m  align-items: center;[m
+[32m+[m[32m  gap: 6px;[m
+[32m+[m[32m  padding: 10px 12px;[m
+[32m+[m[32m  border: 0;[m
+[32m+[m[32m  background: none;[m
+[32m+[m[32m  font: inherit;[m
+[32m+[m[32m  color: inherit;[m
+[32m+[m[32m  text-transform: inherit;[m
+[32m+[m[32m  letter-spacing: inherit;[m
+[32m+[m[32m  cursor: pointer;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m.loads th.num .sort { justify-content: flex-end; }[m
+[32m+[m
+[32m+[m[32m.loads th .sort:hover { color: var(--ink); }[m
+[32m+[m
+[32m+[m[32m/* Focus is visible on purpose. Removing the outline is the single most common[m
+[32m+[m[32m   way a keyboard user loses track of where they are on a page. */[m
+[32m+[m[32m.loads th .sort:focus-visible {[m
+[32m+[m[32m  outline: 2px solid var(--accent);[m
+[32m+[m[32m  outline-offset: -2px;[m
+[32m+[m[32m}[m
+[32m+[m
+[32m+[m[32m/* The idle "↕" is faint but always present, so choosing a column does not[m
+[32m+[m[32m   shift every other header sideways by the width of an arrow. */[m
+[32m+[m[32m.loads th .arrow { font-size: 9px; opacity: .35; }[m
+[32m+[m[32m.loads th[aria-sort]:not([aria-sort='none']) .arrow { opacity: 1; }[m
+[32m+[m
+ .loads tr:last-child td { border-bottom: none; }[m
+ .num { text-align: right; }[m
+ .mono { font-family: ui-monospace, Consolas, monospace; }[m
