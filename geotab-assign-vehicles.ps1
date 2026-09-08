@@ -49,6 +49,10 @@ param(
 
     [switch]$ListDevices,
 
+    # Print who is currently in each truck and change nothing. The answer comes
+    # from DriverChange, which is where it actually lives -- see the block below.
+    [switch]$ListPairing,
+
     # Assign ONLY drivers who do not already have a vehicle, to vehicles nobody
     # is already in. Existing pairings are read from Geotab and left alone.
     #
@@ -94,6 +98,51 @@ $drivers = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
 } | Where-Object { $_.isDriver } | Sort-Object lastName, firstName
 
 Write-Host "  $($devices.Count) vehicles, $($drivers.Count) drivers" -ForegroundColor DarkGray
+
+# --- just show me who is in what -------------------------------------------
+# Read-only, and worth having: MyGeotab's own "Current driver" column is blank
+# for an untracked asset, because it is derived from what the device reports
+# and an untracked asset has no device. So a pairing can be perfectly real in
+# DriverChange and still look unassigned everywhere you would think to check.
+# This asks the records directly.
+if ($ListPairing) {
+    $changes = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
+        typeName    = 'DriverChange'
+        credentials = $creds
+        search      = @{ driverChangeType = 'Driver' }
+    } | Sort-Object { [datetime]$_.dateTime } -Descending
+
+    $driverById = @{}
+    foreach ($d in $drivers) { $driverById[$d.id] = $d }
+
+    # Most recent record per vehicle wins -- a DriverChange is a moment, not a
+    # range, so the current driver is simply the latest one seen.
+    $current = @{}
+    foreach ($c in $changes) {
+        if (-not $c.driver.id -or -not $c.device.id) { continue }
+        if (-not $current.ContainsKey($c.device.id)) { $current[$c.device.id] = $c }
+    }
+
+    $rows = foreach ($dev in $devices) {
+        $c = $current[$dev.id]
+        $who = '(nobody)'
+        if ($c) {
+            $d = $driverById[$c.driver.id]
+            if ($d) { $who = ('{0} {1}' -f $d.firstName, $d.lastName).Trim() }
+            else { $who = $c.driver.id }
+        }
+        [pscustomobject]@{
+            Vehicle = $dev.name
+            Driver  = $who
+            Since   = if ($c) { ([datetime]$c.dateTime).ToString('yyyy-MM-dd') } else { '' }
+        }
+    }
+
+    $rows | Format-Table -AutoSize | Out-String | Write-Host
+    Write-Host ("{0} vehicles, {1} with a driver." -f $devices.Count,
+        (@($rows | Where-Object { $_.Driver -ne '(nobody)' }).Count))
+    return
+}
 
 if ($devices.Count -eq 0) { throw 'No vehicles in this database.' }
 if ($drivers.Count -gt $devices.Count) {
