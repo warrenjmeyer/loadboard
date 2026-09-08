@@ -43,9 +43,18 @@
 #
 # -DeviceType and the groups are COPIED from the highest-numbered existing
 # truck rather than guessed, because the guess is what produced the GT prefix
-# above. Pass -DeviceType to override. The export shows the existing trucks in
-# "Vehicle, Company Group", which is two groups and not one, so copying gets
-# that right for free as well.
+# above. Pass -DeviceType or -GroupIds to override.
+#
+# The groups then get filtered, and that is not fussiness:
+#
+#   both of Demo - 20's groups -> "Cannot add an entity with groups that have
+#                                  a parent-child relationship."
+#
+# The existing trucks are in "Vehicle, Company Group" and Vehicle sits under
+# Company Group. A device that already EXISTS may hold both -- MyGeotab lists
+# the whole chain -- but Add refuses the pair, so only the deepest of any
+# related set is sent. Nothing is lost by that: a parent group contains
+# everything its children contain, so the truck is still in both.
 #
 # This can still be refused: Geotab issues serial numbers, and one it never
 # issued may not be accepted however plausible its shape. If it is refused,
@@ -199,8 +208,88 @@ if ($GroupIds.Count -eq 0) {
         $GroupIds = @($template.groups | ForEach-Object { $_.id } | Where-Object { $_ })
     }
     if ($GroupIds.Count -eq 0) { $GroupIds = @('GroupCompanyId') }
-    Write-Host "  groups: $($GroupIds -join ', ')" -ForegroundColor DarkGray
+    Write-Host "  groups on $($template.name): $($GroupIds -join ', ')" -ForegroundColor DarkGray
 }
+
+# --- drop the ancestors ----------------------------------------------------
+# "Cannot add an entity with groups that have a parent-child relationship."
+#
+# The existing trucks are in "Vehicle, Company Group", and Vehicle sits UNDER
+# Company Group. An existing device may hold both -- membership in the child
+# implies the parent, and MyGeotab lists both -- but Add rejects the pair,
+# because naming a group and its own ancestor is redundant rather than wrong.
+#
+# So keep only the deepest of any related pair. Vehicle survives, Company Group
+# is dropped, and the truck still ends up in both: a parent group contains
+# everything its children contain. This filters -GroupIds too, since a hand-
+# written pair is rejected exactly the same way.
+$groupTree = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
+    typeName    = 'Group'
+    credentials = $creds
+}
+
+# id -> parent id. Geotab groups are a tree, so one parent each. Both shapes
+# are read: Get returns children on the parent, and sometimes parent on the
+# child, and which you get back varies by call.
+$parentOf = @{}
+foreach ($g in $groupTree) {
+    if ($g.children) {
+        foreach ($c in $g.children) { if ($c.id) { $parentOf[$c.id] = $g.id } }
+    }
+    if ($g.parent -and $g.parent.id -and -not $parentOf.ContainsKey($g.id)) {
+        $parentOf[$g.id] = $g.parent.id
+    }
+}
+
+function Get-GroupAncestorIds {
+    param([string]$Id, [hashtable]$ParentOf)
+    $out = @()
+    $seen = @{}
+    $cur = $ParentOf[$Id]
+    # The guard is for a cycle. A tree cannot have one; a hashtable built from
+    # whatever the API returned can.
+    while ($cur -and -not $seen.ContainsKey($cur)) {
+        $out += $cur
+        $seen[$cur] = $true
+        $cur = $ParentOf[$cur]
+    }
+    return $out
+}
+
+$deepest = @()
+$dropped = @()
+foreach ($id in $GroupIds) {
+    $isAncestor = $false
+    foreach ($other in $GroupIds) {
+        if ($other -ne $id -and (Get-GroupAncestorIds -Id $other -ParentOf $parentOf) -contains $id) {
+            $isAncestor = $true
+            break
+        }
+    }
+    if ($isAncestor) { $dropped += $id } else { $deepest += $id }
+}
+
+# Every group being somebody's ancestor means the map has a cycle, which a real
+# group tree cannot have. Send the lot rather than sending none: an entity with
+# no groups is a worse failure, and one that is visibly about groups is easier
+# to read than a truck that lands nowhere.
+if ($deepest.Count -eq 0) {
+    Write-Host '  group tree looks circular; sending every group unfiltered' -ForegroundColor Yellow
+    $deepest = $GroupIds
+    $dropped = @()
+}
+
+if ($dropped.Count) {
+    $names = @{}
+    foreach ($g in $groupTree) { if ($g.id) { $names[$g.id] = $g.name } }
+    $describe = { param($id) if ($names[$id]) { "$($names[$id]) ($id)" } else { $id } }
+    Write-Host ("  dropping {0} -- a parent of {1}" -f
+        (($dropped | ForEach-Object { & $describe $_ }) -join ', '),
+        (($deepest | ForEach-Object { & $describe $_ }) -join ', ')) -ForegroundColor DarkGray
+    $GroupIds = $deepest
+}
+
+Write-Host "  groups to send: $($GroupIds -join ', ')" -ForegroundColor DarkGray
 
 # --- how many are missing --------------------------------------------------
 $needed = $Count - $devices.Count
@@ -259,6 +348,14 @@ while ($created.Count -lt $needed) {
         Write-Host "Geotab refused to create $name." -ForegroundColor Red
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ''
+        if ($_.Exception.Message -match 'parent-child') {
+            Write-Host ("The groups sent were {0}." -f ($GroupIds -join ', ')) -ForegroundColor Yellow
+            Write-Host 'Two of them are still related. The script drops ancestors it can see'
+            Write-Host 'in the group tree, so this means the relationship is not visible from'
+            Write-Host 'a Get of Group. Name one group explicitly:'
+            Write-Host ("  .\geotab-add-vehicles.ps1 -Database {0} -GroupIds {1}" -f $Database, $GroupIds[0])
+            Write-Host ''
+        }
         if ($_.Exception.Message -match 'serial number') {
             Write-Host ("The serial sent was {0}, continuing this fleet's own series." -f $serial) -ForegroundColor Yellow
             Write-Host 'If Geotab echoed it back with the first characters changed, it has'
