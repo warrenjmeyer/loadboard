@@ -150,6 +150,25 @@ const cases = [
   ['SetPassword', '/src/pages/SetPassword.jsx', { token: 'x'.repeat(43) }],
   ['VerifyEmail', '/src/pages/VerifyEmail.jsx', { token: 'x'.repeat(43) }],
 
+  // One load, in the two states the API can hand back. A delivered load names
+  // a driver and a date; a current one has both nulled -- and has them nulled
+  // for an anonymous visitor even when a driver exists, which is the case that
+  // decides whether the page says "Not delivered" or leaks a name.
+  ['LoadCard delivered', '/src/components/LoadCard.jsx', {
+    load: {
+      id: 'L-30012', origin: 'Dubuque, IA', destination: 'Joliet, IL',
+      miles: 187, rate: 585, equipment: 'Dry Van', status: 'Delivered',
+      driverCode: 'JSMITH', deliveredDate: '2026-08-14',
+    },
+  }],
+  ['LoadCard current', '/src/components/LoadCard.jsx', {
+    load: {
+      id: 'L-10412', origin: 'Cedar Rapids, IA', destination: 'Kansas City, MO',
+      miles: 310, rate: 1240, equipment: 'Reefer', status: 'Available',
+      driverCode: null, deliveredDate: null,
+    },
+  }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

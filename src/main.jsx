@@ -2,6 +2,7 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import App from './App.jsx'
+import LoadDetail from './pages/LoadDetail.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -90,6 +91,11 @@ function Root() {
             order here does not matter the way the old if-chain's did. That is
             the practical difference between routing and a switch statement. */}
         <Route path="/" element={<App />} />
+
+        {/* One load. Same shape as /settlements/:driverCode below -- the
+            path names the thing, and there is no query string because
+            nothing about viewing a load is a setting. */}
+        <Route path="/loads/:id" element={<LoadDetail />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

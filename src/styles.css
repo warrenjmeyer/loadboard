@@ -221,6 +221,33 @@ button.primary {
    which on a pay statement reads as sloppiness.
    -------------------------------------------------------------------------- */
 
+/* One load's fields, on /loads/:id. A grid rather than a table because this is
+   one record with labelled parts, not rows and columns -- auto-fit means the
+   six fields reflow from three across to one on a phone with no breakpoint to
+   maintain. */
+.detail {
+  margin: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.detail > div { background: var(--panel); padding: 14px 16px; }
+
+.detail dt {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.detail dd { margin: 0; font-size: 17px; }
+
 .board-nav {
   margin-top: 28px;
   padding-top: 16px;

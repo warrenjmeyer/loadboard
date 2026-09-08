@@ -9,7 +9,12 @@ export default function LoadRow({ load }) {
 
   return (
     <tr>
-      <td className="mono">{load.id}</td>
+      {/* The load number is the way in to the load. A <Link> and not an <a>:
+          an anchor would reload the whole app, throwing away the loads already
+          fetched and asking /api/me all over again. */}
+      <td className="mono">
+        <Link to={`/loads/${encodeURIComponent(load.id)}`}>{load.id}</Link>
+      </td>
       <td>{load.origin}</td>
       <td>{load.destination}</td>
       <td className="num">{load.miles.toLocaleString()}</td>
