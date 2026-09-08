@@ -13,48 +13,53 @@
 # database had only twenty vehicles -- so geotab-assign-vehicles.ps1 -OnlyNew
 # correctly refused to assign anybody.
 #
-# THESE ARE UNTRACKED ASSETS BY DEFAULT, and that is the whole point. A normal
-# Geotab device is a piece of hardware: adding one means giving the serial
-# number of a GO unit somebody actually owns, and you cannot invent those. An
-# untracked asset is Geotab's own answer to "I want this thing in the fleet
-# list but nothing is transmitting for it" -- a trailer, a yard truck, or in
-# this case a tractor that exists only in a demo database. No hardware and no
-# subscription.
-#
 # *** READ THIS BEFORE SPENDING ANY TIME HERE. ***
 #
-# THIS SCRIPT DOES NOT WORK AGAINST demo_millstream, and probably not against
-# your database either. It is kept because what it proves is worth keeping.
-#
-# Adding a vehicle needs a serial number, and a serial number cannot be
-# invented. Geotab issues them: you call ProvisionDevice or
-# ProvisionDeviceToAccount on the MyAdmin API -- a DIFFERENT api from the one
-# every other script here uses, with its own credentials -- passing a Product
-# ID, and it returns a serial. The Product ID decides the first two characters.
-#
-# The failures, in order, and what each one taught:
+# Adding a vehicle needs a serial number, and the first two attempts died on
+# exactly that:
 #
 #   no serialNumber at all   -> "Missing serial number"
 #                               Untracked or not, the field is required.
 #
 #   serialNumber 000-000-0021 -> "Invalid serial number: GT0-000-0021"
-#                               Note the echo. Geotab rewrote the first two
-#                               characters to a device-type prefix and then
-#                               rejected the result, because it is not a serial
-#                               it ever issued. No format will satisfy this;
-#                               the number has to come FROM Geotab.
+#                               Note the echo. Geotab replaced the first two
+#                               characters with the prefix belonging to the
+#                               device type that was asked for -- UntrackedAsset
+#                               gives GT -- and then rejected the result.
 #
-# So the options are: provision properly through MyAdmin (a real integration,
-# needing MyAdmin credentials and a Product ID -- 10032 and 10184 are the
-# documented test ones), add the assets by hand in the MyGeotab UI, or do not
-# put the vehicles in Geotab at all.
+# What was missing was the fleet's own numbering. driver-vehicles.json, read
+# back out of this database, shows the twenty existing trucks carry
+# G90000000001 through G90000000020: one serial each, tracking the vehicle
+# number, on the G9 prefix that belongs to a GO9. Hence the default format
+# 'G9{0:D10}', which continues that series -- Demo - 21 gets G90000000021.
+#
+# THE SERIAL IS NOT 2T1BU4EE0DC000000. That value shows up against every
+# vehicle in the MyGeotab list and reads like a shared serial, but it is
+# seventeen characters and it is the VIN -- Geotab's stock demo VIN, identical
+# on all twenty trucks. It is sent as -Vin, on vehicleIdentificationNumber, so
+# the new trucks match the rest of the fleet there too. A serial that is the
+# same on every device would be the odd thing; a VIN that is says only that
+# nobody typed twenty real ones into a demo.
+#
+# -DeviceType and the groups are COPIED from the highest-numbered existing
+# truck rather than guessed, because the guess is what produced the GT prefix
+# above. Pass -DeviceType to override. The export shows the existing trucks in
+# "Vehicle, Company Group", which is two groups and not one, so copying gets
+# that right for free as well.
+#
+# This can still be refused: Geotab issues serial numbers, and one it never
+# issued may not be accepted however plausible its shape. If it is refused,
+# the options are to provision properly through the MyAdmin API (a DIFFERENT
+# api from the one every other script here uses, with its own credentials and
+# a Product ID -- 10032 and 10184 are the documented test ones), add the assets
+# by hand in the MyGeotab UI, or leave the vehicles out of Geotab.
 #
 #   https://geotab.github.io/sdk/software/guides/custom-telematics-devices/
 #
-# -SerialNumberFormat survives for the MyAdmin case, where real provisioned
-# serials would be fed in. It is a format and not a value because serials are
-# unique per device: one literal string would create the first vehicle and then
-# fail on the second as a duplicate.
+# -SerialNumberFormat is a format rather than a value because serial numbers
+# are unique per device: one literal string would create the first vehicle and
+# then fail on the second as a duplicate. Pass a literal anyway if a database
+# turns out not to care.
 #
 # -Count is how many vehicles should EXIST, not how many to add -- the same
 # meaning it has in geotab-add-drivers.ps1. Twenty trucks and -Count 24 creates
@@ -90,25 +95,33 @@ param(
     # only to force a particular block.
     [int]$StartNumber = 0,
 
-    # UntrackedAsset needs no hardware. CustomVehicleDevice is the other
-    # no-hardware option and behaves more like a real vehicle in some reports;
-    # switch only if an untracked asset turns out not to accept a DriverChange.
-    [string]$DeviceType = 'UntrackedAsset',
+    # Left empty the script copies the device type of the highest-numbered
+    # existing truck, which is what makes the new ones look like the old ones.
+    # Set it to force a type: 'UntrackedAsset' needs no hardware, and
+    # 'CustomVehicleDevice' is the other no-hardware option.
+    [string]$DeviceType = '',
 
-    [string]$CompanyGroupId = 'GroupCompanyId',
+    # Same idea -- empty means "whatever groups the existing trucks are in".
+    # The MyGeotab export shows "Vehicle, Company Group", i.e. two of them.
+    [string[]]$GroupIds = @(),
 
     # demo_millstream rejects an Add with "Missing serial number" even for an
     # untracked asset, so one is always sent. {0} is the vehicle's number.
+    #
+    # The default continues the series this fleet already uses: the twenty
+    # existing trucks are G90000000001 to G90000000020, so Demo - 21 becomes
+    # G90000000021 and a serial still says which truck it belongs to.
     #
     # A FORMAT RATHER THAN A VALUE, because serial numbers are unique per
     # device: passing one literal string would create the first truck and then
     # fail on the second as a duplicate. Ask for four and you want four
     # serials, not the same one four times.
-    #
-    # If a database rejects this shape, try another -- '000-000-{0:D4}' and
-    # 'UA{0:D10}' are both worth a go, and the format only has to satisfy
-    # Geotab, not mean anything.
-    [string]$SerialNumberFormat = '000-000-{0:D4}',
+    [string]$SerialNumberFormat = 'G9{0:D10}',
+
+    # The VIN, not the serial. Every vehicle in this database carries the same
+    # one -- Geotab's demo VIN -- so the new trucks carry it too. Pass '' to
+    # send no VIN at all.
+    [string]$Vin = '2T1BU4EE0DC000000',
 
     [switch]$ListDevices,
     [switch]$WhatIf
@@ -151,17 +164,42 @@ foreach ($d in $devices) { if ($d.name) { $existingNames[$d.name.ToLower()] = $t
 # Read the highest number already used under this prefix rather than assuming
 # the count is the highest. Twenty vehicles named 01-20 gives 21; twenty named
 # 01-18 plus two oddly-named ones still gives 19, which is the right answer.
-if ($StartNumber -le 0) {
-    $highest = 0
-    $pattern = '^' + [regex]::Escape($NamePrefix) + '(\d+)$'
-    foreach ($d in $devices) {
-        if ($d.name -and $d.name -match $pattern) {
-            $n = [int]$Matches[1]
-            if ($n -gt $highest) { $highest = $n }
-        }
+$highest = 0
+$template = $null
+$pattern = '^' + [regex]::Escape($NamePrefix) + '(\d+)$'
+foreach ($d in $devices) {
+    if ($d.name -and $d.name -match $pattern) {
+        $n = [int]$Matches[1]
+        if ($n -gt $highest) { $highest = $n; $template = $d }
     }
+}
+
+if ($StartNumber -le 0) {
     $StartNumber = $highest + 1
     Write-Host "  highest existing '$NamePrefix' number is $highest; starting at $StartNumber" -ForegroundColor DarkGray
+}
+
+# --- make the new trucks look like the old ones ----------------------------
+# The "Invalid serial number: GT0-000-0021" rejection came from asking for a
+# device type this fleet does not use: Geotab stamped that type's prefix onto
+# the serial. So copy the type and the groups off the highest-numbered truck
+# already here rather than guessing a second time.
+if ([string]::IsNullOrWhiteSpace($DeviceType)) {
+    if ($template -and $template.deviceType) {
+        $DeviceType = $template.deviceType
+        Write-Host "  copying deviceType '$DeviceType' from $($template.name)" -ForegroundColor DarkGray
+    } else {
+        $DeviceType = 'UntrackedAsset'
+        Write-Host "  nothing named '$NamePrefix*' to copy; using deviceType $DeviceType" -ForegroundColor DarkGray
+    }
+}
+
+if ($GroupIds.Count -eq 0) {
+    if ($template -and $template.groups) {
+        $GroupIds = @($template.groups | ForEach-Object { $_.id } | Where-Object { $_ })
+    }
+    if ($GroupIds.Count -eq 0) { $GroupIds = @('GroupCompanyId') }
+    Write-Host "  groups: $($GroupIds -join ', ')" -ForegroundColor DarkGray
 }
 
 # --- how many are missing --------------------------------------------------
@@ -198,11 +236,14 @@ while ($created.Count -lt $needed) {
         name         = $name
         deviceType   = $DeviceType
         serialNumber = $serial
-        groups       = @(@{ id = $CompanyGroupId })
+        groups       = @($GroupIds | ForEach-Object { @{ id = $_ } })
+    }
+    if (-not [string]::IsNullOrWhiteSpace($Vin)) {
+        $entity.vehicleIdentificationNumber = $Vin
     }
 
     if ($WhatIf) {
-        Write-Host ("  would create {0,-12} ({1}, serial {2})" -f $name, $DeviceType, $serial)
+        Write-Host ("  would create {0,-12} ({1}, serial {2}, VIN {3})" -f $name, $DeviceType, $serial, $Vin)
         $created += $name
         continue
     }
@@ -219,9 +260,12 @@ while ($created.Count -lt $needed) {
         Write-Host "  $($_.Exception.Message)" -ForegroundColor Red
         Write-Host ''
         if ($_.Exception.Message -match 'serial number') {
-            Write-Host 'This is expected, and trying another serial format will not help.' -ForegroundColor Yellow
-            Write-Host 'Geotab issues serial numbers; they cannot be made up. See the header'
-            Write-Host 'of this script for the whole story, and:'
+            Write-Host ("The serial sent was {0}, continuing this fleet's own series." -f $serial) -ForegroundColor Yellow
+            Write-Host 'If Geotab echoed it back with the first characters changed, it has'
+            Write-Host 'stamped a device-type prefix on and rejected the result -- that is a'
+            Write-Host 'deviceType problem, not a format one, so check what the existing'
+            Write-Host 'trucks are with -ListDevices. Otherwise the number simply is not one'
+            Write-Host 'Geotab issued, and no shape will satisfy it. See the header, and:'
             Write-Host '  https://geotab.github.io/sdk/software/guides/custom-telematics-devices/'
             Write-Host ''
         }
