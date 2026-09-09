@@ -126,6 +126,8 @@ const CAN = {
   editLoad: new Set(['dispatcher', 'admin']),
   manageFleet: new Set(['dispatcher', 'admin']),
   manageCustomers: new Set(['dispatcher', 'admin']),
+  // Payroll is not dispatch. Generating a settlement is a money decision.
+  runPayroll: new Set(['admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
 }

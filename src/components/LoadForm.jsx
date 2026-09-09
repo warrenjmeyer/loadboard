@@ -21,6 +21,7 @@ export const BLANK_LOAD = {
   origin: '',
   destination: '',
   miles: '',
+  emptyMiles: '',
   rate: '',
   equipment: 'Dry Van',
   pickupStart: '',
@@ -69,7 +70,7 @@ export function formToBody(form, only = null) {
     const v = form[key]
     if (key === 'hazmat') body[key] = Boolean(v)
     else if (v === '' || v === null || v === undefined) body[key] = null
-    else if (['miles', 'rate', 'weightLbs', 'pieces', 'tempF', 'customerId'].includes(key)) body[key] = Number(v)
+    else if (['miles', 'emptyMiles', 'rate', 'weightLbs', 'pieces', 'tempF', 'customerId'].includes(key)) body[key] = Number(v)
     else body[key] = v
   }
   return body
@@ -129,6 +130,13 @@ export default function LoadForm({ form, onChange, showId = false, customers = n
         <label>
           Rate ($)
           <input name="rate" type="number" min="0" step="0.01" value={form.rate} onChange={handleChange} required />
+        </label>
+        {/* Deadhead: from wherever the truck delivered last to this pickup.
+            Paid on a settlement, so it belongs on the load, not in someone's
+            head. Zero until dispatch knows. */}
+        <label>
+          Empty miles
+          <input name="emptyMiles" type="number" min="0" step="1" value={form.emptyMiles} onChange={handleChange} placeholder="0" />
         </label>
       </div>
 

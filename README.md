@@ -389,6 +389,45 @@ anyone who can see the list, and marks the ones on hold.
 **Not here yet.** Invoices and payments -- the terms and the credit limit
 are stored, and nothing yet computes what is outstanding against them.
 
+## The pay run
+
+Until now every settlement was seed data. `/payroll` closes the loop:
+delivered loads become settlement lines, and the statement pages that
+already exist render them.
+
+**What is unpaid** is a Delivered load with no `SettlementRoutes` row
+pointing at it. That is the whole test, and it is why `settlement_05_link.sql`
+was worth doing. A run pays everything delivered *on or before* the period's
+end that is still unpaid, so a load that slipped through last week is paid
+this week and marked as carried over rather than left behind.
+
+**The arithmetic** is in `api/src/payrunRules.js`, tested without a
+database, and is the same the seed generator used: a company driver and a
+mileage owner/operator are paid loaded plus empty miles times their rate; a
+percentage owner/operator is paid their share of the load's rate. Each line
+is rounded to the cent and the total is the sum of the lines.
+
+**Empty miles** (`loads_05_payrun.sql`) is the one column the load did not
+have. Deadhead is paid, so it goes on the load, editable by dispatch,
+defaulting to zero. Loads already on a settlement get the empty miles their
+line recorded.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/payrun?periodStart&periodEnd&checkDate` | admin | what a run would create, driver by driver; writes nothing |
+| `POST /api/payrun` `{ periodStart, periodEnd, checkDate, driverCodes? }` | admin | create them in one transaction; 409 if any chosen driver already has a statement on that date |
+
+**Two steps, on purpose.** The page previews first and generates second,
+sending back exactly the drivers left ticked. Document numbers continue the
+`CK-YYMMDD-NNNN` sequence for the check date. Every paid load gets a history
+row naming the statement.
+
+**Only route pay is generated.** Reimbursements and deductions -- per diem,
+advances, an owner/operator's fuel and truck payment and escrow -- are not on
+the load and are not invented. A generated owner/operator statement is
+therefore a gross figure until those are entered, and the page says so.
+Recurring deductions are the next piece of this.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you

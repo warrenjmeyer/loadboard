@@ -7,6 +7,7 @@ import MyLoads from './pages/MyLoads.jsx'
 import Fleet from './pages/Fleet.jsx'
 import Customers from './pages/Customers.jsx'
 import CustomerDetail from './pages/CustomerDetail.jsx'
+import Payroll from './pages/Payroll.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -110,6 +111,9 @@ function Root() {
         {/* Who the freight belongs to. */}
         <Route path="/customers" element={<Customers />} />
         <Route path="/customers/:id" element={<CustomerDetail />} />
+
+        {/* Delivered loads become settlements. Admin only. */}
+        <Route path="/payroll" element={<Payroll />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

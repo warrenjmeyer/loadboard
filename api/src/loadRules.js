@@ -55,6 +55,10 @@ const FIELDS = {
   origin: { col: 'origin', type: 'text', max: 100, required: true, label: 'Origin' },
   destination: { col: 'destination', type: 'text', max: 100, required: true, label: 'Destination' },
   miles: { col: 'miles', type: 'int', min: 1, required: true, label: 'Miles' },
+  // Deadhead to the pickup. Paid on the settlement, so it lives on the load.
+  // Optional on the form; the column is NOT NULL DEFAULT 0, so null here is
+  // written as 0 by the API.
+  emptyMiles: { col: 'empty_miles', type: 'int', min: 0, label: 'Empty miles' },
   rate: { col: 'rate', type: 'money', min: 0, required: true, label: 'Rate' },
   equipment: { col: 'equipment', type: 'enum', values: EQUIPMENT, required: true, label: 'Equipment' },
 

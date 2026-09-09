@@ -261,7 +261,8 @@ export default function App() {
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}
         {user === null && <Link to="/signin">Sign in →</Link>}
-        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}        
+        {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}
+        {user && user.role === 'admin' && <Link to="/payroll">Pay run →</Link>}        
         {user === null && <Link to="/register">Create an account</Link>}
       </nav>
 

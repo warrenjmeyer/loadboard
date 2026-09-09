@@ -324,6 +324,33 @@ const cases = [
   }],
   ['Customers loading', '/src/pages/Customers.jsx', {}],
 
+  // The pay run preview: a company driver with a straggler, a percentage
+  // owner/operator, and one driver already paid on this date.
+  ['PayrunPreview', '/src/components/payroll/PayrunPreview.jsx', {
+    plan: {
+      periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11',
+      settlements: [
+        { driverCode: 'JSMITH', name: 'James Smith', driverType: 'COMPANY', payBasis: null, payRate: 0.62, conflict: false, carriedOver: 1,
+          loadCount: 2, loadedMiles: 364, emptyMiles: 40, totalMiles: 404, routePay: 250.48,
+          routes: [
+            { loadId: 'L-1', routeDetail: 'DUBUQUE, IA - CHICAGO, IL', deliveredDate: '2026-08-20', totalMiles: 202, payAmount: 125.24, carriedOver: true },
+            { loadId: 'L-2', routeDetail: 'DUBUQUE, IA - CHICAGO, IL', deliveredDate: '2026-09-03', totalMiles: 202, payAmount: 125.24, carriedOver: false },
+          ] },
+        { driverCode: 'MOKONKWO', name: 'Miriam Okonkwo', driverType: 'OWNER', payBasis: 'PERCENTAGE', payRate: 0.68, conflict: true, carriedOver: 0,
+          loadCount: 1, loadedMiles: 182, emptyMiles: 0, totalMiles: 182, routePay: 680,
+          routes: [{ loadId: 'L-3', routeDetail: 'DUBUQUE, IA - CHICAGO, IL', deliveredDate: '2026-09-04', totalMiles: 182, payAmount: 680, carriedOver: false }] },
+      ],
+      totals: { drivers: 2, loads: 3, miles: 586, pay: 930.48, conflicts: 1 },
+    },
+    selected: new Set(['JSMITH']),
+    onToggle() {},
+  }],
+  ['PayrunPreview empty', '/src/components/payroll/PayrunPreview.jsx', {
+    plan: { periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11', settlements: [], totals: { drivers: 0, loads: 0, miles: 0, pay: 0, conflicts: 0 } },
+    selected: new Set(), onToggle() {},
+  }],
+  ['Payroll loading', '/src/pages/Payroll.jsx', {}],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

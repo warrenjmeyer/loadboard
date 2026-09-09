@@ -782,3 +782,18 @@ button:disabled { cursor: default; opacity: .6; }
 
 .small { font-size: 13px; }
 .customers td { vertical-align: top; }
+
+
+/* --------------------------------------------------------------------------
+   Pay run
+   -------------------------------------------------------------------------- */
+
+.payrun tfoot td { font-weight: 600; border-top: 2px solid var(--line); }
+.payrun summary { cursor: pointer; }
+.payrun summary .badge { margin-left: 8px; }
+.payrun-loads { margin: 8px 0 4px 18px; font-size: 13px; border-collapse: collapse; }
+.payrun-loads td { padding: 3px 10px 3px 0; border: 0; }
+.payrun-created { list-style: none; padding: 0; margin: 0; }
+.payrun-created li { padding: 6px 0; border-bottom: 1px solid var(--line); }
+.payrun-created li:last-child { border-bottom: none; }
+.filters button { align-self: flex-end; }

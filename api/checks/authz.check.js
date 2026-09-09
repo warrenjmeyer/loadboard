@@ -30,6 +30,7 @@ function captureHandlers() {
     require('../src/functions/settlements')
     require('../src/functions/fleet')
     require('../src/functions/customers')
+    require('../src/functions/payrun')
   } finally {
     app.http = realHttp
   }
@@ -407,6 +408,56 @@ async function main() {
   r = await patch(people.dispatcher.cookie, { customerId: null, driverCode: null }, TEST_LOAD_ID + 'A')
   assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
 
+  // --- the pay run -----------------------------------------------------------
+  // The first test load is In Transit with MINE on it (undone delivery above).
+  // Deliver it inside a period nobody has been paid for, preview, then run.
+  const PERIOD = { periodStart: '2031-01-05', periodEnd: '2031-01-11', checkDate: '2031-01-17' }
+  r = await patch(people.dispatcher.cookie, { status: 'Delivered', deliveredDate: '2031-01-08', emptyMiles: 25 })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.emptyMiles, 25)
+
+  const payrunReq = (cookie, method = 'GET', body = null) => {
+    const q = new URLSearchParams(PERIOD)
+    const base = req({ cookie, method, body })
+    base.query = { get: (k) => q.get(k) }
+    return base
+  }
+  r = await handlers.payrun(payrunReq(null), ctx)
+  assert.strictEqual(r.status, 401)
+  r = await handlers.payrun(payrunReq(people.dispatcher.cookie), ctx)
+  assert.strictEqual(r.status, 403, 'payroll is not dispatch')
+  ok('the pay run is admin-only: anonymous 401, dispatcher 403')
+
+  r = await handlers.payrun(payrunReq(people.admin.cookie), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  const mine = r.jsonBody.settlements.find((s) => s.driverCode === MINE)
+  assert.ok(mine, 'the preview must list the driver with the unpaid load')
+  const myRoute = mine.routes.find((x) => x.loadId === TEST_LOAD_ID)
+  assert.ok(myRoute)
+  assert.strictEqual(myRoute.totalMiles, newLoad.miles + 25)
+  assert.strictEqual(myRoute.payAmount, Math.round((newLoad.miles + 25) * mine.payRate * 100) / 100)
+  ok(`the preview pays ${MINE} ${myRoute.totalMiles} miles at ${mine.payRate} = ${myRoute.payAmount}`)
+
+  r = await handlers.payrun(payrunReq(people.admin.cookie, 'POST', { ...PERIOD, driverCodes: [MINE] }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.created.length, 1)
+  const doc = r.jsonBody.created[0].documentNo
+  assert.match(doc, /^CK-310117-\d{4}$/)
+  ok(`a settlement was generated: ${doc}`)
+
+  r = await handlers.settlementDetail(req({ cookie: people.driver.cookie, params: { driverCode: MINE, checkDate: PERIOD.checkDate } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.routes.some((x) => x.loadId === TEST_LOAD_ID), 'the statement must show the load')
+  ok('the driver can open the generated statement and the load is on it')
+
+  r = await handlers.payrun(payrunReq(people.admin.cookie, 'POST', { ...PERIOD, driverCodes: [MINE] }), ctx)
+  assert.ok(r.status === 400 || r.status === 409, `a second run must not pay twice, got ${r.status}`)
+  ok('running it again pays nothing twice')
+
+  r = await handlers.loadEvents(req({ cookie: people.driver.cookie, params: { id: TEST_LOAD_ID } }), ctx)
+  assert.ok(r.jsonBody.some((e) => e.detail === `Paid on ${doc}`))
+  ok('the load\'s history names the statement')
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)
@@ -418,6 +469,9 @@ async function cleanup() {
   const pool = await getPool()
   const ids = Object.values(people).map((p) => p.userId).filter(Boolean)
 
+  // A generated settlement points at the test load (FK_Routes_load, NO ACTION),
+  // so it goes first; its routes cascade.
+  await pool.request().query("DELETE s FROM dbo.Settlements AS s WHERE EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.settlement_id = s.settlement_id AND r.load_id LIKE 'ZZ-%');")
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
     .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%'; DELETE FROM dbo.Customers WHERE name LIKE 'ZZ Authz Customer %';")
 

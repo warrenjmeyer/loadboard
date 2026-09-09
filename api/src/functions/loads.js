@@ -31,7 +31,7 @@ const LOAD_ID = /^[A-Za-z0-9._-]{1,20}$/
 // Explicit column list: it keeps the shape stable if someone adds a column
 // to the table later, and it is the one place the SQL names them.
 const LOAD_COLUMNS = [
-  'id', 'origin', 'destination', 'miles', 'rate', 'equipment', 'status',
+  'id', 'origin', 'destination', 'miles', 'empty_miles', 'rate', 'equipment', 'status',
   'driver_code', 'unit_no', 'trailer_no', 'delivered_date',
   'pickup_start', 'pickup_end', 'delivery_start', 'delivery_end',
   'customer_id', 'customer_name', 'reference_no',
@@ -63,6 +63,7 @@ function rowToLoad(r) {
     origin: r.origin,
     destination: r.destination,
     miles: Number(r.miles),
+    emptyMiles: Number(r.empty_miles || 0),
     // rate is DECIMAL(10,2); Number() keeps 585.00 serialising as 585,
     // matching what the front end already expects.
     rate: Number(r.rate),
@@ -152,7 +153,9 @@ function bindFields(req, fields) {
         req.input(name, sql.NVarChar(spec.max), value)
         break
       case 'int':
-        req.input(name, sql.Int, value)
+        // empty_miles is NOT NULL DEFAULT 0: a cleared box means zero, not
+        // unknown, and the column would refuse the null.
+        req.input(name, sql.Int, name === 'emptyMiles' && value === null ? 0 : value)
         break
       case 'money':
         req.input(name, sql.Decimal(10, 2), value)

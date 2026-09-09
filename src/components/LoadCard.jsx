@@ -44,7 +44,10 @@ export default function LoadCard({ load, geotabUrl = null }) {
       <dl className="detail">
         <div>
           <dt>Miles</dt>
-          <dd>{formatMiles(load.miles)}</dd>
+          <dd>
+            {formatMiles(load.miles)}
+            {load.emptyMiles > 0 && <span className="muted small"> + {formatMiles(load.emptyMiles)} empty</span>}
+          </dd>
         </div>
         <div>
           <dt>Rate</dt>
