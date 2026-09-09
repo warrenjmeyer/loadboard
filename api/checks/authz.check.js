@@ -219,6 +219,95 @@ async function main() {
     ok('no settlements for that driver; detail route check skipped')
   }
 
+  // --- the lifecycle: PATCH /api/loads/{id} --------------------------------
+  // The test load the dispatcher created above is Available. Walk it through
+  // its life with the wrong people trying at each step.
+  const patch = (cookie, body, id = TEST_LOAD_ID) =>
+    handlers.load(req({ method: 'PATCH', cookie, body, params: { id } }), ctx)
+  const getOne = (cookie, id = TEST_LOAD_ID) =>
+    handlers.load(req({ cookie, params: { id } }), ctx)
+
+  r = await patch(null, { driverCode: MINE })
+  assert.strictEqual(r.status, 401)
+  r = await patch(people.none.cookie, { driverCode: MINE })
+  assert.strictEqual(r.status, 403)
+  r = await patch(people.driver.cookie, { driverCode: MINE })
+  assert.strictEqual(r.status, 403, 'a driver must not assign themselves')
+  ok('assignment: anonymous 401, pending 403, driver 403')
+
+  r = await patch(people.driver.cookie, { status: 'In Transit' })
+  assert.strictEqual(r.status, 400, 'Available -> In Transit is not a move for anyone')
+  ok('an impossible move is refused as a 400 in words')
+
+  r = await patch(people.dispatcher.cookie, { driverCode: MINE.toLowerCase(), unitNo: 'ZZ-1' })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'Covered')
+  assert.strictEqual(r.jsonBody.driverCode, MINE)
+  assert.strictEqual(r.jsonBody.unitNo, 'ZZ-1')
+  assert.deepStrictEqual(r.jsonBody.actions.transitions, ['Available', 'In Transit', 'Delivered', 'Cancelled'])
+  ok('a dispatcher assigns -> Covered, driver code upper-cased, unit stored')
+
+  r = await getOne(null)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'Covered')
+  assert.strictEqual(r.jsonBody.driverCode, null, 'anonymous must not see the driver')
+  assert.strictEqual(r.jsonBody.unitNo, null)
+  assert.deepStrictEqual(r.jsonBody.actions, { canEdit: false, canAssign: false, transitions: [] })
+  ok('anonymous sees the covered load with the people stripped and no actions')
+
+  r = await getOne(people.driver.cookie)
+  assert.strictEqual(r.jsonBody.driverCode, MINE)
+  assert.deepStrictEqual(r.jsonBody.actions, { canEdit: false, canAssign: false, transitions: ['In Transit'] })
+  ok('the driver on the load is offered exactly "In Transit"')
+
+  r = await patch(people.driver.cookie, { status: 'Delivered' })
+  assert.strictEqual(r.status, 403, 'a driver may not skip pickup')
+  ok('the driver may not go Covered -> Delivered directly -> 403')
+
+  r = await patch(people.driver.cookie, { status: 'In Transit' })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'In Transit')
+  r = await patch(people.driver.cookie, { status: 'Delivered', deliveredDate: '2026-09-09' })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'Delivered')
+  assert.strictEqual(r.jsonBody.deliveredDate, '2026-09-09')
+  assert.deepStrictEqual(r.jsonBody.actions.transitions, [])
+  ok('the driver reports pickup, then delivery with a date')
+
+  r = await getOne(null)
+  assert.strictEqual(r.status, 404, 'a delivered load must be NOT FOUND to anonymous, never 403')
+  ok('a delivered load is not found for anonymous')
+
+  r = await handlers.loadEvents(req({ params: { id: TEST_LOAD_ID } }), ctx)
+  assert.strictEqual(r.status, 401)
+  r = await handlers.loadEvents(req({ cookie: people.driver.cookie, params: { id: TEST_LOAD_ID } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.deepStrictEqual(r.jsonBody.map((e) => e.type), ['Created', 'Assigned', 'Status', 'Status', 'Status'])
+  assert.strictEqual(r.jsonBody[1].driverCode, MINE)
+  assert.strictEqual(r.jsonBody[4].toStatus, 'Delivered')
+  ok('the history records every step, in order, with who did it')
+
+  r = await handlers.roster(req({ cookie: people.driver.cookie }), ctx)
+  assert.strictEqual(r.status, 403)
+  r = await handlers.roster(req({ cookie: people.dispatcher.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.some((d) => d.driverCode === MINE))
+  ok(`the roster is dispatch-only and lists ${r.jsonBody.length} drivers`)
+
+  r = await patch(people.dispatcher.cookie, { driverCode: THEIRS })
+  assert.strictEqual(r.status, 400, 'a delivered load must not be reassigned in place')
+  r = await patch(people.admin.cookie, { status: 'In Transit' })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.deliveredDate, null)
+  assert.strictEqual(r.jsonBody.driverCode, MINE)
+  ok('an admin can undo a delivery; the date clears and the driver stays')
+
+  r = await patch(people.dispatcher.cookie, { commodity: 'authz check', weightLbs: 100, pickupStart: '2026-09-10T08:00' })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.commodity, 'authz check')
+  assert.strictEqual(r.jsonBody.pickupStart, '2026-09-10T08:00:00', 'the appointment must come back as stored, no timezone applied')
+  ok('details edit round-trips, and a naive datetime stays naive')
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)

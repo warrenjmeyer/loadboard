@@ -120,6 +120,10 @@ async function currentUser(request) {
 // comparisons -- "can this person add a load" should have exactly one answer.
 const CAN = {
   addLoad: new Set(['dispatcher', 'admin']),
+  // Details, assignment, and any status move. A driver's own forward moves
+  // (picked up, delivered) are not a role permission but a relationship to
+  // the load, and loadRules.allowedTransitions decides those.
+  editLoad: new Set(['dispatcher', 'admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
 }
