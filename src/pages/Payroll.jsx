@@ -102,13 +102,14 @@ export default function Payroll() {
   if (user.role !== 'admin') return <AccessNotice status={403} error="Only an administrator can run payroll." />
 
   const chosenPay = plan
-    ? plan.settlements.filter((s) => selected.has(s.driverCode)).reduce((t, s) => t + s.routePay, 0)
+    ? plan.settlements.filter((s) => selected.has(s.driverCode)).reduce((t, s) => t + (s.net ?? s.routePay), 0)
     : 0
 
   return (
     <div className="page">
       <nav className="board-nav board-nav-top">
         <Link to="/settlements">← Driver settlements</Link>
+        <Link to="/payroll/deductions">Standing deductions →</Link>
         <Link to="/">Load board</Link>
       </nav>
 
@@ -148,7 +149,8 @@ export default function Payroll() {
             </button>
           </p>
           <p className="muted hint">
-            Only route pay is generated. Reimbursements and deductions are not on the load and are not invented here.
+            Route pay from the loads, less each driver's standing deductions. Reimbursements and one-off
+            revenue lines are not on the load and are not invented here.
           </p>
         </>
       )}
@@ -161,6 +163,7 @@ export default function Payroll() {
               <li key={c.driverCode}>
                 <Link to={`/settlements/${encodeURIComponent(c.driverCode)}?date=${c.checkDate}`}>{c.documentNo}</Link>
                 {' · '}{c.name}{' · '}{c.loadCount} load{c.loadCount === 1 ? '' : 's'}{' · '}{formatMoney(c.routePay)}
+                {c.deductionTotal ? <> less {formatMoney(-c.deductionTotal)} = <strong>{formatMoney(c.net)}</strong></> : null}
               </li>
             ))}
           </ul>

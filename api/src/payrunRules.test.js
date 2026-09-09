@@ -75,10 +75,40 @@ test('a plan groups loads by driver, carries stragglers, and flags conflicts', (
   assert.equal(smith.totalMiles, 404)
   assert.equal(okonkwo.conflict, true)
   assert.equal(okonkwo.routePay, 680)
-  assert.deepEqual(p.totals, { drivers: 2, loads: 3, miles: 606, pay: 930.48, conflicts: 1 })
+  assert.deepEqual(p.totals, { drivers: 2, loads: 3, miles: 606, pay: 930.48, deductions: 0, net: 930.48, conflicts: 1 })
 })
 
 test('document numbers keep the CK-YYMMDD-NNNN shape', () => {
   assert.equal(rules.documentNo('2026-09-11', 1), 'CK-260911-0001')
   assert.equal(rules.documentNo('2026-09-11', 2013), 'CK-260911-2013')
+})
+
+test('a plan applies standing deductions after the routes and reports the net', () => {
+  const drivers = { RVASQUEZ: mileage }
+  const loads = [load({ id: 'L-5', driverCode: 'RVASQUEZ', deliveredDate: '2026-09-03', miles: 500, emptyMiles: 0, unitNo: 'Demo - 21' })]
+  const deductions = {
+    RVASQUEZ: [
+      { deductionId: 1, code: 'TRUCKPAY', description: 'TRUCK PAYMENT', basis: 'FLAT', amount: 712, escrowCode: null, escrowOpening: null, balance: null, startDate: null, endDate: null, active: true },
+      { deductionId: 2, code: 'FUEL', description: 'FUEL - COMCHEK', basis: 'PER_MILE', amount: 0.592, escrowCode: null, escrowOpening: null, balance: null, startDate: null, endDate: null, active: true },
+      { deductionId: 3, code: 'MAINT', description: 'MAINTENANCE ESCROW', basis: 'FLAT', amount: 125, escrowCode: 'MAINT', escrowOpening: 2400, balance: null, startDate: null, endDate: null, active: true },
+    ],
+  }
+  const p = rules.plan(loads, drivers, {
+    periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11',
+    deductions, escrowBalances: { RVASQUEZ: { MAINT: 2775 } },
+  })
+  const s = p.settlements[0]
+  assert.equal(s.routePay, 940)                      // 500 x 1.88
+  assert.deepEqual(s.lines.map((l) => [l.code, l.amount]), [['TRUCKPAY', -712], ['FUEL', -296], ['MAINT', -125]])
+  assert.equal(s.deductionTotal, -1133)
+  assert.equal(s.net, -193)
+  assert.deepEqual(s.escrow, [{ code: 'MAINT', description: 'MAINTENANCE ESCROW', beginning: 2775, transaction: 125, current: 2900 }])
+  assert.equal(p.totals.net, -193)
+  assert.equal(p.totals.deductions, -1133)
+})
+
+test('a driver with no standing orders nets their route pay', () => {
+  const p = rules.plan([load()], { JSMITH: company }, { periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11' })
+  assert.equal(p.settlements[0].net, p.settlements[0].routePay)
+  assert.deepEqual(p.settlements[0].lines, [])
 })

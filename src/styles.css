@@ -797,3 +797,12 @@ button:disabled { cursor: default; opacity: .6; }
 .payrun-created li { padding: 6px 0; border-bottom: 1px solid var(--line); }
 .payrun-created li:last-child { border-bottom: none; }
 .filters button { align-self: flex-end; }
+
+
+/* --------------------------------------------------------------------------
+   Standing deductions
+   -------------------------------------------------------------------------- */
+
+.deductions td { vertical-align: top; }
+.payrun-line td { color: var(--muted); }
+.payrun-line td:first-child { padding-left: 12px; }

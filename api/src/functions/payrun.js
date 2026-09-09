@@ -61,6 +61,20 @@ async function gather(req, { periodEnd, checkDate }) {
       FROM dbo.Drivers AS d;
 
       SELECT s.driver_code FROM dbo.Settlements AS s WHERE s.check_date = CAST(@checkDate AS DATE);
+
+      SELECT deduction_id, driver_code, code, description, basis, amount, escrow_code, escrow_opening,
+             balance, start_date, end_date, active
+      FROM dbo.DriverDeductions WHERE active = 1;
+
+      -- Each driver's latest balance per escrow account: the statement that
+      -- most recently moved it, whichever check date that was.
+      SELECT x.driver_code, x.escrow_code, x.current_balance
+      FROM (
+        SELECT s.driver_code, e.escrow_code, e.current_balance,
+               ROW_NUMBER() OVER (PARTITION BY s.driver_code, e.escrow_code ORDER BY s.check_date DESC, s.settlement_id DESC) AS rn
+        FROM dbo.SettlementEscrow AS e
+        JOIN dbo.Settlements AS s ON s.settlement_id = e.settlement_id
+      ) AS x WHERE x.rn = 1;
     `)
 
   const loads = result.recordsets[0].map((r) => ({
@@ -76,7 +90,22 @@ async function gather(req, { periodEnd, checkDate }) {
     }
   }
   const existing = new Set(result.recordsets[2].map((r) => r.driver_code))
-  return { loads, drivers, existing }
+
+  const deductions = {}
+  for (const d of result.recordsets[3]) {
+    ;(deductions[d.driver_code] ||= []).push({
+      deductionId: d.deduction_id, code: d.code, description: d.description, basis: d.basis,
+      amount: Number(d.amount), escrowCode: d.escrow_code,
+      escrowOpening: d.escrow_opening === null ? null : Number(d.escrow_opening),
+      balance: d.balance === null ? null : Number(d.balance),
+      startDate: isoDate(d.start_date), endDate: isoDate(d.end_date), active: Boolean(d.active),
+    })
+  }
+  const escrowBalances = {}
+  for (const e of result.recordsets[4]) {
+    ;(escrowBalances[e.driver_code] ||= {})[e.escrow_code] = Number(e.current_balance)
+  }
+  return { loads, drivers, existing, deductions, escrowBalances }
 }
 
 function periodFrom(source) {
@@ -99,8 +128,8 @@ async function preview(request) {
   if (errors.length) return badRequest(errors)
 
   const pool = await getPool()
-  const { loads, drivers, existing } = await gather(pool.request(), period)
-  return { jsonBody: rules.plan(loads, drivers, { ...period, existing }), headers: { 'Cache-Control': 'no-store' } }
+  const gathered = await gather(pool.request(), period)
+  return { jsonBody: rules.plan(gathered.loads, gathered.drivers, { ...period, ...gathered }), headers: { 'Cache-Control': 'no-store' } }
 }
 
 async function run(request, context) {
@@ -126,8 +155,8 @@ async function run(request, context) {
   await tx.begin()
 
   try {
-    const { loads, drivers, existing } = await gather(new sql.Request(tx), period)
-    const planned = rules.plan(loads, drivers, { ...period, existing })
+    const gathered = await gather(new sql.Request(tx), period)
+    const planned = rules.plan(gathered.loads, gathered.drivers, { ...period, ...gathered })
     const chosen = planned.settlements.filter((s) => !only || only.has(s.driverCode))
 
     if (chosen.length === 0) {
@@ -200,10 +229,53 @@ async function run(request, context) {
           `)
       }
 
+      // The standing deductions: a line each, an escrow row for the
+      // contributions, and the loan balances moved on. All from the plan the
+      // preview showed; nothing is recomputed here.
+      for (const l of s.lines) {
+        await new sql.Request(tx)
+          .input('sid', sql.Int, settlementId)
+          .input('code', sql.VarChar(20), l.code)
+          .input('description', sql.NVarChar(120), l.description)
+          .input('amount', sql.Decimal(12, 2), l.amount)
+          .query(`
+            INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
+            VALUES (@sid, 'DEDUCTION', NULL, @code, @description, NULL, @amount);
+          `)
+      }
+      for (const e of s.escrow) {
+        await new sql.Request(tx)
+          .input('sid', sql.Int, settlementId)
+          .input('code', sql.VarChar(20), e.code)
+          .input('description', sql.NVarChar(120), e.description)
+          .input('beginning', sql.Decimal(12, 2), e.beginning)
+          .input('transaction', sql.Decimal(12, 2), e.transaction)
+          .input('current', sql.Decimal(12, 2), e.current)
+          .query(`
+            INSERT INTO dbo.SettlementEscrow (settlement_id, escrow_code, description, beginning_balance, transaction_amount, current_balance)
+            VALUES (@sid, @code, @description, @beginning, @transaction, @current);
+          `)
+      }
+      for (const b of s.balanceUpdates) {
+        if (!b.deductionId) continue
+        await new sql.Request(tx)
+          .input('id', sql.Int, b.deductionId)
+          .input('balance', sql.Decimal(12, 2), b.balance)
+          .input('by', sql.NVarChar(256), g.user.email)
+          .query(`
+            UPDATE dbo.DriverDeductions
+               SET balance = @balance,
+                   active = CASE WHEN @balance <= 0 THEN 0 ELSE active END,
+                   updated_utc = SYSUTCDATETIME(), updated_by = @by
+             WHERE deduction_id = @id;
+          `)
+      }
+
       created.push({
         driverCode: s.driverCode, name: s.name, driverType: s.driverType,
         checkDate: period.checkDate, documentNo: docNo,
         loadCount: s.loadCount, totalMiles: s.totalMiles, routePay: s.routePay,
+        deductionTotal: s.deductionTotal, net: s.net,
       })
     }
 

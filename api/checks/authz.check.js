@@ -31,6 +31,7 @@ function captureHandlers() {
     require('../src/functions/fleet')
     require('../src/functions/customers')
     require('../src/functions/payrun')
+    require('../src/functions/deductions')
   } finally {
     app.http = realHttp
   }
@@ -458,6 +459,66 @@ async function main() {
   assert.ok(r.jsonBody.some((e) => e.detail === `Paid on ${doc}`))
   ok('the load\'s history names the statement')
 
+  // --- standing deductions --------------------------------------------------
+  // Give MINE a truck payment and a small loan, then re-run payroll for a
+  // second load and see both come out. The first pay run above already paid
+  // the first test load; load A is Available with no driver, so deliver it.
+  r = await handlers.deductions(req({ cookie: people.dispatcher.cookie, method: 'POST', body: { driverCode: MINE, code: 'ZZTEST', description: 'AUTHZ TRUCK', amount: 100 } }), ctx)
+  assert.strictEqual(r.status, 403, 'deductions are admin-only')
+  r = await handlers.deductions(req({ cookie: people.admin.cookie, method: 'POST', body: { driverCode: MINE, code: 'ZZTEST', description: 'AUTHZ TRUCK', amount: 100 } }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  const dedId = r.jsonBody.deductionId
+  r = await handlers.deductions(req({ cookie: people.admin.cookie, method: 'POST', body: { driverCode: MINE, code: 'ZZLOAN', description: 'AUTHZ ADVANCE', amount: 50, balance: 30 } }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  const loanId = r.jsonBody.deductionId
+  ok('an admin adds a weekly deduction and a loan; a dispatcher may not')
+
+  const listReq2 = req({ cookie: people.admin.cookie })
+  listReq2.query = { get: (k) => (k === 'driver' ? MINE : null) }
+  r = await handlers.deductions(listReq2, ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.some((d) => d.deductionId === dedId) && r.jsonBody.some((d) => d.deductionId === loanId))
+  ok('they list for the driver')
+
+  r = await patch(people.dispatcher.cookie, { driverCode: MINE }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  r = await patch(people.dispatcher.cookie, { status: 'In Transit' }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  r = await patch(people.dispatcher.cookie, { status: 'Delivered', deliveredDate: '2031-01-15' }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+
+  const PERIOD2 = { periodStart: '2031-01-12', periodEnd: '2031-01-18', checkDate: '2031-01-24' }
+  const payrunReq2 = (cookie, method = 'GET', body = null) => {
+    const q = new URLSearchParams(PERIOD2)
+    const base = req({ cookie, method, body })
+    base.query = { get: (k) => q.get(k) }
+    return base
+  }
+  r = await handlers.payrun(payrunReq2(people.admin.cookie), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  const mine2 = r.jsonBody.settlements.find((s) => s.driverCode === MINE)
+  assert.ok(mine2)
+  assert.deepEqual(mine2.lines.map((l) => [l.code, l.amount]).sort(), [['ZZLOAN', -30], ['ZZTEST', -100]])
+  assert.strictEqual(mine2.net, Math.round((mine2.routePay - 130) * 100) / 100)
+  ok(`the preview nets ${mine2.routePay} less 130 = ${mine2.net}; the loan takes only what is owed`)
+
+  r = await handlers.payrun(payrunReq2(people.admin.cookie, 'POST', { ...PERIOD2, driverCodes: [MINE] }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.created[0].net, mine2.net)
+  const doc2 = r.jsonBody.created[0].documentNo
+
+  r = await handlers.settlementDetail(req({ cookie: people.driver.cookie, params: { driverCode: MINE, checkDate: PERIOD2.checkDate } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.deductions.some((l) => l.code === 'ZZTEST' && l.amount === -100), JSON.stringify(r.jsonBody.deductions))
+  assert.strictEqual(r.jsonBody.totals.settlementTotal, mine2.net)
+  ok(`the statement ${doc2} shows the deduction lines and the net total`)
+
+  r = await handlers.deductions(listReq2, ctx)
+  const loanAfter = r.jsonBody.find((d) => d.deductionId === loanId)
+  assert.strictEqual(loanAfter.balance, 0)
+  assert.strictEqual(loanAfter.active, false)
+  ok('the loan is paid off and switched itself off')
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)
@@ -473,7 +534,7 @@ async function cleanup() {
   // so it goes first; its routes cascade.
   await pool.request().query("DELETE s FROM dbo.Settlements AS s WHERE EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.settlement_id = s.settlement_id AND r.load_id LIKE 'ZZ-%');")
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
-    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%'; DELETE FROM dbo.Customers WHERE name LIKE 'ZZ Authz Customer %';")
+    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%'; DELETE FROM dbo.DriverDeductions WHERE code LIKE 'ZZ%'; DELETE FROM dbo.Customers WHERE name LIKE 'ZZ Authz Customer %';")
 
   for (const id of ids) {
     await pool.request().input('u', sql.Int, id).input('ip', sql.VarChar(45), IP).query(`

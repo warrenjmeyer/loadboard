@@ -8,6 +8,7 @@ import Fleet from './pages/Fleet.jsx'
 import Customers from './pages/Customers.jsx'
 import CustomerDetail from './pages/CustomerDetail.jsx'
 import Payroll from './pages/Payroll.jsx'
+import Deductions from './pages/Deductions.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -114,6 +115,7 @@ function Root() {
 
         {/* Delivered loads become settlements. Admin only. */}
         <Route path="/payroll" element={<Payroll />} />
+        <Route path="/payroll/deductions" element={<Deductions />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

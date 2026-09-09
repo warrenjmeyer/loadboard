@@ -428,6 +428,43 @@ the load and are not invented. A generated owner/operator statement is
 therefore a gross figure until those are entered, and the page says so.
 Recurring deductions are the next piece of this.
 
+### Standing deductions
+
+The pay run's first version generated route pay only, which for an
+owner/operator is a gross figure. `deductions_01_ddl.sql` adds
+`dbo.DriverDeductions`: per driver, what comes out every settlement. Four
+kinds, one column each deciding which:
+
+- **weekly** -- the same amount every settlement (truck payment, insurance)
+- **per mile** -- so much for every mile the settlement pays (`basis =
+  PER_MILE`; the fuel card)
+- **escrow contribution** -- `escrow_code` set; deducted AND the account's
+  running balance moves, continuing from the driver's last statement or from
+  `escrow_opening` if there is none
+- **loan** -- `balance` set; takes the amount until the last week, which
+  takes what is left, then switches itself off
+
+Amounts are stored positive, the way a person says them; the pay run negates
+them into `SettlementLines`, whose convention is "signed as it should be
+added". `api/src/deductionRules.js` is the arithmetic, tested without a
+database; `payrunRules.plan` calls it after the routes are summed and reports
+`deductionTotal` and `net` per driver. The preview shows both, and a net
+below zero in red -- an owner/operator with a short week can owe more than
+the week paid, and payroll should see that before it goes out.
+
+Managed at `/payroll/deductions?driver=CODE` (admin), reached from the pay
+run page. Routes: `GET /api/deductions?driver=`, `POST /api/deductions`,
+`PATCH /api/deductions/{id}`.
+
+The seed gives the four owner/operators the eight standing orders their
+seeded statements carry. One difference from the seed: those statements
+moved escrow balances without a matching deduction line, so the contributions
+came from nowhere. Here a contribution is a line and a balance movement,
+because that is where the money comes from.
+
+Still by hand: reimbursements (tolls, lumpers) and one-off revenue (fuel
+surcharge, detention). Those belong on the load, and that is the next piece.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you

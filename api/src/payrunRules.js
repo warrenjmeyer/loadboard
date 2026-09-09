@@ -13,6 +13,8 @@
 // lines, so what the statement prints adds up to what it says.
 // ---------------------------------------------------------------------------
 
+const { linesFor } = require('./deductionRules')
+
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
 
@@ -89,14 +91,21 @@ function routeFor(load, driver) {
 
 // Group unpaid loads by driver into the settlements a run would create.
 //
-//   loads      delivered, unpaid, each with driverCode and deliveredDate
-//   drivers    keyed by driverCode: name, driverType, payBasis, payRate, unitNo
-//   existing   set of driverCodes that already have a settlement on checkDate
+//   loads           delivered, unpaid, each with driverCode and deliveredDate
+//   drivers         keyed by driverCode: name, driverType, payBasis, payRate, unitNo
+//   existing        set of driverCodes that already have a settlement on checkDate
+//   deductions      keyed by driverCode: that driver's standing orders
+//   escrowBalances  keyed by driverCode: { escrowCode: balance on the last statement }
 //
 // A load delivered before the period started but never paid is carried into
 // this run rather than left behind -- that is what a real pay run does with a
 // straggler -- and marked so the reviewer can see it.
-function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = new Set() }) {
+//
+// Standing deductions are applied AFTER the routes are summed, because the
+// per-mile ones need the total. What comes out is the net: route pay plus the
+// (negative) deduction lines. Nothing here is a reimbursement or a revenue
+// line; those are still entered by hand.
+function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = new Set(), deductions = {}, escrowBalances = {} }) {
   const byDriver = new Map()
 
   for (const load of loads) {
@@ -122,15 +131,28 @@ function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = ne
     entry.routes.push(route)
   }
 
-  const settlements = [...byDriver.values()].map((s) => ({
-    ...s,
-    routes: s.routes.sort((a, b) => a.deliveredDate.localeCompare(b.deliveredDate) || a.loadId.localeCompare(b.loadId)),
-    loadCount: s.routes.length,
-    loadedMiles: s.routes.reduce((t, r) => t + r.loadedMiles, 0),
-    emptyMiles: s.routes.reduce((t, r) => t + r.emptyMiles, 0),
-    totalMiles: s.routes.reduce((t, r) => t + r.totalMiles, 0),
-    routePay: round2(s.routes.reduce((t, r) => t + r.payAmount, 0)),
-  })).sort((a, b) => a.name.localeCompare(b.name))
+  const settlements = [...byDriver.values()].map((s) => {
+    const routes = s.routes.sort((a, b) => a.deliveredDate.localeCompare(b.deliveredDate) || a.loadId.localeCompare(b.loadId))
+    const totalMiles = routes.reduce((t, r) => t + r.totalMiles, 0)
+    const routePay = round2(routes.reduce((t, r) => t + r.payAmount, 0))
+    const taken = linesFor(deductions[s.driverCode] || [], {
+      totalMiles, escrowBalances: escrowBalances[s.driverCode] || {}, checkDate,
+    })
+    return {
+      ...s,
+      routes,
+      loadCount: routes.length,
+      loadedMiles: routes.reduce((t, r) => t + r.loadedMiles, 0),
+      emptyMiles: routes.reduce((t, r) => t + r.emptyMiles, 0),
+      totalMiles,
+      routePay,
+      lines: taken.lines,
+      escrow: taken.escrow,
+      balanceUpdates: taken.balanceUpdates,
+      deductionTotal: taken.deductionTotal,
+      net: round2(routePay + taken.deductionTotal),
+    }
+  }).sort((a, b) => a.name.localeCompare(b.name))
 
   return {
     periodStart,
@@ -142,6 +164,8 @@ function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = ne
       loads: settlements.reduce((t, s) => t + s.loadCount, 0),
       miles: settlements.reduce((t, s) => t + s.totalMiles, 0),
       pay: round2(settlements.reduce((t, s) => t + s.routePay, 0)),
+      deductions: round2(settlements.reduce((t, s) => t + s.deductionTotal, 0)),
+      net: round2(settlements.reduce((t, s) => t + s.net, 0)),
       conflicts: settlements.filter((s) => s.conflict).length,
     },
   }

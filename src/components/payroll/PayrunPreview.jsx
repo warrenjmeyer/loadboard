@@ -3,12 +3,15 @@ import { formatMoney, formatMiles, formatDate, formatRate } from '../../lib/form
 
 // ---------------------------------------------------------------------------
 // What a pay run would create, one row per driver, each opening to the loads
-// behind it. Presentational: the page owns which drivers are ticked and
-// what happens when the button is pressed.
+// and the deductions behind it. Presentational: the page owns which drivers
+// are ticked and what happens when the button is pressed.
 //
 // A conflict row -- the driver already has a statement on this check date --
 // is shown and cannot be ticked. Carried-over loads are marked, because a
-// straggler from last week deserves a second look before it is paid.
+// straggler from last week deserves a second look before it is paid. A net
+// below zero is shown in red: the deductions exceeded the week's pay, which
+// happens to an owner/operator with a short week, and payroll should see it
+// before it goes out.
 // ---------------------------------------------------------------------------
 export default function PayrunPreview({ plan, selected, onToggle }) {
   if (!plan.settlements.length) {
@@ -22,13 +25,12 @@ export default function PayrunPreview({ plan, selected, onToggle }) {
           <tr>
             <th />
             <th>Driver</th>
-            <th>Paid</th>
             <th className="num">Loads</th>
-            <th className="num">Loaded</th>
-            <th className="num">Empty</th>
             <th className="num">Total mi</th>
             <th className="num">Rate</th>
             <th className="num">Route pay</th>
+            <th className="num">Deductions</th>
+            <th className="num">Net</th>
           </tr>
         </thead>
         <tbody>
@@ -62,29 +64,37 @@ export default function PayrunPreview({ plan, selected, onToggle }) {
                           <td className="num">{formatMoney(r.payAmount)}</td>
                         </tr>
                       ))}
+                      {(s.lines || []).map((l) => (
+                        <tr key={l.code} className="payrun-line">
+                          <td className="mono">{l.code}</td>
+                          <td colSpan={2}>{l.description}{l.escrowCode ? ' · to escrow' : ''}</td>
+                          <td />
+                          <td className="num">{formatMoney(l.amount)}</td>
+                        </tr>
+                      ))}
                     </tbody>
                   </table>
                 </details>
               </td>
-              <td>{s.driverType === 'OWNER' ? (s.payBasis === 'PERCENTAGE' ? 'share of revenue' : 'per mile') : 'per mile'}</td>
               <td className="num">{s.loadCount}</td>
-              <td className="num">{formatMiles(s.loadedMiles)}</td>
-              <td className="num">{formatMiles(s.emptyMiles)}</td>
               <td className="num">{formatMiles(s.totalMiles)}</td>
               <td className="num">{s.payBasis === 'PERCENTAGE' ? `${Math.round(s.payRate * 100)}%` : formatRate(s.payRate)}</td>
               <td className="num">{formatMoney(s.routePay)}</td>
+              <td className="num">{s.deductionTotal ? formatMoney(s.deductionTotal) : <span className="muted">—</span>}</td>
+              <td className={`num${s.net < 0 ? ' due-past' : ''}`}>{formatMoney(s.net ?? s.routePay)}</td>
             </tr>
           ))}
         </tbody>
         <tfoot>
           <tr>
             <td />
-            <td colSpan={2}>{plan.totals.drivers} drivers</td>
+            <td>{plan.totals.drivers} drivers</td>
             <td className="num">{plan.totals.loads}</td>
-            <td colSpan={2} />
             <td className="num">{formatMiles(plan.totals.miles)}</td>
             <td />
             <td className="num">{formatMoney(plan.totals.pay)}</td>
+            <td className="num">{plan.totals.deductions ? formatMoney(plan.totals.deductions) : ''}</td>
+            <td className="num">{formatMoney(plan.totals.net ?? plan.totals.pay)}</td>
           </tr>
         </tfoot>
       </table>

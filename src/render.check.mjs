@@ -351,6 +351,42 @@ const cases = [
   }],
   ['Payroll loading', '/src/pages/Payroll.jsx', {}],
 
+  // Standing deductions: the four kinds in one table, the form in its escrow
+  // shape, and a preview row that nets below zero.
+  ['DeductionTable', '/src/components/payroll/DeductionTable.jsx', {
+    deductions: [
+      { deductionId: 1, code: 'TRUCKPAY', description: 'TRUCK PAYMENT', basis: 'FLAT', amount: 712, escrowCode: null, balance: null, startDate: null, endDate: null, active: true },
+      { deductionId: 2, code: 'FUEL', description: 'FUEL - COMCHEK', basis: 'PER_MILE', amount: 0.592, escrowCode: null, balance: null, startDate: null, endDate: null, active: true },
+      { deductionId: 3, code: 'MAINT', description: 'MAINTENANCE ESCROW', basis: 'FLAT', amount: 125, escrowCode: 'MAINT', balance: null, startDate: null, endDate: null, active: true },
+      { deductionId: 4, code: 'ADV', description: 'ADVANCE', basis: 'FLAT', amount: 300, escrowCode: null, balance: 200, startDate: '2026-09-11', endDate: null, active: false },
+    ],
+    onEdit() {},
+  }],
+  ['DeductionTable empty', '/src/components/payroll/DeductionTable.jsx', { deductions: [] }],
+  ['DeductionForm escrow', '/src/components/payroll/DeductionForm.jsx', {
+    form: { code: 'MAINT', description: 'MAINTENANCE ESCROW', basis: 'FLAT', amount: '125', kind: 'escrow', escrowCode: 'MAINT', escrowOpening: '2400', balance: '', startDate: '', endDate: '', active: 'true', notes: '' },
+    onChange() {}, isNew: true,
+  }],
+  ['PayrunPreview net negative', '/src/components/payroll/PayrunPreview.jsx', {
+    plan: {
+      periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11',
+      settlements: [{
+        driverCode: 'RVASQUEZ', name: 'Rey Vasquez', driverType: 'OWNER', payBasis: 'MILEAGE', payRate: 1.88, conflict: false, carriedOver: 0,
+        loadCount: 1, loadedMiles: 182, emptyMiles: 0, totalMiles: 182, routePay: 342.16,
+        routes: [{ loadId: 'L-1', routeDetail: 'DUBUQUE, IA - CHICAGO, IL', deliveredDate: '2026-09-03', totalMiles: 182, payAmount: 342.16, carriedOver: false }],
+        lines: [
+          { code: 'TRUCKPAY', description: 'TRUCK PAYMENT', amount: -712, escrowCode: null },
+          { code: 'MAINT', description: 'MAINTENANCE ESCROW', amount: -125, escrowCode: 'MAINT' },
+        ],
+        deductionTotal: -837, net: -494.84,
+      }],
+      totals: { drivers: 1, loads: 1, miles: 182, pay: 342.16, deductions: -837, net: -494.84, conflicts: 0 },
+    },
+    selected: new Set(['RVASQUEZ']),
+    onToggle() {},
+  }],
+  ['Deductions loading', '/src/pages/Deductions.jsx', {}],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],
