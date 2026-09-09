@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import App from './App.jsx'
 import LoadDetail from './pages/LoadDetail.jsx'
+import MyLoads from './pages/MyLoads.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -96,6 +97,9 @@ function Root() {
             path names the thing, and there is no query string because
             nothing about viewing a load is a setting. */}
         <Route path="/loads/:id" element={<LoadDetail />} />
+
+        {/* The driver's own view: what they are on, and what they have run. */}
+        <Route path="/my-loads" element={<MyLoads />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

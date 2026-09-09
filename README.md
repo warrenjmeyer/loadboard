@@ -231,6 +231,78 @@ a 409. `src/lib/api.js` flags that case (`mayHaveLanded`), and `App.jsx`
 re-reads the board to settle it: if the load is there, the save worked, and
 saying otherwise would send someone hunting a problem that does not exist.
 
+## Dispatch: the life of a load
+
+A load is no longer an advertisement. It moves:
+
+```
+Available ──assign──▶ Covered ──picked up──▶ In Transit ──delivered──▶ Delivered
+    ▲                    │                        │                        │
+    └────remove driver───┘                        └──────undo (staff)──────┘
+    Any of the first three ──▶ Cancelled ──reinstate──▶ Available
+```
+
+The rules -- which moves exist, who may make each one, what a valid field
+looks like -- live in `api/src/loadRules.js` and nowhere else. They are
+tested by `api/src/loadRules.test.js` with no database. `loads.js` asks the
+rules and does the SQL; the browser asks the server what it may do and draws
+buttons for exactly that.
+
+**Who may do what.** A dispatcher or admin may edit any field, assign or
+reassign a driver and truck, and make any move in the diagram. A driver may
+make two moves, on their own load only: Covered → In Transit ("Picked up")
+and In Transit → Delivered. Nothing backwards, nothing on anyone else's load.
+The server decides this per request; `GET /api/loads/{id}` returns an
+`actions` block (`canEdit`, `canAssign`, `transitions`) so the page can show
+the right buttons, but the buttons are not the gate.
+
+**Assigning is covering.** A PATCH that sets `driverCode` on an Available load
+moves it to Covered; clearing the driver moves it back. One request, no window
+where the load has a driver and says Available.
+
+**Routes.**
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/loads` | anyone | the board; anonymous callers get current freight with people stripped |
+| `POST /api/loads` | dispatcher, admin | create; every field of the form |
+| `GET /api/loads/{id}` | anyone | one load plus `actions`; 404 for a private load, never 403 |
+| `PATCH /api/loads/{id}` | signed in | details, `driverCode`/`unitNo`, `status` (+`deliveredDate`) |
+| `GET /api/loads/{id}/events` | any real role | the history |
+| `GET /api/roster` | dispatcher, admin | every driver and the load they are on |
+
+**What a load carries now** (`loads_04_dispatch.sql`): the truck (`unit_no`),
+pickup and delivery windows in the dock's local time, customer and reference
+number, shipper and consignee with address and phone, commodity, weight,
+pieces, hazmat, reefer set point, notes, and who created/last changed it.
+Every change also writes a row to `dbo.LoadEvents`, which is what the
+History section on a load's page reads.
+
+**Appointment times are naive on purpose.** `pickup_start` is DATETIME2 with
+no offset, stored as the dock wrote it and shown as stored. Converting to UTC
+would turn "08:00 Chicago" and "08:00 Denver" into different numbers that both
+need converting back before a driver can read them. The API binds them as ISO
+strings and CASTs in SQL so the Functions host's timezone never touches them.
+
+**Pages.** `/loads/:id` grew a dispatch panel (assign, status buttons, edit)
+and a history list; `/my-loads` is the driver's page -- current load large
+with the windows and the contacts, delivered loads underneath. The board
+filter is now a status dropdown defaulting to *Current* (everything not
+Delivered or Cancelled).
+
+**Running the migration.** `loads_04_dispatch.sql` is additive and guarded:
+every column is nullable or defaulted, `CK_Loads_status` is widened to five
+states, `CK_Loads_delivered` becomes `CK_Loads_lifecycle`. It is safe to run
+against the live table before the code deploys -- the old GET names its
+columns and keeps working. It requires `settlement_05_link.sql` and
+`settlement_06_owner.sql` (for `Drivers.unit_no`).
+
+**What is deliberately not here yet.** Multi-stop loads (origin and
+destination are still one pair), a `dbo.Customers` table (customer is text
+until there is a screen to manage one), a `dbo.Trucks` table (`unit_no` is
+text until then), settlements generated from delivered loads, documents, and
+anything read live from Geotab. Each is its own migration.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you
