@@ -80,6 +80,7 @@ export default function LoadCard({ load, geotabUrl = null }) {
               <span className="muted">{load.status === 'Available' ? 'Unassigned' : '—'}</span>
             )}
             {load.unitNo && <span className="muted"> · {load.unitNo}</span>}
+            {load.trailerNo && <span className="muted"> · {load.trailerNo}</span>}
           </dd>
         </div>
         <div>

@@ -41,14 +41,27 @@ function labelFor(to, from) {
   }
 }
 
+// The word beside a truck or trailer in the picker: where it is, or why it
+// cannot go. The picker still lists a truck that is in the shop, because
+// "which truck" and "why not that one" are the same question.
+function availability(item, thisLoadId) {
+  if (item.status !== 'Active') return item.status.toLowerCase()
+  if (item.currentLoad && item.currentLoad.id !== thisLoadId) return `on ${item.currentLoad.id}`
+  return 'free'
+}
+
 export default function DispatchPanel({ load, actions, onChange }) {
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState(null)
 
-  // Assignment
+  // Assignment. The three lists are fetched together because a dispatcher
+  // who can assign needs all three, and they change on the same events.
   const [roster, setRoster] = useState(null)
+  const [trucks, setTrucks] = useState(null)
+  const [trailers, setTrailers] = useState(null)
   const [driverCode, setDriverCode] = useState(load.driverCode || '')
   const [unitNo, setUnitNo] = useState(load.unitNo || '')
+  const [trailerNo, setTrailerNo] = useState(load.trailerNo || '')
 
   // Delivery date, shown only when "Delivered" is on offer.
   const [deliveredDate, setDeliveredDate] = useState(todayLocal())
@@ -62,17 +75,23 @@ export default function DispatchPanel({ load, actions, onChange }) {
   useEffect(() => {
     setDriverCode(load.driverCode || '')
     setUnitNo(load.unitNo || '')
+    setTrailerNo(load.trailerNo || '')
     setForm(loadToForm(load))
   }, [load])
 
-  // The roster is only fetched for somebody who can assign. It is a list of
-  // every driver and what they are on, and there is no reason to hand it to
-  // anyone who cannot act on it.
+  // Only fetched for somebody who can assign. They are lists of every driver
+  // and truck and what each is on, and there is no reason to hand them to
+  // anyone who cannot act on them.
   useEffect(() => {
     if (!actions.canAssign) return
     let cancelled = false
-    fetchJson('/api/roster')
-      .then((rows) => !cancelled && setRoster(rows))
+    Promise.all([fetchJson('/api/roster'), fetchJson('/api/trucks'), fetchJson('/api/trailers')])
+      .then(([r, tk, tr]) => {
+        if (cancelled) return
+        setRoster(r)
+        setTrucks(tk)
+        setTrailers(tr)
+      })
       .catch((err) => !cancelled && setError(err.message))
     return () => { cancelled = true }
   }, [actions.canAssign])
@@ -94,7 +113,7 @@ export default function DispatchPanel({ load, actions, onChange }) {
   function pickDriver(code) {
     setDriverCode(code)
     // The driver's own truck is the default, and usually the answer. A
-    // company driver with no unit on file leaves the box as it was.
+    // driver with no unit on file leaves the box as it was.
     const d = roster?.find((r) => r.driverCode === code)
     if (d?.unitNo) setUnitNo(d.unitNo)
     if (!code) setUnitNo('')
@@ -102,7 +121,7 @@ export default function DispatchPanel({ load, actions, onChange }) {
 
   function handleAssign(e) {
     e.preventDefault()
-    send({ driverCode: driverCode || null, unitNo: unitNo || null })
+    send({ driverCode: driverCode || null, unitNo: unitNo || null, trailerNo: trailerNo || null })
   }
 
   function handleStatus(to) {
@@ -124,6 +143,16 @@ export default function DispatchPanel({ load, actions, onChange }) {
   const nothingToOffer = !actions.canEdit && !actions.canAssign && actions.transitions.length === 0
   if (nothingToOffer) return null
 
+  const ready = roster && trucks && trailers
+
+  // Trailers of the load's own equipment type first, then the rest. A reefer
+  // load can go on a dry van by mistake, and the order is the nudge.
+  const trailerOptions = trailers
+    ? [...trailers].sort((a, b) =>
+        (a.trailerType === load.equipment ? 0 : 1) - (b.trailerType === load.equipment ? 0 : 1)
+        || a.trailerNo.localeCompare(b.trailerNo, undefined, { numeric: true }))
+    : []
+
   return (
     <section className="dispatch">
       {error && <div className="error">{error}</div>}
@@ -132,26 +161,46 @@ export default function DispatchPanel({ load, actions, onChange }) {
         <form className="dispatch-row" onSubmit={handleAssign}>
           <label>
             Driver
-            <select value={driverCode} onChange={(e) => pickDriver(e.target.value)} disabled={busy || !roster}>
-              <option value="">{roster ? '— nobody —' : 'Loading roster...'}</option>
+            <select value={driverCode} onChange={(e) => pickDriver(e.target.value)} disabled={busy || !ready}>
+              <option value="">{ready ? '— nobody —' : 'Loading...'}</option>
               {(roster || []).map((d) => (
                 // What each option says is the dispatcher's whole decision:
-                // who they are, and whether they are already on something.
+                // who they are, whether they are already on something, and
+                // whether their truck can move.
                 <option key={d.driverCode} value={d.driverCode}>
                   {d.name} ({d.driverCode})
                   {d.driverType === 'OWNER' ? ' · O/O' : ''}
                   {d.currentLoad
                     ? ` · on ${d.currentLoad.id} to ${d.currentLoad.destination}`
                     : ' · free'}
+                  {d.truckStatus && d.truckStatus !== 'Active' ? ` · truck in ${d.truckStatus.toLowerCase()}` : ''}
                 </option>
               ))}
             </select>
           </label>
           <label>
-            Unit
-            <input value={unitNo} onChange={(e) => setUnitNo(e.target.value)} maxLength={20} disabled={busy} placeholder="Truck #" />
+            Truck
+            <select value={unitNo} onChange={(e) => setUnitNo(e.target.value)} disabled={busy || !ready}>
+              <option value="">— none —</option>
+              {(trucks || []).filter((t) => t.status !== 'Retired' || t.unitNo === unitNo).map((t) => (
+                <option key={t.unitNo} value={t.unitNo}>
+                  {t.unitNo} · {t.description} · {availability(t, load.id)}
+                </option>
+              ))}
+            </select>
           </label>
-          <button type="submit" className="primary" disabled={busy || !roster}>
+          <label>
+            Trailer
+            <select value={trailerNo} onChange={(e) => setTrailerNo(e.target.value)} disabled={busy || !ready}>
+              <option value="">— none —</option>
+              {trailerOptions.filter((t) => t.status !== 'Retired' || t.trailerNo === trailerNo).map((t) => (
+                <option key={t.trailerNo} value={t.trailerNo}>
+                  {t.trailerNo} · {t.trailerType} · {availability(t, load.id)}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button type="submit" className="primary" disabled={busy || !ready}>
             {busy ? 'Saving...' : load.driverCode ? 'Reassign' : 'Assign'}
           </button>
         </form>

@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import App from './App.jsx'
 import LoadDetail from './pages/LoadDetail.jsx'
 import MyLoads from './pages/MyLoads.jsx'
+import Fleet from './pages/Fleet.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -100,6 +101,9 @@ function Root() {
 
         {/* The driver's own view: what they are on, and what they have run. */}
         <Route path="/my-loads" element={<MyLoads />} />
+
+        {/* Trucks and trailers: read by any role, edited by dispatch. */}
+        <Route path="/fleet" element={<Fleet />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

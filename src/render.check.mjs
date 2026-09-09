@@ -255,6 +255,47 @@ const cases = [
 
   ['MyLoads loading', '/src/pages/MyLoads.jsx', {}],
 
+  // The fleet tables, with the states that colour a cell: in service, in the
+  // shop, retired, an owner/operator's truck, a plate expiring soon and one
+  // already expired. Then the same tables without the Edit column, which is
+  // how a driver sees them.
+  ['TruckTable', '/src/components/fleet/TruckTable.jsx', {
+    trucks: [
+      { unitNo: 'Demo - 01', description: '2021 Freightliner Cascadia', plate: 'ML 4471', plateState: 'IA', status: 'Active', ownerType: 'COMPANY', ownerDriverCode: null,
+        registrationExpires: '2027-03-31', registrationDays: 203, inspectionDue: '2026-09-25', inspectionDays: 16,
+        regularDriver: { driverCode: 'HBARNETT', name: 'Hollis Barnett' }, currentLoad: { id: 'L-10413', status: 'In Transit', destination: 'Kansas City, MO' } },
+      { unitNo: 'Demo - 11', description: '2018 Freightliner Cascadia', plate: 'ML 4481', plateState: 'IA', status: 'Shop', ownerType: 'COMPANY', ownerDriverCode: null,
+        registrationExpires: '2026-03-31', registrationDays: -162, inspectionDue: null, inspectionDays: null,
+        regularDriver: { driverCode: 'JPACE', name: 'Jo Pace' }, currentLoad: null },
+      { unitNo: 'Demo - 21', description: '2021 Freightliner Cascadia', plate: null, plateState: null, status: 'Retired', ownerType: 'OWNER', ownerDriverCode: 'RVASQUEZ',
+        registrationExpires: null, registrationDays: null, inspectionDue: null, inspectionDays: null,
+        regularDriver: null, currentLoad: null },
+    ],
+    onEdit() {},
+  }],
+  ['TruckTable read-only', '/src/components/fleet/TruckTable.jsx', {
+    trucks: [{ unitNo: 'Demo - 01', description: '2021 Freightliner Cascadia', plate: 'ML 4471', plateState: 'IA', status: 'Active', ownerType: 'COMPANY', ownerDriverCode: null, registrationExpires: '2027-03-31', registrationDays: 203, inspectionDue: '2027-01-15', inspectionDays: 128, regularDriver: null, currentLoad: null }],
+  }],
+  ['TrailerTable', '/src/components/fleet/TrailerTable.jsx', {
+    trailers: [
+      { trailerNo: 'T-201', trailerType: 'Reefer', description: "53' Utility 3000R / Carrier X4", plate: 'TR 2201', plateState: 'IA', status: 'Active',
+        registrationExpires: '2027-03-31', registrationDays: 203, inspectionDue: '2026-09-09', inspectionDays: 0, currentLoad: { id: 'L-10412', status: 'Covered', destination: 'Chicago, IL' } },
+      { trailerNo: 'T-308', trailerType: 'Flatbed', description: "48' Reitnouer MaxMiser", plate: 'TR 3308', plateState: 'IA', status: 'Retired',
+        registrationExpires: '2026-03-31', registrationDays: -162, inspectionDue: '2026-02-01', inspectionDays: -220, currentLoad: null },
+    ],
+    onEdit() {},
+  }],
+  ['TruckForm new', '/src/components/fleet/TruckForm.jsx', {
+    form: { unitNo: '', description: '', modelYear: '', make: '', model: '', vin: '', plate: '', plateState: '', status: 'Active', ownerType: 'OWNER', ownerDriverCode: '', registrationExpires: '', inspectionDue: '', notes: '' },
+    onChange() {}, isNew: true, drivers: [{ driverCode: 'RVASQUEZ', name: 'Rey Vasquez' }],
+  }],
+  ['TrailerForm new', '/src/components/fleet/TrailerForm.jsx', {
+    form: { trailerNo: '', trailerType: 'Reefer', description: '', plate: '', plateState: '', status: 'Active', registrationExpires: '', inspectionDue: '', notes: '' },
+    onChange() {}, isNew: true,
+  }],
+  ['DueDate expired', '/src/components/fleet/DueDate.jsx', { iso: '2026-03-31', days: -162 }],
+  ['Fleet loading', '/src/pages/Fleet.jsx', {}],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

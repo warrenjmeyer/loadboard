@@ -249,16 +249,17 @@ function planChange(load, body, user, { today } = {}) {
   const wantsFields = Object.keys(FIELDS).some((k) => Object.prototype.hasOwnProperty.call(body, k))
   const wantsDriver = Object.prototype.hasOwnProperty.call(body, 'driverCode')
   const wantsUnit = Object.prototype.hasOwnProperty.call(body, 'unitNo')
+  const wantsTrailer = Object.prototype.hasOwnProperty.call(body, 'trailerNo')
   const wantsStatus = Object.prototype.hasOwnProperty.call(body, 'status')
 
-  if (!wantsFields && !wantsDriver && !wantsUnit && !wantsStatus) {
+  if (!wantsFields && !wantsDriver && !wantsUnit && !wantsTrailer && !wantsStatus) {
     return { errors: ['Nothing to change.'] }
   }
 
   // Who may do what. Details and assignment are dispatch work. A status change
   // is either dispatch work or the driver reporting their own progress, and
   // allowedTransitions already knows which.
-  if ((wantsFields || wantsDriver || wantsUnit) && !staff) {
+  if ((wantsFields || wantsDriver || wantsUnit || wantsTrailer) && !staff) {
     return { errors: ['Only a dispatcher can change a load\'s details or assignment.'], forbidden: true }
   }
 
@@ -278,8 +279,8 @@ function planChange(load, body, user, { today } = {}) {
     }
   }
 
-  // 2. Assignment.
-  if (wantsDriver || wantsUnit) {
+  // 2. Assignment: the driver, the truck, the trailer.
+  if (wantsDriver || wantsUnit || wantsTrailer) {
     if (load.status === 'Delivered' || load.status === 'Cancelled') {
       errors.push(`A ${load.status.toLowerCase()} load cannot be reassigned. Move it back first.`)
     } else {
@@ -293,6 +294,11 @@ function planChange(load, body, user, { today } = {}) {
         if (unit && unit.length > 20) errors.push('Unit cannot be longer than 20 characters.')
         next.unitNo = unit || null
       }
+      if (wantsTrailer) {
+        const trailer = typeof body.trailerNo === 'string' ? body.trailerNo.trim() : null
+        if (trailer && trailer.length > 20) errors.push('Trailer cannot be longer than 20 characters.')
+        next.trailerNo = trailer || null
+      }
       // Assigning IS covering. A dispatcher who picks a driver has covered the
       // load and should not have to say so twice; clearing the driver uncovers
       // it. Only when the body does not also name a status -- if it does, the
@@ -305,8 +311,11 @@ function planChange(load, body, user, { today } = {}) {
         events.push(next.driverCode
           ? { type: 'Assigned', driverCode: next.driverCode, detail: `Assigned to ${next.driverCode}${next.unitNo ? ` in ${next.unitNo}` : ''}` }
           : { type: 'Unassigned', driverCode: load.driverCode, detail: `Removed ${load.driverCode}` })
-      } else if (wantsUnit && next.unitNo !== load.unitNo) {
-        events.push({ type: 'Edited', detail: `Unit changed to ${next.unitNo || 'none'}` })
+      } else {
+        const changed = []
+        if (wantsUnit && next.unitNo !== load.unitNo) changed.push(`unit to ${next.unitNo || 'none'}`)
+        if (wantsTrailer && next.trailerNo !== load.trailerNo) changed.push(`trailer to ${next.trailerNo || 'none'}`)
+        if (changed.length) events.push({ type: 'Edited', detail: `Changed ${changed.join(', ')}` })
       }
     }
   }
@@ -339,6 +348,7 @@ function planChange(load, body, user, { today } = {}) {
   if (next.status === 'Available') {
     next.driverCode = null
     next.unitNo = null
+    next.trailerNo = null
     next.deliveredDate = null
   }
   if ((next.status === 'Covered' || next.status === 'In Transit') && !next.driverCode) {

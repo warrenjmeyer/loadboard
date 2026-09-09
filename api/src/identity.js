@@ -124,6 +124,7 @@ const CAN = {
   // (picked up, delivered) are not a role permission but a relationship to
   // the load, and loadRules.allowedTransitions decides those.
   editLoad: new Set(['dispatcher', 'admin']),
+  manageFleet: new Set(['dispatcher', 'admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
 }

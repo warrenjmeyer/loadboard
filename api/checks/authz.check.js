@@ -28,6 +28,7 @@ function captureHandlers() {
   try {
     require('../src/functions/loads')
     require('../src/functions/settlements')
+    require('../src/functions/fleet')
   } finally {
     app.http = realHttp
   }
@@ -308,6 +309,55 @@ async function main() {
   assert.strictEqual(r.jsonBody.pickupStart, '2026-09-10T08:00:00', 'the appointment must come back as stored, no timezone applied')
   ok('details edit round-trips, and a naive datetime stays naive')
 
+  // --- the fleet -------------------------------------------------------------
+  r = await handlers.trucks(req(), ctx)
+  assert.strictEqual(r.status, 401)
+  r = await handlers.trucks(req({ cookie: people.none.cookie }), ctx)
+  assert.strictEqual(r.status, 403)
+  r = await handlers.trucks(req({ cookie: people.driver.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(Array.isArray(r.jsonBody) && r.jsonBody.length > 0)
+  assert.ok(r.jsonBody.every((t) => 'registrationDays' in t))
+  ok(`a driver can read the fleet (${r.jsonBody.length} trucks); anonymous 401, pending 403`)
+
+  const TEST_UNIT = `ZZ-${SUFFIX.slice(0, 4).toUpperCase()}`
+  r = await handlers.trucks(req({ method: 'POST', cookie: people.driver.cookie, body: { unitNo: TEST_UNIT, description: 'authz truck' } }), ctx)
+  assert.strictEqual(r.status, 403)
+  r = await handlers.trucks(req({ method: 'POST', cookie: people.dispatcher.cookie, body: { unitNo: TEST_UNIT, description: 'authz truck', plate: 'zz 1', plateState: 'ia' } }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.plate, 'ZZ 1')
+  assert.strictEqual(r.jsonBody.status, 'Active')
+  ok('a dispatcher adds a truck; a driver may not')
+
+  r = await handlers.truck(req({ method: 'PATCH', cookie: people.dispatcher.cookie, params: { unitNo: TEST_UNIT }, body: { status: 'Shop' } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'Shop')
+  ok('a truck can be sent to the shop')
+
+  // The load from the lifecycle section is In Transit with MINE on it. A
+  // unit that is not in dbo.Trucks is refused in words, not as a 500.
+  r = await patch(people.dispatcher.cookie, { unitNo: 'ZZ-NOSUCH' })
+  assert.strictEqual(r.status, 400, JSON.stringify(r.jsonBody))
+  assert.match(r.jsonBody.error, /no truck with that unit number/)
+  r = await patch(people.dispatcher.cookie, { unitNo: TEST_UNIT })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.unitNo, TEST_UNIT)
+  ok('a load takes only a truck that exists')
+
+  r = await handlers.trailers(req({ cookie: people.dispatcher.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  const anyTrailer = r.jsonBody.find((t) => t.status === 'Active')
+  if (anyTrailer) {
+    r = await patch(people.dispatcher.cookie, { trailerNo: anyTrailer.trailerNo })
+    assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+    assert.strictEqual(r.jsonBody.trailerNo, anyTrailer.trailerNo)
+    ok(`a trailer rides along (${anyTrailer.trailerNo})`)
+  }
+
+  // Take the test truck back off the load so cleanup can delete it.
+  r = await patch(people.dispatcher.cookie, { unitNo: null })
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)
@@ -320,7 +370,7 @@ async function cleanup() {
   const ids = Object.values(people).map((p) => p.userId).filter(Boolean)
 
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
-    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A';")
+    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%';")
 
   for (const id of ids) {
     await pool.request().input('u', sql.Int, id).input('ip', sql.VarChar(45), IP).query(`

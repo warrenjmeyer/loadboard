@@ -305,6 +305,54 @@ until there is a screen to manage one), a `dbo.Trucks` table (`unit_no` is
 text until then), settlements generated from delivered loads, documents, and
 anything read live from Geotab. Each is its own migration.
 
+## The fleet
+
+Until `fleet_01_ddl.sql`, a truck was a string in three places -- the
+driver's regular unit, the unit on a settlement line, the unit on a load --
+agreeing by luck. `dbo.Trucks` and `dbo.Trailers` make them things: a
+status (Active, Shop, Retired), a plate, when the registration and the
+annual inspection run out, and for an owner/operator's truck, whose it is.
+`Loads.unit_no` and `Drivers.unit_no` become foreign keys; `Loads.trailer_no`
+is new. `SettlementRoutes.unit_no` stays free text on purpose -- it is what
+the statement said, and selling a truck must not make an old settlement
+unreadable.
+
+**Unit numbers are MyGeotab's vehicle names** (`Demo - 01` .. `Demo - 24`),
+so the two systems agree by name the way the routes do. The seed matches
+each company truck to the driver MyGeotab has in it (`driver-vehicles.json`)
+and fills in `Drivers.unit_no` for the twenty company drivers, which is what
+lets the dispatch panel default the truck when a driver is picked.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/trucks` | any real role | each truck, its regular driver, the load it is on, days until each date |
+| `POST /api/trucks` | dispatcher, admin | add one |
+| `PATCH /api/trucks/{unitNo}` | dispatcher, admin | change any field, including status |
+| `GET /api/trailers`, `POST`, `PATCH /api/trailers/{trailerNo}` | same | same |
+
+**Pages.** `/fleet` lists both, with anything expiring inside 30 days as a
+sentence at the top and amber or red in the table. Dispatch can add and edit
+in place. The load's dispatch panel now offers a truck picker (each option
+says free, in the shop, or on which load) and a trailer picker with the
+load's own equipment type listed first. The roster says "truck in shop"
+beside a driver whose regular truck is down.
+
+**Rules.** `api/src/fleetRules.js`, tested without a database. A plate is
+upper-cased, a state is two letters, a VIN is 17 characters with no I, O or
+Q, an owner/operator's truck must name its owner and a company truck must
+not. `daysUntil` is computed on the server against its own date so a phone
+with the wrong clock does not decide whether a plate has expired.
+
+**Running the migration.** `fleet_01_ddl.sql` after `loads_04_dispatch.sql`.
+Guarded and MERGE-seeded, so re-runnable. It adds two foreign keys to
+existing columns, which succeed because every referenced unit is in the seed;
+if a hand-entered unit number exists that is not, the ALTER for that key will
+fail and name it.
+
+**Not here yet.** Maintenance records and PM schedules (the dates are the
+minimum that keeps a truck legal), odometer and fuel, and anything read live
+from Geotab.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you

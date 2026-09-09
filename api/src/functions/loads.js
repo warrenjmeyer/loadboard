@@ -32,7 +32,7 @@ const LOAD_ID = /^[A-Za-z0-9._-]{1,20}$/
 // to the table later, and it is the one place the SQL names them.
 const COLUMNS = `
   id, origin, destination, miles, rate, equipment, status,
-  driver_code, unit_no, delivered_date,
+  driver_code, unit_no, trailer_no, delivered_date,
   pickup_start, pickup_end, delivery_start, delivery_end,
   customer_name, reference_no,
   shipper_name, shipper_address, shipper_phone,
@@ -61,6 +61,7 @@ function rowToLoad(r) {
     status: r.status,
     driverCode: r.driver_code,
     unitNo: r.unit_no,
+    trailerNo: r.trailer_no,
     deliveredDate: isoDate(r.delivered_date),
     pickupStart: isoDateTime(r.pickup_start),
     pickupEnd: isoDateTime(r.pickup_end),
@@ -401,6 +402,7 @@ async function patchLoad(request, context) {
       .input('status', sql.NVarChar(20), next.status)
       .input('driverCode', sql.VarChar(20), next.driverCode)
       .input('unitNo', sql.VarChar(20), next.unitNo)
+      .input('trailerNo', sql.VarChar(20), next.trailerNo)
       .input('deliveredDate', sql.VarChar(10), next.deliveredDate)
       .input('updatedBy', sql.NVarChar(256), user.email)
       .query(`
@@ -409,6 +411,7 @@ async function patchLoad(request, context) {
           status = @status,
           driver_code = @driverCode,
           unit_no = @unitNo,
+          trailer_no = @trailerNo,
           delivered_date = CAST(@deliveredDate AS DATE),
           updated_utc = SYSUTCDATETIME(),
           updated_by = @updatedBy
@@ -488,11 +491,13 @@ async function roster(request) {
   const pool = await getPool()
   const result = await pool.request().query(`
     SELECT d.driver_code, d.first_name, d.last_name, d.driver_type, d.unit_no, d.truck_description,
+           t.status AS truck_status,
            cur.id AS load_id, cur.status AS load_status, cur.destination AS load_destination,
            cur.delivery_end AS load_delivery_end,
            (SELECT COUNT(*) FROM dbo.Loads AS x
              WHERE x.driver_code = d.driver_code AND x.status IN (N'Covered', N'In Transit')) AS open_loads
     FROM dbo.Drivers AS d
+    LEFT JOIN dbo.Trucks AS t ON t.unit_no = d.unit_no
     OUTER APPLY (
       SELECT TOP 1 l.id, l.status, l.destination, l.delivery_end
       FROM dbo.Loads AS l
@@ -509,6 +514,9 @@ async function roster(request) {
       driverType: r.driver_type,
       unitNo: r.unit_no,
       truckDescription: r.truck_description,
+      // Null when the driver has no regular truck; otherwise Active, Shop or
+      // Retired, so the picker can say "truck in shop" beside the name.
+      truckStatus: r.truck_status || null,
       openLoads: Number(r.open_loads),
       currentLoad: r.load_id
         ? { id: r.load_id, status: r.load_status, destination: r.load_destination, deliveryEnd: isoDateTime(r.load_delivery_end) }
@@ -543,7 +551,11 @@ function wrap(label, handler) {
         context.error(`${label} refused by constraint:`, err.message)
         return badRequest(/FK_Loads_driver/.test(err.message)
           ? 'There is no driver with that code.'
-          : 'The database refused that change.')
+          : /FK_Loads_truck/.test(err.message)
+            ? 'There is no truck with that unit number.'
+            : /FK_Loads_trailer/.test(err.message)
+              ? 'There is no trailer with that number.'
+              : 'The database refused that change.')
       }
       context.error(`${label} failed:`, err)
       return { status: 500, jsonBody: { error: 'Could not load data.' } }

@@ -211,3 +211,23 @@ test('a bad driver code is refused before it reaches the foreign key', () => {
   const r = rules.planChange(load(), { driverCode: 'not a code' }, dispatcher)
   assert.deepEqual(r.errors, ['That driver code is not valid.'])
 })
+
+test('a trailer rides along with the assignment and leaves with it', () => {
+  const on = rules.planChange(load(), { driverCode: 'JSMITH', unitNo: 'Demo - 15', trailerNo: 'T-201' }, dispatcher)
+  assert.equal(on.errors, undefined)
+  assert.equal(on.next.trailerNo, 'T-201')
+  assert.equal(on.next.status, 'Covered')
+
+  const swap = rules.planChange(on.next, { trailerNo: 'T-202' }, dispatcher)
+  assert.deepEqual(swap.events, [{ type: 'Edited', detail: 'Changed trailer to T-202' }])
+  assert.equal(swap.next.status, 'Covered')
+
+  const off = rules.planChange(swap.next, { driverCode: null }, dispatcher)
+  assert.equal(off.next.status, 'Available')
+  assert.equal(off.next.trailerNo, null)
+  assert.equal(off.next.unitNo, null)
+})
+
+test('a driver cannot pick their own trailer either', () => {
+  assert.equal(rules.planChange(covered(), { trailerNo: 'T-201' }, smith).forbidden, true)
+})
