@@ -157,8 +157,10 @@ async function replace(request, context) {
     }
 
     // Two passes so the unique (load_id, seq) never collides mid-way: park
-    // the survivors at negative sequence numbers, then write the list.
-    await new sql.Request(tx).input('id', sql.VarChar(20), id).query('UPDATE dbo.LoadStops SET seq = -seq WHERE load_id = @id;')
+    // the survivors out of the way, then write the list. Parked ABOVE the
+    // range rather than negated: CK_LoadStops_seq insists on seq >= 1, and
+    // a negative parking spot was the first thing it refused.
+    await new sql.Request(tx).input('id', sql.VarChar(20), id).query('UPDATE dbo.LoadStops SET seq = seq + 1000 WHERE load_id = @id;')
     const keptIds = new Set(stops.map((s) => s.stopId).filter(Boolean))
     for (const s of existing) {
       if (!keptIds.has(s.stopId)) {
