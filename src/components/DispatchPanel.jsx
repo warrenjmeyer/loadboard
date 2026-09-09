@@ -59,6 +59,7 @@ export default function DispatchPanel({ load, actions, onChange }) {
   const [roster, setRoster] = useState(null)
   const [trucks, setTrucks] = useState(null)
   const [trailers, setTrailers] = useState(null)
+  const [customers, setCustomers] = useState(null)
   const [driverCode, setDriverCode] = useState(load.driverCode || '')
   const [unitNo, setUnitNo] = useState(load.unitNo || '')
   const [trailerNo, setTrailerNo] = useState(load.trailerNo || '')
@@ -85,12 +86,13 @@ export default function DispatchPanel({ load, actions, onChange }) {
   useEffect(() => {
     if (!actions.canAssign) return
     let cancelled = false
-    Promise.all([fetchJson('/api/roster'), fetchJson('/api/trucks'), fetchJson('/api/trailers')])
-      .then(([r, tk, tr]) => {
+    Promise.all([fetchJson('/api/roster'), fetchJson('/api/trucks'), fetchJson('/api/trailers'), fetchJson('/api/customers')])
+      .then(([r, tk, tr, cu]) => {
         if (cancelled) return
         setRoster(r)
         setTrucks(tk)
         setTrailers(tr)
+        setCustomers(cu)
       })
       .catch((err) => !cancelled && setError(err.message))
     return () => { cancelled = true }
@@ -244,7 +246,7 @@ export default function DispatchPanel({ load, actions, onChange }) {
         <form className="add-form" onSubmit={handleEdit}>
           <h2>Edit {load.id}</h2>
           <fieldset disabled={busy}>
-            <LoadForm form={form} onChange={(name, value) => setForm((f) => ({ ...f, [name]: value }))} />
+            <LoadForm form={form} onChange={(name, value) => setForm((f) => ({ ...f, [name]: value }))} customers={customers} />
             <div className="actions">
               <button type="submit" className="primary">{busy ? 'Saving...' : 'Save changes'}</button>
               <button type="button" onClick={() => { setEditing(false); setError(null) }}>Cancel</button>

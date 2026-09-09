@@ -256,6 +256,7 @@ export default function App() {
         <Link to="/settlements">Driver settlements →</Link>
         {user && user.role === 'driver' && <Link to="/my-loads">My loads →</Link>}
         {user && user.role !== 'none' && <Link to="/fleet">Fleet →</Link>}
+        {user && user.role !== 'none' && <Link to="/customers">Customers →</Link>}
         {/* Rendered only when nobody is signed in. `user === undefined` means
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}

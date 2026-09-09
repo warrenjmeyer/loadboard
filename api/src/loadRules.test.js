@@ -231,3 +231,24 @@ test('a trailer rides along with the assignment and leaves with it', () => {
 test('a driver cannot pick their own trailer either', () => {
   assert.equal(rules.planChange(covered(), { trailerNo: 'T-201' }, smith).forbidden, true)
 })
+
+test('a load for a customer on hold cannot be covered, but one already moving can finish', () => {
+  const held = load({ customerId: 6, customerName: 'Riverbend Logistics LLC', customerStatus: 'Hold' })
+  const r = rules.planChange(held, { driverCode: 'JSMITH' }, dispatcher)
+  assert.deepEqual(r.errors, ['Riverbend Logistics LLC is on hold. The load cannot be covered until dispatch clears it.'])
+
+  const moving = load({ status: 'In Transit', driverCode: 'JSMITH', customerId: 6, customerName: 'Riverbend Logistics LLC', customerStatus: 'Hold' })
+  const done = rules.planChange(moving, { status: 'Delivered' }, smith, { today: '2026-09-10' })
+  assert.equal(done.errors, undefined)
+  assert.equal(done.next.status, 'Delivered')
+
+  // No customer record at all is not a hold.
+  assert.equal(rules.planChange(load(), { driverCode: 'JSMITH' }, dispatcher).errors, undefined)
+})
+
+test('customerId is validated as an id and can be cleared', () => {
+  assert.deepEqual(rules.validateFields({ customerId: 'abc' }, { partial: true }).errors, ['Customer is not valid.'])
+  assert.deepEqual(rules.validateFields({ customerId: 0 }, { partial: true }).errors, ['Customer is not valid.'])
+  assert.deepEqual(rules.validateFields({ customerId: '6' }, { partial: true }).fields, { customerId: 6 })
+  assert.deepEqual(rules.validateFields({ customerId: null }, { partial: true }).fields, { customerId: null })
+})

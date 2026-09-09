@@ -30,15 +30,24 @@ const LOAD_ID = /^[A-Za-z0-9._-]{1,20}$/
 
 // Explicit column list: it keeps the shape stable if someone adds a column
 // to the table later, and it is the one place the SQL names them.
-const COLUMNS = `
-  id, origin, destination, miles, rate, equipment, status,
-  driver_code, unit_no, trailer_no, delivered_date,
-  pickup_start, pickup_end, delivery_start, delivery_end,
-  customer_name, reference_no,
-  shipper_name, shipper_address, shipper_phone,
-  consignee_name, consignee_address, consignee_phone,
-  commodity, weight_lbs, pieces, hazmat, temp_f, notes,
-  created_utc, created_by, updated_utc, updated_by`
+const LOAD_COLUMNS = [
+  'id', 'origin', 'destination', 'miles', 'rate', 'equipment', 'status',
+  'driver_code', 'unit_no', 'trailer_no', 'delivered_date',
+  'pickup_start', 'pickup_end', 'delivery_start', 'delivery_end',
+  'customer_id', 'customer_name', 'reference_no',
+  'shipper_name', 'shipper_address', 'shipper_phone',
+  'consignee_name', 'consignee_address', 'consignee_phone',
+  'commodity', 'weight_lbs', 'pieces', 'hazmat', 'temp_f', 'notes',
+  'created_utc', 'created_by', 'updated_utc', 'updated_by',
+]
+
+// The customer's status rides along with every load, because whether a load
+// may be covered depends on it (see loadRules.planChange). A LEFT JOIN, so a
+// load with no customer record is still a load.
+const FROM_LOADS = (hint = '') => `
+  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status
+  FROM dbo.Loads AS l ${hint}
+  LEFT JOIN dbo.Customers AS c ON c.customer_id = l.customer_id`
 
 // DATE and DATETIME2 come back as JS Dates holding the stored components as
 // UTC (mssql's useUTC default). Slicing the ISO string hands back exactly the
@@ -67,7 +76,9 @@ function rowToLoad(r) {
     pickupEnd: isoDateTime(r.pickup_end),
     deliveryStart: isoDateTime(r.delivery_start),
     deliveryEnd: isoDateTime(r.delivery_end),
+    customerId: r.customer_id,
     customerName: r.customer_name,
+    customerStatus: r.customer_status || null,
     referenceNo: r.reference_no,
     shipperName: r.shipper_name,
     shipperAddress: r.shipper_address,
@@ -152,6 +163,9 @@ function bindFields(req, fields) {
       case 'bool':
         req.input(name, sql.Bit, value)
         break
+      case 'id':
+        req.input(name, sql.Int, value)
+        break
       case 'datetime':
         req.input(name, sql.VarChar(19), value)
         expr = `CAST(@${name} AS DATETIME2(0))`
@@ -170,9 +184,17 @@ function bindFields(req, fields) {
 
 async function selectLoad(req, id) {
   const result = await req.input('id', sql.VarChar(20), id).query(`
-    SELECT ${COLUMNS} FROM dbo.Loads WHERE id = @id;
+    ${FROM_LOADS()} WHERE l.id = @id;
   `)
   return result.recordset[0] ? rowToLoad(result.recordset[0]) : null
+}
+
+// A customer id becomes the customer's name on the load, so customer_name
+// always says what customer_id points at. Returns the name, or null when no
+// such customer exists -- which the caller turns into a 400.
+async function customerName(req, customerId) {
+  const r = await req.input('cid', sql.Int, customerId).query('SELECT name FROM dbo.Customers WHERE customer_id = @cid;')
+  return r.recordset[0] ? r.recordset[0].name : null
 }
 
 async function insertEvent(req, load, event, actor) {
@@ -206,7 +228,7 @@ async function listLoads(request) {
 
   const pool = await getPool()
   const result = await pool.request().query(`
-    SELECT ${COLUMNS} FROM dbo.Loads ORDER BY id;
+    ${FROM_LOADS()} ORDER BY l.id;
   `)
 
   const rows = all
@@ -264,6 +286,15 @@ async function createLoad(request, context) {
   await tx.begin()
 
   try {
+    if (fields.customerId) {
+      const name = await customerName(new sql.Request(tx), fields.customerId)
+      if (!name) {
+        await tx.rollback()
+        return badRequest('There is no customer with that id.')
+      }
+      fields.customerName = name
+    }
+
     const req = new sql.Request(tx)
     const { columns, values } = bindFields(req, fields)
 
@@ -368,7 +399,7 @@ async function patchLoad(request, context) {
     // that, instead of both planning from Available and both succeeding.
     const current = await new sql.Request(tx)
       .input('id', sql.VarChar(20), id)
-      .query(`SELECT ${COLUMNS} FROM dbo.Loads WITH (UPDLOCK, HOLDLOCK) WHERE id = @id;`)
+      .query(`${FROM_LOADS('WITH (UPDLOCK, HOLDLOCK)')} WHERE l.id = @id;`)
 
     if (!current.recordset[0]) {
       await tx.rollback()
@@ -390,6 +421,15 @@ async function patchLoad(request, context) {
     if (events.length === 0) {
       await tx.rollback()
       return { jsonBody: { ...load, actions: rules.actionsFor(user, load) }, headers: { 'Cache-Control': 'no-store' } }
+    }
+
+    if (next.customerId && next.customerId !== load.customerId) {
+      const name = await customerName(new sql.Request(tx), next.customerId)
+      if (!name) {
+        await tx.rollback()
+        return badRequest('There is no customer with that id.')
+      }
+      next.customerName = name
     }
 
     const req = new sql.Request(tx)
@@ -555,7 +595,9 @@ function wrap(label, handler) {
             ? 'There is no truck with that unit number.'
             : /FK_Loads_trailer/.test(err.message)
               ? 'There is no trailer with that number.'
-              : 'The database refused that change.')
+              : /FK_Loads_customer/.test(err.message)
+                ? 'There is no customer with that id.'
+                : 'The database refused that change.')
       }
       context.error(`${label} failed:`, err)
       return { status: 500, jsonBody: { error: 'Could not load data.' } }

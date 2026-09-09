@@ -296,6 +296,34 @@ const cases = [
   ['DueDate expired', '/src/components/fleet/DueDate.jsx', { iso: '2026-03-31', days: -162 }],
   ['Fleet loading', '/src/pages/Fleet.jsx', {}],
 
+  // Customers: the table with an active broker, a shipper, and one on hold;
+  // the card in its hold state (which draws the warning); the form; and the
+  // load form with a customer dropdown instead of a text box.
+  ['CustomerTable', '/src/components/customers/CustomerTable.jsx', {
+    customers: [
+      { customerId: 1, name: 'Prairie Freight Partners', customerType: 'Broker', mcNumber: 'MC-655910', contactName: 'Lupe Ortega', phone: '402-555-0151', paymentTermsDays: 15, status: 'Active', currentLoads: 4, deliveredLoads: 31, deliveredRevenue: 38212.5, lastDelivered: '2026-08-22' },
+      { customerId: 2, name: 'Mississippi Valley Foods', customerType: 'Shipper', mcNumber: null, contactName: 'Carla Jensen', phone: null, paymentTermsDays: 30, status: 'Active', currentLoads: 0, deliveredLoads: 0, deliveredRevenue: 0, lastDelivered: null },
+      { customerId: 6, name: 'Riverbend Logistics LLC', customerType: 'Broker', mcNumber: 'MC-812377', contactName: 'Kevin Marsh', phone: '312-555-0199', paymentTermsDays: 45, status: 'Hold', currentLoads: 2, deliveredLoads: 12, deliveredRevenue: 14900, lastDelivered: '2026-08-20' },
+    ],
+    onEdit() {},
+  }],
+  ['CustomerCard on hold', '/src/components/customers/CustomerCard.jsx', {
+    customer: { customerId: 6, name: 'Riverbend Logistics LLC', customerType: 'Broker', mcNumber: 'MC-812377', address1: '55 E Monroe St', city: 'Chicago', state: 'IL', postalCode: '60603', phone: '312-555-0199', email: 'ap@riverbendlog.example', contactName: 'Kevin Marsh', paymentTermsDays: 45, creditLimit: 10000, status: 'Hold', notes: 'Two invoices past 60 days.', currentLoads: 2, deliveredLoads: 12, deliveredRevenue: 14900, openRevenue: 2100, lastDelivered: '2026-08-20' },
+  }],
+  ['CustomerForm', '/src/components/customers/CustomerForm.jsx', {
+    form: { name: '', customerType: 'Shipper', mcNumber: '', address1: '', city: '', state: '', postalCode: '', phone: '', email: '', contactName: '', paymentTermsDays: '30', creditLimit: '', status: 'Active', notes: '' },
+    onChange() {},
+  }],
+  ['LoadForm with customers', '/src/components/LoadForm.jsx', {
+    form: { id: '', origin: '', destination: '', miles: '', rate: '', equipment: 'Dry Van', pickupStart: '', pickupEnd: '', deliveryStart: '', deliveryEnd: '', customerId: '', customerName: 'Typed Name Co', referenceNo: '', shipperName: '', shipperAddress: '', shipperPhone: '', consigneeName: '', consigneeAddress: '', consigneePhone: '', commodity: '', weightLbs: '', pieces: '', hazmat: false, tempF: '', notes: '' },
+    onChange() {},
+    customers: [{ customerId: 1, name: 'Prairie Freight Partners', status: 'Active' }, { customerId: 6, name: 'Riverbend Logistics LLC', status: 'Hold' }],
+  }],
+  ['LoadCard customer on hold', '/src/components/LoadCard.jsx', {
+    load: blankLoad({ customerId: 6, customerName: 'Riverbend Logistics LLC', customerStatus: 'Hold', referenceNo: 'RB-1' }),
+  }],
+  ['Customers loading', '/src/pages/Customers.jsx', {}],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

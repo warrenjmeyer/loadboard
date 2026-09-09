@@ -108,7 +108,14 @@ export default function LoadCard({ load, geotabUrl = null }) {
           <dl className="detail">
             <div>
               <dt>Customer</dt>
-              <dd>{load.customerName || dash}</dd>
+              <dd>
+                {load.customerId
+                  ? <Link to={`/customers/${load.customerId}`}>{load.customerName}</Link>
+                  : (load.customerName || dash)}
+                {load.customerStatus && load.customerStatus !== 'Active' && (
+                  <> {' '}<span className={`badge badge-${load.customerStatus.toLowerCase()}`}>{load.customerStatus}</span></>
+                )}
+              </dd>
             </div>
             <div>
               <dt>Reference #</dt>

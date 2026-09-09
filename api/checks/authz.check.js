@@ -29,6 +29,7 @@ function captureHandlers() {
     require('../src/functions/loads')
     require('../src/functions/settlements')
     require('../src/functions/fleet')
+    require('../src/functions/customers')
   } finally {
     app.http = realHttp
   }
@@ -358,6 +359,54 @@ async function main() {
   r = await patch(people.dispatcher.cookie, { unitNo: null })
   assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
 
+  // --- customers -------------------------------------------------------------
+  r = await handlers.customers(req(), ctx)
+  assert.strictEqual(r.status, 401)
+  r = await handlers.customers(req({ cookie: people.driver.cookie }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(Array.isArray(r.jsonBody))
+  ok(`a driver can read customers (${r.jsonBody.length}); anonymous 401`)
+
+  const custName = `ZZ Authz Customer ${SUFFIX.slice(0, 6)}`
+  r = await handlers.customers(req({ method: 'POST', cookie: people.driver.cookie, body: { name: custName } }), ctx)
+  assert.strictEqual(r.status, 403)
+  r = await handlers.customers(req({ method: 'POST', cookie: people.dispatcher.cookie, body: { name: custName, mcNumber: '123456', status: 'Hold' } }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.mcNumber, 'MC-123456')
+  const custId = r.jsonBody.customerId
+  ok('a dispatcher adds a customer on hold; a driver may not')
+
+  // Second test load: Available, no driver. Link it to the held customer,
+  // then try to cover it.
+  r = await patch(people.dispatcher.cookie, { customerId: custId }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.customerName, custName, 'the name must be copied from the record')
+  assert.strictEqual(r.jsonBody.customerStatus, 'Hold')
+  r = await patch(people.dispatcher.cookie, { driverCode: THEIRS }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, 400, JSON.stringify(r.jsonBody))
+  assert.match(r.jsonBody.error, /is on hold/)
+  ok('a load for a customer on hold cannot be covered, in words')
+
+  r = await handlers.customer(req({ method: 'PATCH', cookie: people.dispatcher.cookie, params: { id: String(custId) }, body: { status: 'Active' } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  r = await patch(people.dispatcher.cookie, { driverCode: THEIRS }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.status, 'Covered')
+  ok('lifting the hold lets the same load be covered')
+
+  r = await handlers.customer(req({ cookie: people.driver.cookie, params: { id: String(custId) } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.loads.some((l) => l.id === TEST_LOAD_ID + 'A'))
+  ok("the customer's page lists the load")
+
+  r = await patch(people.dispatcher.cookie, { customerId: 999999999 }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, 400)
+  ok('a customer id that does not exist is refused in words')
+
+  // Unlink so cleanup can delete the customer.
+  r = await patch(people.dispatcher.cookie, { customerId: null, driverCode: null }, TEST_LOAD_ID + 'A')
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)
@@ -370,7 +419,7 @@ async function cleanup() {
   const ids = Object.values(people).map((p) => p.userId).filter(Boolean)
 
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
-    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%';")
+    .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%'; DELETE FROM dbo.Customers WHERE name LIKE 'ZZ Authz Customer %';")
 
   for (const id of ids) {
     await pool.request().input('u', sql.Int, id).input('ip', sql.VarChar(45), IP).query(`

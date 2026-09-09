@@ -5,6 +5,8 @@ import App from './App.jsx'
 import LoadDetail from './pages/LoadDetail.jsx'
 import MyLoads from './pages/MyLoads.jsx'
 import Fleet from './pages/Fleet.jsx'
+import Customers from './pages/Customers.jsx'
+import CustomerDetail from './pages/CustomerDetail.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -104,6 +106,10 @@ function Root() {
 
         {/* Trucks and trailers: read by any role, edited by dispatch. */}
         <Route path="/fleet" element={<Fleet />} />
+
+        {/* Who the freight belongs to. */}
+        <Route path="/customers" element={<Customers />} />
+        <Route path="/customers/:id" element={<CustomerDetail />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

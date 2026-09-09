@@ -125,6 +125,7 @@ const CAN = {
   // the load, and loadRules.allowedTransitions decides those.
   editLoad: new Set(['dispatcher', 'admin']),
   manageFleet: new Set(['dispatcher', 'admin']),
+  manageCustomers: new Set(['dispatcher', 'admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
 }

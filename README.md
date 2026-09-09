@@ -353,6 +353,42 @@ fail and name it.
 minimum that keeps a truck legal), odometer and fuel, and anything read live
 from Geotab.
 
+## Customers
+
+`customers_01_ddl.sql` makes the customer a record: type (shipper or
+broker), MC number, the person and the phone number to call, payment terms,
+a credit limit, and a **status**. Status is the field dispatch reads every
+day. `Hold` means the customer owes money and their loads may be entered
+but not covered -- `loadRules.planChange` refuses the move into Covered or
+In Transit with the customer's name in the sentence. A load already moving
+is allowed to deliver, because delivering is how the carrier gets paid.
+
+`Loads.customer_id` is the link. `Loads.customer_name` stays: when a load is
+given a customer id the API copies the name across, and renaming a customer
+renames the loads that point at it, so the two columns always agree. A load
+entered before the table with a typed name keeps it and a null id. The
+customer's status rides along on every load the API returns, so the load's
+page can show the HOLD badge without a second request.
+
+The seed creates six plainly fictional customers and gives every existing
+load one, by equipment type and the last digit of the load number, so the
+customer pages have history to show. Only loads with no customer at all are
+touched.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/customers` | any real role | each customer with loads on the board, delivered, revenue billed, last delivery |
+| `GET /api/customers/{id}` | any real role | one customer and every load that was theirs |
+| `POST /api/customers`, `PATCH /api/customers/{id}` | dispatcher, admin | add and change |
+
+**Pages.** `/customers` lists them with anyone on hold called out at the
+top; `/customers/:id` is the customer's page with contact, terms, and their
+loads. The load form's customer box becomes a dropdown of customers for
+anyone who can see the list, and marks the ones on hold.
+
+**Not here yet.** Invoices and payments -- the terms and the credit limit
+are stored, and nothing yet computes what is outstanding against them.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you

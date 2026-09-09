@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
+import { fetchJson } from '../lib/api.js'
 import LoadForm, { BLANK_LOAD, formToBody } from './LoadForm.jsx'
 
 // ---------------------------------------------------------------------------
@@ -24,6 +25,16 @@ export default function AddLoadForm({ onAddLoad, user, canAdd }) {
   const [open, setOpen] = useState(false)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState(null)
+
+  // The customer list, fetched once the form is opened by someone who may add
+  // a load. Not before: the board is public, and the list is not.
+  const [customers, setCustomers] = useState(null)
+  useEffect(() => {
+    if (!open || !canAdd) return
+    let cancelled = false
+    fetchJson('/api/customers').then((c) => !cancelled && setCustomers(c)).catch(() => {})
+    return () => { cancelled = true }
+  }, [open, canAdd])
 
   function handleField(name, value) {
     // The spread copies the old object before overwriting one key -- a new
@@ -109,7 +120,7 @@ export default function AddLoadForm({ onAddLoad, user, canAdd }) {
       {/* fieldset disabled cascades to every control inside it, which is
           shorter and harder to get wrong than a disabled prop on each one. */}
       <fieldset disabled={saving}>
-        <LoadForm form={form} onChange={handleField} showId />
+        <LoadForm form={form} onChange={handleField} showId customers={customers} />
 
         <div className="actions">
           <button type="submit" className="primary">

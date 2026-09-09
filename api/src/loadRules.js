@@ -11,6 +11,8 @@
 // person asking. One copy of the rules, on the side that enforces them.
 // ---------------------------------------------------------------------------
 
+const { coverable } = require('./customerRules')
+
 const STATUSES = ['Available', 'Covered', 'In Transit', 'Delivered', 'Cancelled']
 
 // The three the form offers, and the only three in the table. There is no
@@ -61,7 +63,11 @@ const FIELDS = {
   deliveryStart: { col: 'delivery_start', type: 'datetime', label: 'Delivery window start' },
   deliveryEnd: { col: 'delivery_end', type: 'datetime', label: 'Delivery window end' },
 
-  customerName: { col: 'customer_name', type: 'text', max: 100, label: 'Customer' },
+  // The link to dbo.Customers. When it is set the API copies the customer's
+  // name into customerName, so the two agree; a load entered before the
+  // table existed keeps its typed name and a null id.
+  customerId: { col: 'customer_id', type: 'id', label: 'Customer' },
+  customerName: { col: 'customer_name', type: 'text', max: 100, label: 'Customer name' },
   referenceNo: { col: 'reference_no', type: 'text', max: 40, label: 'Reference #' },
   shipperName: { col: 'shipper_name', type: 'text', max: 100, label: 'Shipper' },
   shipperAddress: { col: 'shipper_address', type: 'text', max: 200, label: 'Shipper address' },
@@ -145,6 +151,11 @@ function checkField(name, raw) {
     case 'enum': {
       if (!spec.values.includes(raw)) return { error: `${spec.label} must be one of: ${spec.values.join(', ')}.` }
       return { value: raw }
+    }
+    case 'id': {
+      const n = Number(raw)
+      if (!Number.isInteger(n) || n <= 0) return { error: `${spec.label} is not valid.` }
+      return { value: n }
     }
     case 'bool': {
       if (raw === true || raw === 'true' || raw === 1 || raw === '1' || raw === 'on') return { value: true }
@@ -363,6 +374,17 @@ function planChange(load, body, user, { today } = {}) {
     }
   } else {
     next.deliveredDate = null
+  }
+
+  // A customer on hold owes money, and the answer to "can we cover their
+  // load" is no until somebody lifts it. Checked on the way INTO a covered
+  // state only: a load already moving is not abandoned at a truck stop
+  // because AP flagged the broker this morning, and delivering it is how the
+  // carrier gets paid at all.
+  const entering = (next.status === 'Covered' || next.status === 'In Transit')
+    && load.status !== 'Covered' && load.status !== 'In Transit'
+  if (entering && next.status !== load.status && !coverable(load.customerStatus)) {
+    errors.push(`${load.customerName || 'This customer'} is on ${load.customerStatus.toLowerCase()}. The load cannot be covered until dispatch clears it.`)
   }
 
   if (next.status !== load.status) {

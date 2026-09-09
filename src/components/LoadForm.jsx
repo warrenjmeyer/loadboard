@@ -27,6 +27,7 @@ export const BLANK_LOAD = {
   pickupEnd: '',
   deliveryStart: '',
   deliveryEnd: '',
+  customerId: '',
   customerName: '',
   referenceNo: '',
   shipperName: '',
@@ -68,7 +69,7 @@ export function formToBody(form, only = null) {
     const v = form[key]
     if (key === 'hazmat') body[key] = Boolean(v)
     else if (v === '' || v === null || v === undefined) body[key] = null
-    else if (['miles', 'rate', 'weightLbs', 'pieces', 'tempF'].includes(key)) body[key] = Number(v)
+    else if (['miles', 'rate', 'weightLbs', 'pieces', 'tempF', 'customerId'].includes(key)) body[key] = Number(v)
     else body[key] = v
   }
   return body
@@ -82,7 +83,12 @@ export function changedKeys(load, form) {
   return Object.keys(BLANK_LOAD).filter((k) => k !== 'id' && String(before[k]) !== String(form[k]))
 }
 
-export default function LoadForm({ form, onChange, showId = false }) {
+// `customers` is the list from /api/customers, or null when the caller has no
+// business seeing it. With a list the customer is a dropdown that sets
+// customerId and the server fills the name in; without one it is the text
+// box it always was, which is also the fallback for a load whose typed name
+// matches no record.
+export default function LoadForm({ form, onChange, showId = false, customers = null }) {
   // One handler for every field. `name` on the input matches the key in
   // state. A checkbox reports `checked` rather than `value`, and this is the
   // only place that difference has to be known.
@@ -153,7 +159,18 @@ export default function LoadForm({ form, onChange, showId = false }) {
       <div className="grid">
         <label>
           Customer / broker
-          <input name="customerName" value={form.customerName} onChange={handleChange} maxLength={100} />
+          {customers ? (
+            <select name="customerId" value={form.customerId} onChange={handleChange}>
+              <option value="">{form.customerName ? `— ${form.customerName} (not linked) —` : '— none —'}</option>
+              {customers.map((c) => (
+                <option key={c.customerId} value={String(c.customerId)}>
+                  {c.name}{c.status !== 'Active' ? ` · ${c.status.toUpperCase()}` : ''}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <input name="customerName" value={form.customerName} onChange={handleChange} maxLength={100} />
+          )}
         </label>
         <label>
           Reference # (PO / BOL)
