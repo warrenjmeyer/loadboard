@@ -166,51 +166,6 @@ END
 GO
 
 ------------------------------------------------------------------------------
--- The lifecycle rule, replacing CK_Loads_delivered.
---
--- The old rule said: Delivered has a driver and a date, everything else has
--- neither. That made Covered a word rather than a fact -- a covered load could
--- not say who covered it. The new rule follows the states:
---
---   Available    no driver, no delivered date
---   Covered      a driver, no delivered date
---   In Transit   a driver, no delivered date
---   Delivered    a driver AND a delivered date
---   Cancelled    no delivered date (a driver may remain, as the record of
---                who had been on it when it fell through)
---
--- Existing rows all satisfy this: current freight has no driver, delivered
--- freight has both.
-------------------------------------------------------------------------------
-IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Loads_delivered')
-BEGIN
-    ALTER TABLE dbo.Loads DROP CONSTRAINT CK_Loads_delivered;
-    PRINT 'DROPPED CK_Loads_delivered';
-END
-GO
-
-IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Loads_lifecycle')
-BEGIN
-    ALTER TABLE dbo.Loads ADD CONSTRAINT CK_Loads_lifecycle CHECK (
-        (status = N'Available'  AND driver_code IS NULL     AND delivered_date IS NULL) OR
-        (status = N'Covered'    AND driver_code IS NOT NULL AND delivered_date IS NULL) OR
-        (status = N'In Transit' AND driver_code IS NOT NULL AND delivered_date IS NULL) OR
-        (status = N'Delivered'  AND driver_code IS NOT NULL AND delivered_date IS NOT NULL) OR
-        (status = N'Cancelled'  AND delivered_date IS NULL)
-    );
-    PRINT 'ADDED CK_Loads_lifecycle';
-END
-GO
-
--- The board's first question is "what is due", so pickup is worth an index
--- once the table is big enough to care. Cheap now, and it documents intent.
-IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Loads_status_pickup' AND object_id = OBJECT_ID(N'dbo.Loads'))
-BEGIN
-    CREATE INDEX IX_Loads_status_pickup ON dbo.Loads (status, pickup_start);
-END
-GO
-
-------------------------------------------------------------------------------
 -- LoadEvents -- what happened to a load, in order.
 --
 -- One row per change: created, assigned, picked up, delivered, edited,
@@ -252,6 +207,80 @@ BEGIN
 END
 ELSE
     PRINT 'dbo.LoadEvents already exists';
+GO
+
+------------------------------------------------------------------------------
+-- The seeded Covered loads have nobody on them.
+--
+-- loads_02_data.sql marked eleven loads Covered as a label, back when the
+-- word meant nothing more than a badge. The lifecycle rule below makes it
+-- mean a driver is assigned, and a Covered load with a NULL driver_code is
+-- the contradiction it exists to forbid -- which is exactly what the first
+-- run of this script tripped over.
+--
+-- Put them back to Available rather than invent a driver for each. That is
+-- the honest state of a load nobody has been assigned to, and covering them
+-- through the app afterwards is the whole point of this change. Each one gets
+-- an event saying so, which is why LoadEvents is created above this rather
+-- than below it.
+------------------------------------------------------------------------------
+INSERT INTO dbo.LoadEvents (load_id, actor, event_type, from_status, to_status, detail)
+SELECT id, N'loads_04_dispatch.sql', 'Status', N'Covered', N'Available',
+       N'Marked Covered in seed data with no driver; set back to Available when the lifecycle rule arrived'
+FROM dbo.Loads
+WHERE status = N'Covered' AND driver_code IS NULL
+  AND NOT EXISTS (SELECT 1 FROM dbo.LoadEvents e WHERE e.load_id = dbo.Loads.id AND e.actor = N'loads_04_dispatch.sql');
+
+UPDATE dbo.Loads
+   SET status = N'Available', updated_utc = SYSUTCDATETIME(), updated_by = N'loads_04_dispatch.sql'
+ WHERE status = N'Covered' AND driver_code IS NULL;
+PRINT CAST(@@ROWCOUNT AS varchar(10)) + ' Covered loads with no driver set back to Available';
+GO
+
+------------------------------------------------------------------------------
+-- The lifecycle rule, replacing CK_Loads_delivered.
+--
+-- The old rule said: Delivered has a driver and a date, everything else has
+-- neither. That made Covered a word rather than a fact -- a covered load could
+-- not say who covered it. The new rule follows the states:
+--
+--   Available    no driver, no delivered date
+--   Covered      a driver, no delivered date
+--   In Transit   a driver, no delivered date
+--   Delivered    a driver AND a delivered date
+--   Cancelled    no delivered date (a driver may remain, as the record of
+--                who had been on it when it fell through)
+--
+-- After the fix above every existing row satisfies this: available freight
+-- has no driver, delivered freight has both, and there is no longer a
+-- Covered load with nobody on it.
+------------------------------------------------------------------------------
+IF EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Loads_delivered')
+BEGIN
+    ALTER TABLE dbo.Loads DROP CONSTRAINT CK_Loads_delivered;
+    PRINT 'DROPPED CK_Loads_delivered';
+END
+GO
+
+IF NOT EXISTS (SELECT 1 FROM sys.check_constraints WHERE name = N'CK_Loads_lifecycle')
+BEGIN
+    ALTER TABLE dbo.Loads ADD CONSTRAINT CK_Loads_lifecycle CHECK (
+        (status = N'Available'  AND driver_code IS NULL     AND delivered_date IS NULL) OR
+        (status = N'Covered'    AND driver_code IS NOT NULL AND delivered_date IS NULL) OR
+        (status = N'In Transit' AND driver_code IS NOT NULL AND delivered_date IS NULL) OR
+        (status = N'Delivered'  AND driver_code IS NOT NULL AND delivered_date IS NOT NULL) OR
+        (status = N'Cancelled'  AND delivered_date IS NULL)
+    );
+    PRINT 'ADDED CK_Loads_lifecycle';
+END
+GO
+
+-- The board's first question is "what is due", so pickup is worth an index
+-- once the table is big enough to care. Cheap now, and it documents intent.
+IF NOT EXISTS (SELECT 1 FROM sys.indexes WHERE name = N'IX_Loads_status_pickup' AND object_id = OBJECT_ID(N'dbo.Loads'))
+BEGIN
+    CREATE INDEX IX_Loads_status_pickup ON dbo.Loads (status, pickup_start);
+END
 GO
 
 ------------------------------------------------------------------------------

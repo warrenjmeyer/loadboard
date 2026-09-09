@@ -294,7 +294,9 @@ Delivered or Cancelled).
 every column is nullable or defaulted, `CK_Loads_status` is widened to five
 states, `CK_Loads_delivered` becomes `CK_Loads_lifecycle`. It is safe to run
 against the live table before the code deploys -- the old GET names its
-columns and keeps working. It requires `settlement_05_link.sql` and
+columns and keeps working. One data change: the eleven seeded loads marked
+Covered with no driver go back to Available, each with a history row saying
+why, because under the new rule Covered means a driver is assigned. It requires `settlement_05_link.sql` and
 `settlement_06_owner.sql` (for `Drivers.unit_no`).
 
 **What is deliberately not here yet.** Multi-stop loads (origin and
