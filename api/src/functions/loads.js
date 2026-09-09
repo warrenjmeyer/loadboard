@@ -2,6 +2,7 @@ const { app } = require('@azure/functions')
 const { getPool, sql } = require('../db')
 const identity = require('../identity')
 const rules = require('../loadRules')
+const stopRules = require('../stopRules')
 
 // ---------------------------------------------------------------------------
 // The load routes.
@@ -45,7 +46,8 @@ const LOAD_COLUMNS = [
 // may be covered depends on it (see loadRules.planChange). A LEFT JOIN, so a
 // load with no customer record is still a load.
 const FROM_LOADS = (hint = '') => `
-  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status, inv.invoice_no
+  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status, inv.invoice_no,
+         (SELECT COUNT(*) FROM dbo.LoadStops AS st WHERE st.load_id = l.id) AS stop_count
   FROM dbo.Loads AS l ${hint}
   LEFT JOIN dbo.Customers AS c ON c.customer_id = l.customer_id
   LEFT JOIN dbo.Invoices AS inv ON inv.invoice_id = l.invoice_id`
@@ -83,6 +85,9 @@ function rowToLoad(r) {
     customerStatus: r.customer_status || null,
     // The invoice this load's line haul is on, once billed. Not public.
     invoiceNo: r.invoice_no || null,
+    // How many stops the itinerary has. Two is the ordinary load; the board
+    // flags more. Public: it is a fact about the freight.
+    stopCount: Number(r.stop_count || 0),
     referenceNo: r.reference_no,
     shipperName: r.shipper_name,
     shipperAddress: r.shipper_address,
@@ -323,8 +328,40 @@ async function createLoad(request, context) {
         VALUES (@id, N'Available', @createdBy, ${values.join(', ')});
       `)
 
+    // The itinerary. A body may send a stops list; a body that does not
+    // gets the two stops its origin and destination describe, so every load
+    // has stops from the moment it exists. A list that IS sent overrides
+    // the six summary columns, because the stops are the truth.
+    const stopsRaw = Array.isArray(body.stops) && body.stops.length ? body.stops : null
+    let stops
+    if (stopsRaw) {
+      const checked = stopRules.validateStops(stopsRaw)
+      if (checked.errors.length) {
+        await tx.rollback()
+        return badRequest(checked.errors)
+      }
+      stops = checked.stops
+      const sum = stopRules.summaryFrom(stops)
+      const sreq = new sql.Request(tx)
+      const { assignments } = bindFields(sreq, sum)
+      await sreq.input('id', sql.VarChar(20), id).query(`UPDATE dbo.Loads SET ${assignments.join(', ')} WHERE id = @id;`)
+    } else {
+      stops = stopRules.stopsFromSummary(await selectLoad(new sql.Request(tx), id))
+    }
+    for (const s of stops) {
+      await new sql.Request(tx)
+        .input('id', sql.VarChar(20), id).input('seq', sql.SmallInt, s.seq).input('type', sql.VarChar(10), s.stopType)
+        .input('place', sql.NVarChar(100), s.place).input('name', sql.NVarChar(100), s.name).input('address', sql.NVarChar(200), s.address)
+        .input('phone', sql.VarChar(30), s.phone).input('ws', sql.VarChar(19), s.windowStart).input('we', sql.VarChar(19), s.windowEnd)
+        .input('ref', sql.NVarChar(40), s.referenceNo).input('notes', sql.NVarChar(400), s.notes)
+        .query(`
+          INSERT INTO dbo.LoadStops (load_id, seq, stop_type, place, name, address, phone, window_start, window_end, reference_no, notes)
+          VALUES (@id, @seq, @type, @place, @name, @address, @phone, CAST(@ws AS DATETIME2(0)), CAST(@we AS DATETIME2(0)), @ref, @notes);
+        `)
+    }
+
     const load = await selectLoad(new sql.Request(tx), id)
-    await insertEvent(new sql.Request(tx), load, { type: 'Created', detail: `${load.origin} → ${load.destination}` }, user.email)
+    await insertEvent(new sql.Request(tx), load, { type: 'Created', detail: `${load.origin} → ${load.destination}${stops.length > 2 ? ` (${stops.length} stops)` : ''}` }, user.email)
     await tx.commit()
 
     context.log(`Load ${id} created by ${user.email} (${user.role}, via ${user.via})`)

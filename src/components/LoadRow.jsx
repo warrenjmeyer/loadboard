@@ -18,7 +18,14 @@ export default function LoadRow({ load }) {
         {load.hazmat && <span className="badge badge-hazmat" title="Hazmat">HM</span>}
       </td>
       <td>{load.origin}</td>
-      <td>{load.destination}</td>
+      <td>
+        {load.destination}
+        {/* Two stops is the ordinary load and says nothing. More is worth a
+            word on the board, because the miles and the rate are for the
+            whole run and a driver reading "Chicago" should know about
+            Rockford first. */}
+        {load.stopCount > 2 && <span className="badge badge-stops" title={`${load.stopCount} stops`}>{load.stopCount} stops</span>}
+      </td>
       {/* The start of the pickup window only. The board is for finding
           what is due; the full window is on the load's page. */}
       <td className="nowrap">{formatDateTime(load.pickupStart)}</td>

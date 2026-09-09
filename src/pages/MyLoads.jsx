@@ -31,7 +31,10 @@ function Current({ load }) {
         <span className="mono">{load.id}</span>
         <span className={`badge badge-${statusSlug(load.status)}`}>{load.status}</span>
       </div>
-      <div className="my-load-lane">{load.origin} → {load.destination}</div>
+      <div className="my-load-lane">
+        {load.origin} → {load.destination}
+        {load.stopCount > 2 && <span className="badge badge-stops">{load.stopCount} stops</span>}
+      </div>
       <dl className="my-load-facts">
         <div><dt>Pickup</dt><dd>{formatWindow(load.pickupStart, load.pickupEnd) || '—'}</dd></div>
         <div><dt>Deliver</dt><dd>{formatWindow(load.deliveryStart, load.deliveryEnd) || '—'}</dd></div>
@@ -41,7 +44,7 @@ function Current({ load }) {
         {load.consigneeName && <div><dt>Consignee</dt><dd>{load.consigneeName}</dd></div>}
       </dl>
       <p className="my-load-cta">
-        {load.status === 'Covered' ? 'Open to mark picked up →' : 'Open to mark delivered →'}
+        {load.status === 'Covered' ? 'Open to check in at the pickup →' : 'Open to check in at the next stop →'}
       </p>
     </Link>
   )

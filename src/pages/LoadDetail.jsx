@@ -8,7 +8,8 @@ import DispatchPanel from '../components/DispatchPanel.jsx'
 import LoadHistory from '../components/LoadHistory.jsx'
 import LoadCharges from '../components/LoadCharges.jsx'
 import TruckNow from '../components/TruckNow.jsx'
-import { postJson, deleteJson } from '../lib/api.js'
+import StopEditor, { stopToDraft, draftToBody } from '../components/StopEditor.jsx'
+import { postJson, deleteJson, putJson } from '../lib/api.js'
 import { useTelematics } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
@@ -90,6 +91,72 @@ export default function LoadDetail() {
     askHours ? `/api/telematics/hours?driver=${encodeURIComponent(load.driverCode)}` : null,
     { enabled: askHours }
   )
+
+  // The itinerary. Asked for by everyone -- the server answers an anonymous
+  // visitor with where and when on a current load and 404 on a delivered
+  // one, the same rule as the load itself -- and re-asked whenever the load
+  // changes hands or state, because a check-in can move the status.
+  const [stops, setStops] = useState(null)
+  const [stopsProgress, setStopsProgress] = useState(null)
+  const [stopsBusy, setStopsBusy] = useState(false)
+  const [stopsError, setStopsError] = useState(null)
+  const [editingStops, setEditingStops] = useState(false)
+  const [stopDraft, setStopDraft] = useState([])
+
+  const loadStops = useCallback(() => {
+    fetchJson(`/api/loads/${encodeURIComponent(id)}/stops`)
+      .then((r) => { setStops(r.stops); setStopsProgress(r.progress) })
+      .catch(() => { setStops(null); setStopsProgress(null) })
+  }, [id])
+  useEffect(() => { if (load) loadStops() }, [load, loadStops])
+
+  // Arrive at or depart the current stop. The server may move the load to
+  // In Transit on a pickup departure; the answer says so and the load on
+  // screen follows without a second fetch.
+  const canCheckIn = load && (load.status === 'Covered' || load.status === 'In Transit') && (staff || onThisLoad)
+  async function handleCheckIn(stopId, action) {
+    if (stopsBusy) return
+    setStopsBusy(true)
+    setStopsError(null)
+    try {
+      const r = await postJson(`/api/stops/${stopId}/checkin`, { action })
+      setStops(r.stops)
+      setStopsProgress(r.progress)
+      if (r.loadStatus !== load.status) setLoad((l) => ({ ...l, status: r.loadStatus }))
+      loadEvents()
+    } catch (err) {
+      setStopsError(err.message)
+    } finally {
+      setStopsBusy(false)
+    }
+  }
+
+  function openStopEditor() {
+    setStopDraft((stops || []).map(stopToDraft))
+    setStopsError(null)
+    setEditingStops(true)
+  }
+
+  async function handleSaveStops(e) {
+    e.preventDefault()
+    if (stopsBusy) return
+    setStopsBusy(true)
+    setStopsError(null)
+    try {
+      const r = await putJson(`/api/loads/${encodeURIComponent(id)}/stops`, { stops: draftToBody(stopDraft) })
+      setStops(r.stops)
+      setStopsProgress(r.progress)
+      setEditingStops(false)
+      // The summary columns changed with the stops; re-read the load.
+      const fresh = await fetchJson(`/api/loads/${encodeURIComponent(id)}`)
+      setLoad(fresh)
+      loadEvents()
+    } catch (err) {
+      setStopsError(err.message)
+    } finally {
+      setStopsBusy(false)
+    }
+  }
 
   async function handleAddCharge(body) {
     const saved = await postJson(`/api/loads/${encodeURIComponent(id)}/charges`, body)
@@ -200,7 +267,38 @@ export default function LoadDetail() {
 
   return (
     <div className="page">
-      <LoadCard load={fields} geotabUrl={showGeotab ? geotabRouteUrl(load) : null} />
+      <LoadCard
+        load={fields}
+        geotabUrl={showGeotab ? geotabRouteUrl(load) : null}
+        stops={stops}
+        stopsProgress={stopsProgress}
+        onCheckIn={canCheckIn ? handleCheckIn : null}
+        stopsBusy={stopsBusy}
+      />
+
+      {stopsError && !editingStops && <div className="error">{stopsError}</div>}
+
+      {staff && stops && load.status !== 'Delivered' && load.status !== 'Cancelled' && !editingStops && (
+        <p><button type="button" onClick={openStopEditor}>Edit stops</button></p>
+      )}
+
+      {editingStops && (
+        <form className="add-form" onSubmit={handleSaveStops}>
+          <h2>Stops on {load.id}</h2>
+          <p className="muted hint">
+            In the order they are driven. The first is the pickup the board shows as origin; the last is the
+            delivery it shows as destination. Miles and rate stay on the load, for the whole run.
+          </p>
+          {stopsError && <div className="error">{stopsError}</div>}
+          <fieldset disabled={stopsBusy}>
+            <StopEditor stops={stopDraft} onChange={setStopDraft} />
+            <div className="actions">
+              <button type="submit" className="primary">{stopsBusy ? 'Saving...' : 'Save stops'}</button>
+              <button type="button" onClick={() => setEditingStops(false)}>Cancel</button>
+            </div>
+          </fieldset>
+        </form>
+      )}
 
       {waking && (
         <p className="muted">Waking the database — this can take up to a minute after a quiet spell.</p>

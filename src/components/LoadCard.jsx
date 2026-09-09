@@ -1,6 +1,7 @@
 import { Link } from 'react-router-dom'
 import { formatMoney, formatMiles, formatDate, formatWindow, formatWeight, statusSlug } from '../lib/format.js'
 import { routeNameFor } from '../lib/geotab.js'
+import StopList from './StopList.jsx'
 
 // One load's fields. Presentational: data in, markup out, no state and no
 // fetching -- the same division as LoadTable against App, and it exists for the
@@ -17,10 +18,14 @@ import { routeNameFor } from '../lib/geotab.js'
 // party and contact nulled by the API, so "Customer and stops" disappears for
 // them rather than showing six dashes -- and a load entered in a hurry with
 // just the lane shows just the lane.
-export default function LoadCard({ load, geotabUrl = null }) {
+export default function LoadCard({ load, geotabUrl = null, stops = null, stopsProgress = null, onCheckIn = null, stopsBusy = false }) {
   const rpm = load.rate / load.miles
 
-  const hasParties = load.customerName || load.referenceNo || load.shipperName
+  // When the page hands in the itinerary, it is drawn in place of the
+  // shipper and consignee rows: those two are the first and last stop, and
+  // a three-stop load would otherwise show its middle nowhere.
+  const hasStops = Array.isArray(stops) && stops.length > 0
+  const hasParties = load.customerName || load.referenceNo || hasStops || load.shipperName
     || load.shipperAddress || load.consigneeName || load.consigneeAddress
   const hasFreight = load.commodity || load.weightLbs || load.pieces || load.hazmat || load.tempF != null
 
@@ -130,23 +135,28 @@ export default function LoadCard({ load, geotabUrl = null }) {
               <dt>Reference #</dt>
               <dd className="mono">{load.referenceNo || dash}</dd>
             </div>
-            <div className="span-2">
-              <dt>Shipper</dt>
-              <dd>
-                {load.shipperName || dash}
-                {load.shipperAddress && <div className="addr">{load.shipperAddress}</div>}
-                {load.shipperPhone && <div className="addr"><a href={`tel:${load.shipperPhone}`}>{load.shipperPhone}</a></div>}
-              </dd>
-            </div>
-            <div className="span-2">
-              <dt>Consignee</dt>
-              <dd>
-                {load.consigneeName || dash}
-                {load.consigneeAddress && <div className="addr">{load.consigneeAddress}</div>}
-                {load.consigneePhone && <div className="addr"><a href={`tel:${load.consigneePhone}`}>{load.consigneePhone}</a></div>}
-              </dd>
-            </div>
+            {!hasStops && (
+              <>
+                <div className="span-2">
+                  <dt>Shipper</dt>
+                  <dd>
+                    {load.shipperName || dash}
+                    {load.shipperAddress && <div className="addr">{load.shipperAddress}</div>}
+                    {load.shipperPhone && <div className="addr"><a href={`tel:${load.shipperPhone}`}>{load.shipperPhone}</a></div>}
+                  </dd>
+                </div>
+                <div className="span-2">
+                  <dt>Consignee</dt>
+                  <dd>
+                    {load.consigneeName || dash}
+                    {load.consigneeAddress && <div className="addr">{load.consigneeAddress}</div>}
+                    {load.consigneePhone && <div className="addr"><a href={`tel:${load.consigneePhone}`}>{load.consigneePhone}</a></div>}
+                  </dd>
+                </div>
+              </>
+            )}
           </dl>
+          {hasStops && <StopList stops={stops} progress={stopsProgress} onCheckIn={onCheckIn} busy={stopsBusy} />}
         </>
       )}
 

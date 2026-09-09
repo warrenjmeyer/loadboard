@@ -536,6 +536,48 @@ const cases = [
     canAdd: 'all', canRemove: true, async onAdd() {}, async onRemove() {},
   }],
 
+  // Stops: the itinerary in every state a stop can be in (done, at the dock,
+  // next, pending), as the driver sees it with a button and as an anonymous
+  // visitor sees it with the dock nulled; the editor with a departed stop
+  // locked; and the card drawing stops in place of shipper/consignee.
+  ['StopList driver', '/src/components/StopList.jsx', {
+    stops: [
+      { stopId: 1, seq: 1, stopType: 'Pickup', place: 'Dubuque, IA', name: 'Mississippi Valley Foods', address: '1200 Kerper Blvd', phone: '563-555-0140', windowStart: '2026-09-10T08:00:00', windowEnd: '2026-09-10T12:00:00', referenceNo: 'PU-4471', notes: null, arrivedUtc: '2026-09-10T13:05:00', departedUtc: '2026-09-10T14:00:00' },
+      { stopId: 2, seq: 2, stopType: 'Delivery', place: 'Rockford, IL', name: 'Jewel DC', address: null, phone: null, windowStart: '2026-09-10T15:00:00', windowEnd: null, referenceNo: null, notes: 'dock 14, call ahead', arrivedUtc: '2026-09-10T19:40:00', departedUtc: null },
+      { stopId: 3, seq: 3, stopType: 'Delivery', place: 'Chicago, IL', name: 'Great Lakes Produce Co.', address: '4400 W 41st St', phone: null, windowStart: null, windowEnd: null, referenceNo: 'PO-9981', notes: null, arrivedUtc: null, departedUtc: null },
+    ],
+    progress: { total: 3, done: 1, currentSeq: 2, atDock: true, complete: false, current: { stopId: 2 } },
+    onCheckIn() {},
+  }],
+  ['StopList anonymous', '/src/components/StopList.jsx', {
+    stops: [
+      { stopId: 1, seq: 1, stopType: 'Pickup', place: 'Dubuque, IA', name: null, address: null, phone: null, windowStart: '2026-09-10T08:00:00', windowEnd: null, referenceNo: null, notes: null, arrivedUtc: null, departedUtc: null },
+      { stopId: 2, seq: 2, stopType: 'Delivery', place: 'Chicago, IL', name: null, address: null, phone: null, windowStart: null, windowEnd: null, referenceNo: null, notes: null, arrivedUtc: null, departedUtc: null },
+    ],
+  }],
+  ['StopList empty', '/src/components/StopList.jsx', { stops: [] }],
+  ['StopEditor', '/src/components/StopEditor.jsx', {
+    stops: [
+      { stopId: 1, stopType: 'Pickup', place: 'Dubuque, IA', name: 'Mississippi Valley Foods', address: '', phone: '', windowStart: '2026-09-10T08:00', windowEnd: '', referenceNo: '', notes: '', arrivedUtc: '2026-09-10T13:05:00', departedUtc: '2026-09-10T14:00:00' },
+      { stopId: null, stopType: 'Delivery', place: '', name: '', address: '', phone: '', windowStart: '', windowEnd: '', referenceNo: '', notes: '', arrivedUtc: null, departedUtc: null },
+      { stopId: 2, stopType: 'Delivery', place: 'Chicago, IL', name: '', address: '', phone: '', windowStart: '', windowEnd: '', referenceNo: 'PO-9981', notes: '', arrivedUtc: null, departedUtc: null },
+    ],
+    onChange() {},
+  }],
+  ['LoadCard with stops', '/src/components/LoadCard.jsx', {
+    load: blankLoad({ status: 'In Transit', driverCode: 'JSMITH', unitNo: 'Demo - 15', customerName: 'Mississippi Valley Foods', customerId: 2, stopCount: 3 }),
+    stops: [
+      { stopId: 1, seq: 1, stopType: 'Pickup', place: 'Dubuque, IA', name: 'Mississippi Valley Foods', address: null, phone: null, windowStart: null, windowEnd: null, referenceNo: null, notes: null, arrivedUtc: '2026-09-10T13:05:00', departedUtc: '2026-09-10T14:00:00' },
+      { stopId: 2, seq: 2, stopType: 'Delivery', place: 'Rockford, IL', name: null, address: null, phone: null, windowStart: null, windowEnd: null, referenceNo: null, notes: null, arrivedUtc: null, departedUtc: null },
+      { stopId: 3, seq: 3, stopType: 'Delivery', place: 'Chicago, IL', name: null, address: null, phone: null, windowStart: null, windowEnd: null, referenceNo: null, notes: null, arrivedUtc: null, departedUtc: null },
+    ],
+    stopsProgress: { total: 3, done: 1, currentSeq: 2, atDock: false, complete: false, current: { stopId: 2 } },
+    onCheckIn() {},
+  }],
+  ['LoadRow multi-stop', '/src/components/LoadTable.jsx', {
+    loads: [blankLoad({ id: 'L-10430', stopCount: 3 }), blankLoad({ id: 'L-10431', stopCount: 2 })],
+  }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

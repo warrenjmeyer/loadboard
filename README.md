@@ -352,6 +352,58 @@ fail and name it.
 **Not here yet.** Maintenance records and PM schedules (the dates are the
 minimum that keeps a truck legal), odometer and fuel.
 
+## Multi-stop loads: the itinerary
+
+A load used to be an origin and a destination, a shipper and a consignee,
+a pickup window and a delivery window: six columns describing exactly one
+pickup and one delivery. `stops_01_ddl.sql` adds `dbo.LoadStops`, one row
+per stop in the order driven, each a Pickup or a Delivery with its own
+dock, appointment window, reference number and notes, and its own arrived
+and departed times.
+
+**The six columns stay, as a summary.** Origin, shipper and pickup window
+say what the first stop says; destination, consignee and delivery window
+say what the last stop says. The API rewrites them whenever the stops
+change, so the board, the settlement route detail, the invoice line and
+the GeoTab route name -- all of which read "origin - destination" -- keep
+working without knowing stops exist. The stops are the truth; the six
+columns are its headline. The migration seeds every existing load with the
+two stops its columns already describe.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/loads/{id}/stops` | whoever can see the load | the itinerary; an anonymous visitor gets where and when, not who |
+| `PUT /api/loads/{id}/stops` | dispatcher, admin | replace the whole list; the summary columns follow in the same transaction |
+| `POST /api/stops/{stopId}/checkin` | the driver on the load, or dispatch | `{ action: "arrive" }` or `{ action: "depart" }` |
+
+**Rules.** `api/src/stopRules.js`, tested without a database. At least two
+stops, the first a Pickup, the last a Delivery, at most twenty. Check-ins
+go in order -- arriving at stop 3 while stop 2 is open is "call dispatch"
+-- and departing a pickup on a Covered load moves it to In Transit, the
+same move the "Picked up" button makes, reached from the itinerary. Marking
+the load Delivered stays an explicit act. A departed stop cannot be removed
+or reordered, only edited in place. `POST /api/loads` accepts an optional
+`stops` list; without one, the two stops are derived from the six columns,
+so every load has stops from the moment it exists.
+
+**Where it shows.** The load's page draws the stops in place of the
+shipper and consignee rows, with Arrived / Departed buttons on the current
+stop for the driver on the load and for dispatch, and an Edit stops form
+for dispatch (add, remove, move up or down). The board and the driver's
+page flag a load with more than two stops. The history gains "Arrived at
+delivery 2 of 3, Rockford, IL".
+
+**Deliberately not here.** Per-stop miles (miles and rate stay on the load,
+for the whole run), automatic stop-off pay (the STOPOFF accessorial is
+still entered by dispatch, because whether a stop is billable is a
+decision, not arithmetic), and stops on the load form itself -- a new load
+is entered with its two ends and given extra stops from its page.
+
+**Running the migration.** `stops_01_ddl.sql` after `loads_04_dispatch.sql`.
+It also widens the LoadEvents type check to allow Arrived and Departed.
+Until it has run, the load list 500s, because the load select now counts
+stops.
+
 ## Invoicing: what the customer owes
 
 The pay run said what the carrier owes its drivers. This is the other side:
@@ -962,6 +1014,11 @@ geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
+stops_01_ddl.sql        LoadStops, the itinerary; seeds two per existing load
+api/src/stopRules.js    valid lists, the summary columns, check-in order
+api/src/functions/stops.js        GET/PUT /api/loads/{id}/stops, POST /api/stops/{id}/checkin
+src/components/StopList.jsx       the itinerary, with check-in buttons on the current stop
+src/components/StopEditor.jsx     add, remove, reorder and fill in stops
 invoices_01_ddl.sql     Invoices / InvoiceLines, the two markers, and the seeded history
 api/src/invoiceRules.js the run plan, aging buckets, and applying a payment
 api/src/functions/invoices.js     /api/invoicerun and /api/invoices
