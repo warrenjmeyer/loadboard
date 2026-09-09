@@ -814,3 +814,43 @@ button:disabled { cursor: default; opacity: .6; }
 
 .charges tfoot td { font-weight: 600; border-top: 2px solid var(--line); }
 .charges .add-form { margin-top: 12px; }
+
+/* --- Telematics: positions and hours of service ---------------------- */
+.badge-swap {
+  margin-left: 6px;
+  background: #fff4e0; color: #8a4b00; border-color: #f2d5a3;
+  text-transform: lowercase;
+}
+.badge-duty-d   { background: #e6f4ea; color: #1a6b33; border-color: #b7e0c3; }
+.badge-duty-on  { background: #eef2ff; color: #33418c; border-color: #c3cbf0; }
+.badge-duty-off { background: #f1f2f4; color: #5b636d; border-color: #dfe3e8; }
+
+.clock-ok      { color: inherit; }
+.clock-low     { color: #8a4b00; font-weight: 600; }
+.clock-over    { color: #b3261e; font-weight: 600; }
+.clock-unknown { color: var(--muted); }
+
+.clocks {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin: 12px 0;
+}
+.clock {
+  min-width: 110px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.clock-value { font-size: 24px; font-weight: 600; line-height: 1.1; }
+.clock-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+.clock-status { display: flex; flex-direction: column; justify-content: center; gap: 4px; }
+.clock-note { display: flex; align-items: center; border-style: dashed; }
+.clocks-compact .clock { min-width: 90px; padding: 8px 12px; }
+.clocks-compact .clock-value { font-size: 20px; }
+
+.truck-now { margin: 0 0 8px; }
+.truck-now .clocks { margin-bottom: 0; }
+
+.section-title .as-of { font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 10px; }

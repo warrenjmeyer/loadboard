@@ -6,6 +6,9 @@
     "SQL_SERVER": "millstream-wjm.database.windows.net",
     "SQL_DATABASE": "Millstream",
     "SQL_USER": "sqlmillstream",
-    "SQL_PASSWORD": "put-the-password-here-and-never-commit-this-file"
+    "SQL_PASSWORD": "put-the-password-here-and-never-commit-this-file",
+    "GEOTAB_DATABASE": "demo_millstream",
+    "GEOTAB_USER": "warrenjmeyer@live.com",
+    "GEOTAB_PASSWORD": "the-MyGeotab-password-which-is-not-the-Azure-one"
   }
 }

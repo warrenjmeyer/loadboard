@@ -5,6 +5,8 @@ import { fetchMe } from '../lib/auth.js'
 import { formatWindow, formatMoney, formatMiles, statusSlug } from '../lib/format.js'
 import LoadTable from '../components/LoadTable.jsx'
 import AccessNotice from '../components/AccessNotice.jsx'
+import HoursClocks from '../components/HoursClocks.jsx'
+import { useTelematics } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
 // A driver's loads, at /my-loads.
@@ -59,6 +61,15 @@ export default function MyLoads() {
     return () => { cancelled = true }
   }, [])
 
+  // The driver's own clocks, live from GeoTab. Their own and nobody else's:
+  // the server answers ?driver= only for the account's own code or for
+  // dispatch, and this page is neither of the latter.
+  const isDriver = Boolean(user) && user.role === 'driver' && Boolean(user.driverCode)
+  const hours = useTelematics(
+    isDriver ? `/api/telematics/hours?driver=${encodeURIComponent(user.driverCode)}` : null,
+    { enabled: isDriver }
+  )
+
   useEffect(() => {
     if (!user || user.role !== 'driver') return
     let cancelled = false
@@ -98,6 +109,14 @@ export default function MyLoads() {
       </header>
 
       {error && <div className="error">Could not load data: {error}</div>}
+
+      {hours.data && hours.data.drivers[0] && (
+        <>
+          <h2 className="section-title">Your hours</h2>
+          <HoursClocks hours={hours.data.drivers[0]} />
+        </>
+      )}
+      {hours.error && <p className="muted small">Could not read your hours from GeoTab: {hours.error}</p>}
 
       {!loads && !error && (
         <p className="muted">

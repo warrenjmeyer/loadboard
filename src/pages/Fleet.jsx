@@ -7,6 +7,9 @@ import TruckTable from '../components/fleet/TruckTable.jsx'
 import TrailerTable from '../components/fleet/TrailerTable.jsx'
 import TruckForm, { BLANK_TRUCK, truckToForm, truckFormToBody } from '../components/fleet/TruckForm.jsx'
 import TrailerForm, { BLANK_TRAILER, trailerToForm, trailerFormToBody } from '../components/fleet/TrailerForm.jsx'
+import PositionTable from '../components/fleet/PositionTable.jsx'
+import HoursTable from '../components/HoursTable.jsx'
+import { useTelematics } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
 // The fleet, at /fleet: every truck and trailer, what it is on, and what is
@@ -66,6 +69,14 @@ export default function Fleet() {
   }, [])
 
   const canManage = Boolean(user) && (user.role === 'dispatcher' || user.role === 'admin')
+  const hasRole = Boolean(user) && user.role !== 'none'
+
+  // Live from GeoTab, polled while the page is open. Positions are for any
+  // role, like the fleet itself; every driver's hours are dispatch's to see.
+  // If the server has no GeoTab credential both come back notConnected and
+  // the sections say so in a line rather than appearing empty.
+  const positions = useTelematics('/api/telematics/positions', { enabled: hasRole })
+  const hours = useTelematics('/api/telematics/hours', { enabled: canManage })
 
   useEffect(() => {
     if (!user || user.role === 'none') return
@@ -181,6 +192,46 @@ export default function Fleet() {
             </div>
           </fieldset>
         </form>
+      )}
+
+      <h2 className="section-title">
+        Where the trucks are
+        {positions.data && (
+          <span className="as-of">
+            from GeoTab as of {new Date(positions.data.asOf).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}
+          </span>
+        )}
+      </h2>
+      {positions.notConnected && (
+        <p className="muted small">
+          GeoTab is not connected on this server, so there are no live positions. An admin
+          runs <code>set-geotab-secrets.ps1</code> to connect it.
+        </p>
+      )}
+      {positions.error && <div className="error">Could not read positions: {positions.error}</div>}
+      {positions.loading && !positions.data && <p className="muted">Asking GeoTab...</p>}
+      {positions.data && <PositionTable trucks={positions.data.trucks} database={positions.data.database} />}
+
+      {canManage && (
+        <>
+          <h2 className="section-title">Hours of service</h2>
+          {hours.notConnected && !positions.notConnected && (
+            <p className="muted small">GeoTab is not connected, so there are no hours to show.</p>
+          )}
+          {hours.error && <div className="error">Could not read hours: {hours.error}</div>}
+          {hours.loading && !hours.data && <p className="muted">Asking GeoTab...</p>}
+          {hours.data && (
+            <>
+              <HoursTable drivers={hours.data.drivers} />
+              {hours.data.unmatched.length > 0 && (
+                <p className="muted small hint">
+                  Not found in GeoTab by name: {hours.data.unmatched.join(', ')}. The roster and the
+                  GeoTab user list are matched on first and last name, so one of them is spelled differently.
+                </p>
+              )}
+            </>
+          )}
+        </>
       )}
 
       <h2 className="section-title">Trucks</h2>

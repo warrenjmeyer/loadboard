@@ -7,7 +7,9 @@ import LoadCard from '../components/LoadCard.jsx'
 import DispatchPanel from '../components/DispatchPanel.jsx'
 import LoadHistory from '../components/LoadHistory.jsx'
 import LoadCharges from '../components/LoadCharges.jsx'
+import TruckNow from '../components/TruckNow.jsx'
 import { postJson, deleteJson } from '../lib/api.js'
+import { useTelematics } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
 // One load, at /loads/L-10412.
@@ -72,6 +74,22 @@ export default function LoadDetail() {
   const onThisLoad = Boolean(user) && user.role === 'driver' && load?.driverCode
     && user.driverCode && user.driverCode.toUpperCase() === load.driverCode.toUpperCase()
   const canAddCharge = load && load.status !== 'Cancelled' ? (staff ? 'all' : onThisLoad ? 'reimbursement' : null) : null
+
+  // The truck, live from GeoTab, while the load is moving. Where it is goes
+  // to anyone with a role; the driver's hours are a record about a person,
+  // so only dispatch and the driver themselves ask for them. The server
+  // enforces both; these only decide whether to ask.
+  const moving = Boolean(load) && (load.status === 'Covered' || load.status === 'In Transit')
+  const askPosition = seesHistory && moving && Boolean(load.unitNo)
+  const askHours = moving && Boolean(load.driverCode) && (staff || onThisLoad)
+  const position = useTelematics(
+    askPosition ? `/api/telematics/positions?unit=${encodeURIComponent(load.unitNo)}` : null,
+    { enabled: askPosition }
+  )
+  const hours = useTelematics(
+    askHours ? `/api/telematics/hours?driver=${encodeURIComponent(load.driverCode)}` : null,
+    { enabled: askHours }
+  )
 
   async function handleAddCharge(body) {
     const saved = await postJson(`/api/loads/${encodeURIComponent(id)}/charges`, body)
@@ -189,6 +207,19 @@ export default function LoadDetail() {
       )}
 
       {actions && <DispatchPanel load={fields} actions={actions} onChange={handleChange} />}
+
+      {(askPosition || askHours) && (
+        <>
+          <h2 className="section-title">Truck now</h2>
+          <TruckNow
+            position={position.data ? position.data.trucks[0] : null}
+            hours={hours.data ? hours.data.drivers[0] : null}
+            database={position.data ? position.data.database : null}
+            notConnected={position.notConnected || (!askPosition && hours.notConnected)}
+            error={position.error || hours.error}
+          />
+        </>
+      )}
 
       {seesHistory && (
         <>
