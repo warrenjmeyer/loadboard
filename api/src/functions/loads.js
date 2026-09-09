@@ -45,9 +45,10 @@ const LOAD_COLUMNS = [
 // may be covered depends on it (see loadRules.planChange). A LEFT JOIN, so a
 // load with no customer record is still a load.
 const FROM_LOADS = (hint = '') => `
-  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status
+  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status, inv.invoice_no
   FROM dbo.Loads AS l ${hint}
-  LEFT JOIN dbo.Customers AS c ON c.customer_id = l.customer_id`
+  LEFT JOIN dbo.Customers AS c ON c.customer_id = l.customer_id
+  LEFT JOIN dbo.Invoices AS inv ON inv.invoice_id = l.invoice_id`
 
 // DATE and DATETIME2 come back as JS Dates holding the stored components as
 // UTC (mssql's useUTC default). Slicing the ISO string hands back exactly the
@@ -80,6 +81,8 @@ function rowToLoad(r) {
     customerId: r.customer_id,
     customerName: r.customer_name,
     customerStatus: r.customer_status || null,
+    // The invoice this load's line haul is on, once billed. Not public.
+    invoiceNo: r.invoice_no || null,
     referenceNo: r.reference_no,
     shipperName: r.shipper_name,
     shipperAddress: r.shipper_address,

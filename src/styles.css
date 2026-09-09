@@ -854,3 +854,29 @@ button:disabled { cursor: default; opacity: .6; }
 .truck-now .clocks { margin-bottom: 0; }
 
 .section-title .as-of { font-weight: 400; font-size: 13px; color: var(--muted); margin-left: 10px; }
+
+/* --- Invoicing: aging, statuses, the document -------------------------- */
+.badge-inv-open { background: #eef2ff; color: #33418c; border-color: #c3cbf0; }
+.badge-inv-paid { background: #e6f4ea; color: #1a6b33; border-color: #b7e0c3; }
+.badge-inv-void { background: #f1f2f4; color: #5b636d; border-color: #dfe3e8; text-decoration: line-through; }
+
+.aging {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 1px;
+  background: var(--line);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+  margin: 0 0 18px;
+}
+.aging-cell { background: var(--panel); padding: 12px 14px; }
+.aging-total { grid-column: span 2; }
+.aging-value { font-size: 20px; font-weight: 600; line-height: 1.1; }
+.aging-total .aging-value { font-size: 26px; }
+.aging-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.04em; margin-top: 4px; }
+.aging-late .aging-value { color: #b3261e; }
+
+.invoice-lines th, .invoice-lines td { padding: 6px 8px; }
+.invoice-charge td { padding-top: 2px; padding-bottom: 6px; }
+.invoice-doc .stmt-netpay { font-size: 18px; }

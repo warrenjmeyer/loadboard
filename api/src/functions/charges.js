@@ -34,16 +34,21 @@ function row(r) {
     createdBy: r.created_by,
     // Which statement paid it, when one has.
     paidOn: r.document_no ? { documentNo: r.document_no, checkDate: r.check_date.toISOString().slice(0, 10), driverCode: r.driver_code } : null,
+    // Which invoice billed it to the customer, when one has.
+    billedOn: r.invoice_no ? { invoiceNo: r.invoice_no, invoiceDate: r.invoice_date.toISOString().slice(0, 10) } : null,
   }
 }
 
 const SELECT = `
   SELECT c.charge_id, c.load_id, c.line_type, c.code, c.description, c.amount, c.bill_customer, c.bill_amount,
          c.receipt_note, c.created_utc, c.created_by,
-         s.document_no, s.check_date, s.driver_code
+         s.document_no, s.check_date, s.driver_code,
+         inv.invoice_no, inv.invoice_date
   FROM dbo.LoadCharges AS c
   LEFT JOIN dbo.SettlementLines AS l ON l.line_id = c.settlement_line_id
-  LEFT JOIN dbo.Settlements AS s ON s.settlement_id = l.settlement_id`
+  LEFT JOIN dbo.Settlements AS s ON s.settlement_id = l.settlement_id
+  LEFT JOIN dbo.InvoiceLines AS il ON il.line_id = c.invoice_line_id
+  LEFT JOIN dbo.Invoices AS inv ON inv.invoice_id = il.invoice_id`
 
 function badRequest(errors) {
   return { status: 400, jsonBody: { error: Array.isArray(errors) ? errors.join(' ') : errors } }
@@ -128,11 +133,14 @@ async function remove(request, context) {
 
   const pool = await getPool()
   const found = await pool.request().input('c', sql.Int, chargeId)
-    .query('SELECT load_id, description, amount, settlement_line_id FROM dbo.LoadCharges WHERE charge_id = @c;')
+    .query('SELECT load_id, description, amount, settlement_line_id, invoice_line_id FROM dbo.LoadCharges WHERE charge_id = @c;')
   const c = found.recordset[0]
   if (!c) return { status: 404, jsonBody: { error: 'No such charge.' } }
   if (c.settlement_line_id) {
     return { status: 409, jsonBody: { error: 'That charge has been paid on a statement. Enter a correcting charge instead.' } }
+  }
+  if (c.invoice_line_id) {
+    return { status: 409, jsonBody: { error: 'That charge has been billed to the customer. Void the invoice, or enter a correcting charge.' } }
   }
 
   await pool.request()

@@ -90,6 +90,12 @@ export default function LoadCard({ load, geotabUrl = null }) {
           <dt>Delivered</dt>
           <dd>{load.deliveredDate ? formatDate(load.deliveredDate) : dash}</dd>
         </div>
+        {load.invoiceNo && (
+          <div>
+            <dt>Invoiced</dt>
+            <dd><Link className="mono" to={`/invoices/${encodeURIComponent(load.invoiceNo)}`}>{load.invoiceNo}</Link></dd>
+          </div>
+        )}
         {geotabUrl && (
           <div>
             <dt>GeoTab route</dt>

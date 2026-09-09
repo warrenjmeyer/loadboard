@@ -107,7 +107,12 @@ export default function LoadCharges({ charges, canAdd = null, canRemove = false,
                   </td>
                   <td>{c.lineType === 'REVENUE' ? 'extra pay' : 'money back'}</td>
                   <td className="num">{formatMoney(c.amount)}</td>
-                  <td>{c.billCustomer ? formatMoney(c.billAmount ?? c.amount) : <span className="muted">—</span>}</td>
+                  <td className="nowrap">
+                    {c.billCustomer ? formatMoney(c.billAmount ?? c.amount) : <span className="muted">—</span>}
+                    {c.billedOn && (
+                      <span className="small"> · <Link to={`/invoices/${encodeURIComponent(c.billedOn.invoiceNo)}`}>{c.billedOn.invoiceNo}</Link></span>
+                    )}
+                  </td>
                   <td className="nowrap">
                     {c.paidOn ? (
                       <Link to={`/settlements/${encodeURIComponent(c.paidOn.driverCode)}?date=${c.paidOn.checkDate}`}>
@@ -118,7 +123,7 @@ export default function LoadCharges({ charges, canAdd = null, canRemove = false,
                   <td className="muted small">{c.createdBy || ''}{c.createdUtc ? ` · ${formatDate(c.createdUtc.slice(0, 10))}` : ''}</td>
                   {canRemove && (
                     <td>
-                      {!c.paidOn && (
+                      {!c.paidOn && !c.billedOn && (
                         <button type="button" className="linklike" disabled={busy} onClick={() => remove(c.chargeId)}>Remove</button>
                       )}
                     </td>

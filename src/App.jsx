@@ -257,12 +257,14 @@ export default function App() {
         {user && user.role === 'driver' && <Link to="/my-loads">My loads →</Link>}
         {user && user.role !== 'none' && <Link to="/fleet">Fleet →</Link>}
         {user && user.role !== 'none' && <Link to="/customers">Customers →</Link>}
+        {user && (user.role === 'dispatcher' || user.role === 'admin') && <Link to="/invoices">Invoices →</Link>}
         {/* Rendered only when nobody is signed in. `user === undefined` means
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}
         {user === null && <Link to="/signin">Sign in →</Link>}
         {user && user.role === 'admin' && <Link to="/admin">Accounts →</Link>}
-        {user && user.role === 'admin' && <Link to="/payroll">Pay run →</Link>}        
+        {user && user.role === 'admin' && <Link to="/payroll">Pay run →</Link>}
+        {user && user.role === 'admin' && <Link to="/billing">Invoice run →</Link>}
         {user === null && <Link to="/register">Create an account</Link>}
       </nav>
 

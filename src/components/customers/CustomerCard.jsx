@@ -51,8 +51,8 @@ export default function CustomerCard({ customer: c }) {
           <dd>{formatMoney(c.openRevenue)}<span className="muted small"> committed, not delivered</span></dd>
         </div>
         <div>
-          <dt>Billed</dt>
-          <dd>{formatMoney(c.deliveredRevenue)}<span className="muted small"> on {c.deliveredLoads} delivered</span></dd>
+          <dt>Delivered</dt>
+          <dd>{formatMoney(c.deliveredRevenue)}<span className="muted small"> on {c.deliveredLoads} loads</span></dd>
         </div>
         <div>
           <dt>Last delivered</dt>

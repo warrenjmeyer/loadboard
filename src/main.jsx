@@ -9,6 +9,9 @@ import Customers from './pages/Customers.jsx'
 import CustomerDetail from './pages/CustomerDetail.jsx'
 import Payroll from './pages/Payroll.jsx'
 import Deductions from './pages/Deductions.jsx'
+import Billing from './pages/Billing.jsx'
+import Invoices from './pages/Invoices.jsx'
+import Invoice from './pages/Invoice.jsx'
 import Settlement from './pages/Settlement.jsx'
 import Settlements from './pages/Settlements.jsx'
 import SignIn from './pages/SignIn.jsx'
@@ -116,6 +119,12 @@ function Root() {
         {/* Delivered loads become settlements. Admin only. */}
         <Route path="/payroll" element={<Payroll />} />
         <Route path="/payroll/deductions" element={<Deductions />} />
+
+        {/* Delivered loads become invoices. The run is admin's; the list and
+            the document are dispatch's too. */}
+        <Route path="/billing" element={<Billing />} />
+        <Route path="/invoices" element={<Invoices />} />
+        <Route path="/invoices/:invoiceNo" element={<Invoice />} />
 
         <Route path="/settlements" element={<Settlements />} />
 

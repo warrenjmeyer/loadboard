@@ -7,6 +7,7 @@ import AccessNotice from '../components/AccessNotice.jsx'
 import LoadTable from '../components/LoadTable.jsx'
 import CustomerCard from '../components/customers/CustomerCard.jsx'
 import CustomerForm, { customerToForm, customerFormToBody, changedCustomerKeys } from '../components/customers/CustomerForm.jsx'
+import InvoiceTable, { AgingSummary } from '../components/billing/InvoiceTable.jsx'
 
 // ---------------------------------------------------------------------------
 // One customer, at /customers/12: who they are, how to reach them, and every
@@ -45,6 +46,20 @@ export default function CustomerDetail() {
   }, [user, id])
 
   const canManage = Boolean(user) && (user.role === 'dispatcher' || user.role === 'admin')
+
+  // What they owe. Dispatch and admin only -- the same people who can see
+  // /invoices -- and asked for separately so a driver's view of the
+  // customer page never even requests it.
+  const [billing, setBilling] = useState(null)
+  useEffect(() => {
+    if (!canManage) return
+    let cancelled = false
+    setBilling(null)
+    fetchJson(`/api/invoices?customer=${encodeURIComponent(id)}`)
+      .then((d) => !cancelled && setBilling(d))
+      .catch(() => !cancelled && setBilling(null))
+    return () => { cancelled = true }
+  }, [canManage, id])
 
   async function handleSave(e) {
     e.preventDefault()
@@ -111,6 +126,14 @@ export default function CustomerDetail() {
             </div>
           </fieldset>
         </form>
+      )}
+
+      {billing && (
+        <>
+          <h2 className="section-title">Invoices ({billing.invoices.length})</h2>
+          <AgingSummary aging={billing.aging} />
+          {billing.invoices.length > 0 && <InvoiceTable invoices={billing.invoices} showCustomer={false} />}
+        </>
       )}
 
       <h2 className="section-title">On the board ({current.length})</h2>

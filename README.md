@@ -352,6 +352,69 @@ fail and name it.
 **Not here yet.** Maintenance records and PM schedules (the dates are the
 minimum that keeps a truck legal), odometer and fuel.
 
+## Invoicing: what the customer owes
+
+The pay run said what the carrier owes its drivers. This is the other side:
+a delivered load becomes a line on an invoice to its customer, at the load's
+rate, plus every accessorial marked bill-to-customer at its bill amount, due
+after the customer's payment terms. `invoices_01_ddl.sql` adds
+`dbo.Invoices` and `dbo.InvoiceLines`, shaped like Settlements and
+SettlementRoutes, and two marker columns -- `Loads.invoice_id` and
+`LoadCharges.invoice_line_id` -- so "unbilled" is a NULL test, the same
+device the pay run uses.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/invoicerun?invoiceDate=&through=` | admin | what a run would bill, customer by customer, nothing written |
+| `POST /api/invoicerun` | admin | create them, in one transaction; `customerIds` narrows it |
+| `GET /api/invoices?customer=&status=` | dispatcher, admin | the list, each aged against today, with an aging summary |
+| `GET /api/invoices/{invoiceNo}` | dispatcher, admin | one, with its lines and the bill-to |
+| `PATCH /api/invoices/{invoiceNo}` | admin | `{ payment: { amount, paidDate } }` or `{ status: "Void", reason }` |
+
+**Pages.** `/billing` is the run: preview, tick customers, generate, like
+`/payroll`. `/invoices` is accounts receivable: the aging strip (current,
+1-30, 31-60, 61-90, over 90 days past DUE, not past invoice date) and the
+list, open first and soonest due at the top. `/invoices/INV-260910-0001` is
+the document, printable to PDF the way a statement is, with Record payment
+and Void above it for an admin. A customer's page shows their invoices and
+what they owe; a load's page names the invoice it went on; a charge shows
+which invoice billed it and can no longer be removed.
+
+**Rules.** `api/src/invoiceRules.js`, tested without a database. One invoice
+per customer per run. Everything delivered on or before the through date
+and unbilled, plus every unbilled billable charge on a delivered load --
+stragglers included, so a stop-off entered after its load was invoiced goes
+on the next invoice under its load number with a note. A customer on Hold
+is billed like anyone else: the hold stops dispatch covering NEW freight,
+and delivered freight is owed. The preview flags a hold and an invoice that
+would take the open balance past the credit limit; both are for the clerk
+to see, not reasons to withhold an invoice. A payment larger than the
+balance is refused rather than stored as a credit, because a credit balance
+is a real thing in AR and this app does not have it.
+
+**Voiding, not deleting.** An invoice number never disappears. Void sets the
+status, clears the markers on its loads and charges in the same transaction
+so they are billable again, and writes a "billable again" event on each
+load. A partly paid invoice cannot be voided. This is also why there are no
+`ON DELETE` actions in the migration: Loads, LoadCharges, Invoices and
+InvoiceLines would otherwise form exactly the multiple-cascade-path shape
+SQL Server refuses to create.
+
+**The seed.** The delivered loads seeded before this existed (August 2026)
+are put on invoices by the migration, one per customer per delivered week,
+dated the Monday after, and marked paid on time -- except Riverbend's, the
+customer on Hold, which stay open so the AR page has somebody behind. Only
+loads with a customer record and no invoice are touched, so it is
+re-runnable, and a run after it bills only September onward.
+
+**Running the migration.** `invoices_01_ddl.sql` after `charges_01_ddl.sql`.
+Until it has run, every route that reads a load 500s, because the load
+select now joins `dbo.Invoices` for the invoice number.
+
+**Not here.** Credit memos and partial credits, a remittance email, ACH or
+lockbox import of payments, factoring, and a proof-of-delivery attached to
+the invoice -- that last one is what the documents work is for.
+
 ## Live from GeoTab: positions and hours of service
 
 Everything above this point is what the app knows because somebody typed it.
@@ -899,6 +962,13 @@ geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
+invoices_01_ddl.sql     Invoices / InvoiceLines, the two markers, and the seeded history
+api/src/invoiceRules.js the run plan, aging buckets, and applying a payment
+api/src/functions/invoices.js     /api/invoicerun and /api/invoices
+src/pages/Billing.jsx   the invoice run (preview, then generate)
+src/pages/Invoices.jsx  accounts receivable: aging strip and the list
+src/pages/Invoice.jsx   one invoice: the document, record payment, void
+src/components/billing/           the run preview, the table + aging strip, the document
 api/src/geotab.js       the MyGeotab client the API uses (session, path, retry)
 api/src/telematicsRules.js        Geotab payloads -> rows: name joins, TimeSpans, mph
 api/src/functions/telematics.js   GET /api/telematics/positions and /hours

@@ -128,6 +128,11 @@ const CAN = {
   manageCustomers: new Set(['dispatcher', 'admin']),
   // Payroll is not dispatch. Generating a settlement is a money decision.
   runPayroll: new Set(['admin']),
+  // Billing likewise: generating, paying and voiding invoices is admin work.
+  // Reading them is dispatch's too -- "has this customer paid" is the
+  // question behind whether to take their next load.
+  runBilling: new Set(['admin']),
+  viewInvoices: new Set(['dispatcher', 'admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
   // Every driver's hours-of-service clocks at once. One driver's own hours

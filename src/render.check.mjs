@@ -460,6 +460,82 @@ const cases = [
   ['TruckNow error', '/src/components/TruckNow.jsx', { position: null, hours: null, error: 'Incorrect login credentials' }],
   ['TruckNow asking', '/src/components/TruckNow.jsx', { position: null, hours: null }],
 
+  // Invoicing: the run preview with a flagged customer and a straggler, the
+  // AR list with every status and an overdue row, the aging strip, and the
+  // document in its three states.
+  ['InvoiceRunPreview', '/src/components/billing/InvoiceRunPreview.jsx', {
+    plan: {
+      invoiceDate: '2026-09-10', through: '2026-09-09',
+      invoices: [
+        { customerId: 1, name: 'Prairie Freight Partners', status: 'Active', termsDays: 15, dueDate: '2026-09-25', openBalance: 0, creditLimit: 40000,
+          loads: [{ id: 'L-10416', lane: 'WATERLOO, IA - MINNEAPOLIS, MN', deliveredDate: '2026-09-09', referenceNo: 'PO-77', miles: 246, amount: 700 }],
+          charges: [{ chargeId: 1, loadId: 'L-10416', code: 'DETENTION', description: 'DETENTION - 2 HRS', amount: 150, straggler: false },
+            { chargeId: 4, loadId: 'L-30012', code: 'STOPOFF', description: 'STOP-OFF', amount: 75, straggler: true }],
+          linehaul: 700, extras: 225, total: 925, stragglers: 1, onHold: false, overCredit: false },
+        { customerId: 6, name: 'Riverbend Logistics LLC', status: 'Hold', termsDays: 45, dueDate: '2026-10-25', openBalance: 9500, creditLimit: 10000,
+          loads: [{ id: 'L-10420', lane: 'CEDAR RAPIDS, IA - CHICAGO, IL', deliveredDate: '2026-09-08', referenceNo: null, miles: 224, amount: 660.8 }],
+          charges: [], linehaul: 660.8, extras: 0, total: 660.8, stragglers: 0, onHold: true, overCredit: true },
+      ],
+      totals: { customers: 2, loads: 2, charges: 2, linehaul: 1360.8, extras: 225, total: 1585.8, flagged: 1 },
+    },
+    selected: new Set([1]), onToggle() {},
+  }],
+  ['InvoiceRunPreview empty', '/src/components/billing/InvoiceRunPreview.jsx', {
+    plan: { invoiceDate: '2026-09-10', through: '2026-09-09', invoices: [], totals: { customers: 0, loads: 0, charges: 0, linehaul: 0, extras: 0, total: 0, flagged: 0 } },
+    selected: new Set(), onToggle() {},
+  }],
+  ['InvoiceTable', '/src/components/billing/InvoiceTable.jsx', {
+    invoices: [
+      { invoiceNo: 'INV-260810-0003', customerId: 6, customerName: 'Riverbend Logistics LLC', customerStatus: 'Hold', invoiceDate: '2026-08-10', dueDate: '2026-09-24', status: 'Open', total: 2640, paidAmount: 0, paidDate: null, loadCount: 4, balance: 2640, daysPastDue: 0, bucket: 'current', overdue: false },
+      { invoiceNo: 'INV-260803-0001', customerId: 1, customerName: 'Prairie Freight Partners', customerStatus: 'Active', invoiceDate: '2026-08-03', dueDate: '2026-08-18', status: 'Open', total: 1200, paidAmount: 500, paidDate: '2026-08-20', loadCount: 2, balance: 700, daysPastDue: 22, bucket: '1-30', overdue: true },
+      { invoiceNo: 'INV-260803-0002', customerId: 2, customerName: 'Mississippi Valley Foods', customerStatus: 'Active', invoiceDate: '2026-08-03', dueDate: '2026-09-02', status: 'Paid', total: 3510, paidAmount: 3510, paidDate: '2026-08-30', loadCount: 6, balance: 0, daysPastDue: 0, bucket: null, overdue: false },
+      { invoiceNo: 'INV-260901-0001', customerId: 1, customerName: 'Prairie Freight Partners', customerStatus: 'Active', invoiceDate: '2026-09-01', dueDate: '2026-09-16', status: 'Void', total: 585, paidAmount: 0, paidDate: null, loadCount: 1, balance: 0, daysPastDue: 0, bucket: null, overdue: false },
+    ],
+  }],
+  ['InvoiceTable empty', '/src/components/billing/InvoiceTable.jsx', { invoices: [] }],
+  ['AgingSummary', '/src/components/billing/InvoiceTable.jsx', {
+    aging: { total: 3340, overdue: 700, count: 2, buckets: { current: 2640, '1-30': 700, '31-60': 0, '61-90': 0, '90+': 0 } },
+  }, 'AgingSummary'],
+  ['AgingSummary empty', '/src/components/billing/InvoiceTable.jsx', { aging: { total: 0, overdue: 0, count: 0, buckets: {} } }, 'AgingSummary'],
+  ['InvoiceDocument open', '/src/components/billing/InvoiceDocument.jsx', {
+    invoice: {
+      invoiceNo: 'INV-260910-0001', customerId: 1, customerName: 'Prairie Freight Partners', invoiceDate: '2026-09-10', dueDate: '2026-09-25', termsDays: 15,
+      billToName: 'Prairie Freight Partners', billToAddress: '8100 W Dodge Rd, Omaha, NE 68114', status: 'Open', total: 925, paidAmount: 0, paidDate: null, notes: null,
+      customer: { contactName: 'Lupe Ortega', mcNumber: 'MC-655910' },
+      lines: [
+        { lineId: 1, loadId: 'L-10416', lineType: 'LINEHAUL', description: 'WATERLOO, IA - MINNEAPOLIS, MN', amount: 700, deliveredDate: '2026-09-09', referenceNo: 'PO-77', miles: 246 },
+        { lineId: 2, loadId: 'L-10416', lineType: 'CHARGE', description: 'DETENTION - 2 HRS', amount: 150, deliveredDate: '2026-09-09', referenceNo: 'PO-77', miles: 246 },
+        { lineId: 3, loadId: 'L-30012', lineType: 'CHARGE', description: 'STOP-OFF', amount: 75, deliveredDate: '2026-08-20', referenceNo: null, miles: 180 },
+      ],
+    },
+  }],
+  ['InvoiceDocument part paid', '/src/components/billing/InvoiceDocument.jsx', {
+    invoice: {
+      invoiceNo: 'INV-260803-0001', invoiceDate: '2026-08-03', dueDate: '2026-08-18', termsDays: 15, billToName: 'Prairie Freight Partners', billToAddress: null,
+      status: 'Open', total: 1200, paidAmount: 500, paidDate: '2026-08-20', notes: 'Short paid; detention disputed.', customer: null,
+      lines: [{ lineId: 1, loadId: 'L-30001', lineType: 'LINEHAUL', description: 'DUBUQUE, IA - CHICAGO, IL', amount: 1200, deliveredDate: '2026-08-01', referenceNo: null, miles: 182 }],
+    },
+  }],
+  ['InvoiceDocument void', '/src/components/billing/InvoiceDocument.jsx', {
+    invoice: {
+      invoiceNo: 'INV-260901-0001', invoiceDate: '2026-09-01', dueDate: '2026-09-16', termsDays: 15, billToName: 'X', billToAddress: null,
+      status: 'Void', total: 585, paidAmount: 0, paidDate: null, notes: 'Voided: wrong rate', customer: null,
+      lines: [{ lineId: 1, loadId: 'L-1', lineType: 'LINEHAUL', description: 'A - B', amount: 585, deliveredDate: '2026-08-30', referenceNo: null, miles: null }],
+    },
+  }],
+  ['Billing loading', '/src/pages/Billing.jsx', {}],
+  ['Invoices loading', '/src/pages/Invoices.jsx', {}],
+  ['Invoice loading', '/src/pages/Invoice.jsx', {}],
+  ['LoadCard invoiced', '/src/components/LoadCard.jsx', {
+    load: { id: 'L-30001', origin: 'Dubuque, IA', destination: 'Chicago, IL', miles: 182, rate: 585, equipment: 'Dry Van', status: 'Delivered', driverCode: 'JSMITH', unitNo: 'Demo - 15', deliveredDate: '2026-08-01', invoiceNo: 'INV-260803-0001', hazmat: false, tempF: null },
+  }],
+  ['LoadCharges billed', '/src/components/LoadCharges.jsx', {
+    charges: [
+      { chargeId: 1, lineType: 'REVENUE', code: 'DETENTION', description: 'DETENTION - 2 HRS', amount: 90, billCustomer: true, billAmount: 150, receiptNote: null, createdBy: 'd@x', createdUtc: '2026-09-09T14:00:00.000Z', paidOn: null, billedOn: { invoiceNo: 'INV-260910-0001', invoiceDate: '2026-09-10' } },
+    ],
+    canAdd: 'all', canRemove: true, async onAdd() {}, async onRemove() {},
+  }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],
@@ -539,9 +615,11 @@ const cases = [
 
 let failed = 0
 
-for (const [label, path, props] of cases) {
+for (const [label, path, props, exportName] of cases) {
   try {
     const mod = await vite.ssrLoadModule(path)
+    // A fourth element names a named export; otherwise the default.
+    const Component = exportName ? mod[exportName] : mod.default
 
     // Wrapped in a router because the settlement components render <Link>,
     // which throws outside one. MemoryRouter keeps its history in memory
@@ -549,7 +627,7 @@ for (const [label, path, props] of cases) {
     // that works under a server renderer. It adds no markup of its own, so
     // the components that do not need it are unaffected.
     const html = renderToString(
-      React.createElement(MemoryRouter, null, React.createElement(mod.default, props))
+      React.createElement(MemoryRouter, null, React.createElement(Component, props))
     )
 
     // Strip tags so the log shows what a person would actually read. A
