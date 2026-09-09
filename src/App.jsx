@@ -73,11 +73,15 @@ export default function App() {
   // are waiting on it." Worth saying out loud, because it takes up to a minute.
   const [waking, setWaking] = useState(false)
 
-  // equipment and availableOnly stay ordinary state on purpose. The load link
-  // on a pay statement carries a search term, so that one has to survive being
-  // pasted somewhere; nothing links to a particular equipment filter.
+  // equipment and status stay ordinary state on purpose. The load link on a
+  // pay statement carries a search term, so that one has to survive being
+  // pasted somewhere; nothing links to a particular equipment or status filter.
+  //
+  // 'Current' hides Delivered and Cancelled. Anonymous visitors never receive
+  // those rows anyway; for a signed-in account this is what keeps the board
+  // from opening on months of history.
   const [equipment, setEquipment] = useState('All')
-  const [availableOnly, setAvailableOnly] = useState(false)
+  const [status, setStatus] = useState('Current')
 
   // Who is signed in. Kept here rather than in AddLoadForm because it is one
   // answer for the whole page, and asking twice would mean two requests.
@@ -164,9 +168,16 @@ export default function App() {
     // WHICH rows to show. One load in, yes or no out.
     const filtered = loads.filter((load) => {
       if (equipment !== 'All' && load.equipment !== equipment) return false
-      if (availableOnly && load.status !== 'Available') return false
+      if (status === 'Current') {
+        if (load.status === 'Delivered' || load.status === 'Cancelled') return false
+      } else if (status !== 'All' && load.status !== status) {
+        return false
+      }
       if (term) {
-        const haystack = `${load.id} ${load.origin} ${load.destination}`.toLowerCase()
+        // Driver, customer and reference are null for anonymous visitors, so
+        // searching them is harmless there and useful for everyone else.
+        const haystack = [load.id, load.origin, load.destination, load.driverCode, load.customerName, load.referenceNo]
+          .filter(Boolean).join(' ').toLowerCase()
         if (!haystack.includes(term)) return false
       }
       return true
@@ -176,7 +187,7 @@ export default function App() {
     // no column is chosen, so the board keeps the order the API sent until
     // somebody clicks a header. See src/lib/sortLoads.js.
     return sortLoads(filtered, sortKey, sortDir)
-  }, [loads, search, equipment, availableOnly, sortKey, sortDir])
+  }, [loads, search, equipment, status, sortKey, sortDir])
 
   // The load is saved first and shown second. The alternative -- put it on the
   // board immediately, undo it if the POST fails -- feels faster and is worth
@@ -243,6 +254,7 @@ export default function App() {
           did not already know it was there. */}
       <nav className="board-nav board-nav-top">
         <Link to="/settlements">Driver settlements →</Link>
+        {user && user.role === 'driver' && <Link to="/my-loads">My loads →</Link>}
         {/* Rendered only when nobody is signed in. `user === undefined` means
             /api/me has not answered, and offering "sign in" to somebody who
             already is looks broken. */}
@@ -270,10 +282,10 @@ export default function App() {
       <LoadFilters
         search={search}
         equipment={equipment}
-        availableOnly={availableOnly}
+        status={status}
         onSearchChange={setSearch}
         onEquipmentChange={setEquipment}
-        onAvailableOnlyChange={setAvailableOnly}
+        onStatusChange={setStatus}
       />
 
       {loading ? (

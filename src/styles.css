@@ -593,3 +593,150 @@ button.primary {
 
 .admin-table .hint { margin-top: 4px; max-width: 260px; }
 .admin-table .field-error { margin-top: 4px; }
+
+
+/* --------------------------------------------------------------------------
+   Dispatch: the load's lifecycle on its page
+   -------------------------------------------------------------------------- */
+
+.badge-in-transit { background: #fff4e0; color: #8a4b00; border-color: #f2d5a3; }
+.badge-cancelled  { background: #fdecec; color: #8c2320; border-color: #f2c2c0; }
+
+/* Hazmat is a warning, not a state. Loud on purpose. */
+.badge-hazmat {
+  background: #fff1cc;
+  color: #6b4b00;
+  border-color: #e8c96b;
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: .04em;
+  margin-left: 6px;
+}
+
+.nowrap { white-space: nowrap; }
+
+/* Ten columns no longer fit a phone. The table scrolls inside its own box
+   rather than the page scrolling sideways. */
+.table-scroll { overflow-x: auto; }
+
+.section-title {
+  font-size: 15px;
+  margin: 28px 0 10px;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: .04em;
+}
+
+.detail .span-2 { grid-column: span 2; }
+.detail .addr { font-size: 14px; color: var(--muted); margin-top: 2px; }
+.notes {
+  white-space: pre-wrap;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 14px 16px;
+  margin: 0;
+}
+
+.dispatch {
+  margin-top: 20px;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.dispatch .error { margin: 0; }
+
+.dispatch-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: flex-end;
+}
+
+.dispatch-row label { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--muted); }
+.dispatch-row select { min-width: 260px; max-width: 100%; }
+.dispatch-row input { width: 130px; }
+
+.status-actions { align-items: center; }
+.status-action { display: inline-flex; gap: 8px; align-items: center; }
+.status-action input[type="date"] { width: auto; }
+
+button.danger { border-color: #d9534f; color: #b3261e; background: #fff; }
+button.danger:hover { background: #fdecec; }
+button:disabled { cursor: default; opacity: .6; }
+
+/* The full add/edit form gains section headings and a couple of fields that
+   want a whole row. */
+.add-form h3 {
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: var(--muted);
+  margin: 6px 0 10px;
+}
+.add-form .grid .wide { grid-column: 1 / -1; }
+.add-form label.block { display: block; margin-bottom: 18px; }
+.add-form textarea {
+  width: 100%;
+  box-sizing: border-box;
+  font: inherit;
+  padding: 8px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.add-form .hint { margin: -8px 0 14px; }
+
+/* History: a plain list, timestamps in a column so the eye can run down it. */
+.history {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+.history li {
+  display: grid;
+  grid-template-columns: 130px 1fr auto;
+  gap: 12px;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--line);
+  font-size: 14px;
+}
+.history li:last-child { border-bottom: none; }
+.history-when { color: var(--muted); white-space: nowrap; }
+.history-who { font-size: 13px; }
+
+/* --------------------------------------------------------------------------
+   My loads (driver)
+
+   Big and thumbable. This page is read on a phone in a truck stop.
+   -------------------------------------------------------------------------- */
+
+.my-load {
+  display: block;
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 16px 18px;
+  margin-bottom: 14px;
+  color: inherit;
+  text-decoration: none;
+}
+.my-load:hover { border-color: var(--accent); }
+.my-load-head { display: flex; justify-content: space-between; align-items: center; font-size: 15px; }
+.my-load-lane { font-size: 20px; font-weight: 600; margin: 6px 0 10px; }
+.my-load-facts {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+}
+.my-load-facts dt { font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
+.my-load-facts dd { margin: 0; font-size: 15px; }
+.my-load-cta { margin: 12px 0 0; color: var(--accent); font-size: 14px; }

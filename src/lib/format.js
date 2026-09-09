@@ -60,3 +60,36 @@ export function formatDate(iso) {
   const [y, m, d] = iso.split('-')
   return `${m}/${d}/${y}`
 }
+
+// Appointments arrive as 'YYYY-MM-DDTHH:mm:ss' in the facility's local time,
+// and are shown as such: no Date object, no timezone, the digits SQL holds.
+// A dock appointment at 08:00 is at 08:00 wherever the reader is sitting.
+export function formatDateTime(iso) {
+  if (!iso) return ''
+  const [date, time = ''] = iso.split('T')
+  const hhmm = time.slice(0, 5)
+  return hhmm && hhmm !== '00:00' ? `${formatDate(date)} ${hhmm}` : formatDate(date)
+}
+
+// A window reads as one thing when both ends are the same moment, and as a
+// range when they differ. A window with only one end is still worth showing.
+export function formatWindow(start, end) {
+  if (!start && !end) return ''
+  if (!end || start === end) return formatDateTime(start)
+  if (!start) return `by ${formatDateTime(end)}`
+  const [sd] = start.split('T')
+  const [ed, et = ''] = end.split('T')
+  // Same day: "09/10/2026 08:00 – 14:00" rather than repeating the date.
+  if (sd === ed && et.slice(0, 5) !== '00:00') return `${formatDateTime(start)} – ${et.slice(0, 5)}`
+  return `${formatDateTime(start)} – ${formatDateTime(end)}`
+}
+
+// "In Transit" as a CSS class is "in-transit". Status names are for people;
+// class names cannot have spaces in them.
+export function statusSlug(status) {
+  return String(status || '').toLowerCase().replace(/\s+/g, '-')
+}
+
+export function formatWeight(lbs) {
+  return lbs ? `${miles.format(lbs)} lbs` : ''
+}

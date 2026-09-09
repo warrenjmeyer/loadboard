@@ -118,3 +118,22 @@ export function postJson(path, body, options) {
     options
   )
 }
+
+// A PATCH is retried for the same reason a POST is, and it is safe for a
+// different one: every change /api/loads/{id} accepts is idempotent. Assigning
+// Smith twice leaves Smith assigned; marking In Transit twice is a no-op the
+// server answers with the row as it is. A first attempt that timed out while
+// the database woke and landed anyway is therefore indistinguishable from a
+// first attempt that never arrived -- which is exactly the property a retry
+// needs.
+export function patchJson(path, body, options) {
+  return request(
+    path,
+    {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options
+  )
+}

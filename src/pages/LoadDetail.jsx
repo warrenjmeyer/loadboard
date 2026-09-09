@@ -1,9 +1,11 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link, useParams } from 'react-router-dom'
-import { fetchJson } from '../lib/api.js'
+import { fetchJson, patchJson } from '../lib/api.js'
 import { fetchMe } from '../lib/auth.js'
 import { geotabRouteUrl } from '../lib/geotab.js'
 import LoadCard from '../components/LoadCard.jsx'
+import DispatchPanel from '../components/DispatchPanel.jsx'
+import LoadHistory from '../components/LoadHistory.jsx'
 
 // ---------------------------------------------------------------------------
 // One load, at /loads/L-10412.
@@ -12,37 +14,49 @@ import LoadCard from '../components/LoadCard.jsx'
 // same split Settlement.jsx demonstrates for :driverCode. Nothing about this
 // load is a view setting, so this page has no query string at all.
 //
-// WHERE THE DATA COMES FROM, and why it looks wasteful.
+// This page used to fetch the whole board and find its row. It now asks
+// GET /api/loads/{id}, which exists because the page is no longer read-only:
+// the answer carries an `actions` block saying what this person may do to
+// this load, and that is a per-load, per-person question the list could not
+// answer without sending every load's actions to everyone.
 //
-// There is no GET /api/loads/{id}. This page fetches the whole list and finds
-// its row in it. One extra route would be tidier, and it is the obvious next
-// step -- but the list fetch buys something a single-row route would have to
-// re-earn by hand:
-//
-//   The public/private rule enforces itself. GET /api/loads returns only the
-//   32 current loads to anyone anonymous or role-less, because every Delivered
-//   row names a driver and a date. So a delivered load's URL is simply NOT
-//   FOUND for a signed-out visitor -- not "forbidden", which would confirm the
-//   load exists, and not a leak. That is the correct answer, reached without a
-//   single line of authorization code in the front end.
-//
-// A /api/loads/{id} route would need that branch written deliberately, and
-// getting it wrong is a quiet disclosure rather than a visible bug. Worth
-// doing, worth doing carefully, and not needed to make the page work.
+// The public/private rule is the same as before and enforced in the same
+// place -- the server. A delivered load is NOT FOUND to a signed-out visitor,
+// not "forbidden", which would confirm the load exists.
 // ---------------------------------------------------------------------------
 export default function LoadDetail() {
   const { id } = useParams()
 
   const [load, setLoad] = useState(null)
+  const [events, setEvents] = useState(null)
   const [loading, setLoading] = useState(true)
   const [waking, setWaking] = useState(false)
   const [error, setError] = useState(null)
+  const [missing, setMissing] = useState(false)
 
-  // Who is reading. Only used to decide whether the MyGeotab link is worth
-  // showing -- it is useless to somebody with no MyGeotab account, and the
-  // board is public. Its own effect, and [] not [id]: the answer does not
+  // Who is reading. Decides whether the MyGeotab link and the history are
+  // worth asking for. Its own effect, and [] not [id]: the answer does not
   // change when you click from one load to the next.
   const [user, setUser] = useState(undefined)
+
+  useEffect(() => {
+    let cancelled = false
+    fetchMe()
+      .then((account) => !cancelled && setUser(account))
+      .catch(() => !cancelled && setUser(null))
+    return () => { cancelled = true }
+  }, [])
+
+  // History names names, so the server only serves it to a real role, and
+  // there is no point asking for it on anyone else's behalf.
+  const seesHistory = Boolean(user) && user.role !== 'none'
+
+  const loadEvents = useCallback(() => {
+    if (!seesHistory) return
+    fetchJson(`/api/loads/${encodeURIComponent(id)}/events`)
+      .then(setEvents)
+      .catch(() => setEvents(null))
+  }, [id, seesHistory])
 
   // [id] and not [] as the dependency array. Clicking from one load straight
   // to another re-uses this component rather than remounting it, so an effect
@@ -51,37 +65,44 @@ export default function LoadDetail() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
+    setMissing(false)
+    setError(null)
 
-    fetchJson('/api/loads', {
+    fetchJson(`/api/loads/${encodeURIComponent(id)}`, {
       onWaking: () => !cancelled && setWaking(true),
     })
       .then((data) => {
         if (cancelled) return
-        setLoad(data.find((l) => l.id === id) ?? null)
-        setWaking(false)
-        setLoading(false)
+        setLoad(data)
       })
       .catch((err) => {
         if (cancelled) return
-        setError(err.message)
+        if (err.status === 404) setMissing(true)
+        else setError(err.message)
+      })
+      .finally(() => {
+        if (cancelled) return
         setWaking(false)
         setLoading(false)
       })
 
-    return () => {
-      cancelled = true
-    }
+    return () => { cancelled = true }
   }, [id])
 
-  useEffect(() => {
-    let cancelled = false
-    fetchMe()
-      .then((account) => !cancelled && setUser(account))
-      .catch(() => !cancelled && setUser(null))
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  useEffect(() => { loadEvents() }, [loadEvents])
+
+  // The PATCH. The panel calls this with what it wants changed; what comes
+  // back is the load as the server wrote it, actions included, and that is
+  // what replaces the one on screen. Nothing is shown that was not saved.
+  async function handleChange(body) {
+    const saved = await patchJson(`/api/loads/${encodeURIComponent(id)}`, body, {
+      onWaking: () => setWaking(true),
+    })
+    setWaking(false)
+    setLoad(saved)
+    loadEvents()
+    return saved
+  }
 
   if (loading) {
     return (
@@ -112,7 +133,7 @@ export default function LoadDetail() {
   // a signed-out visitor, so "no such load" would be a lie and "sign in to see
   // it" would confirm the load exists. Saying what IS true -- it is not on the
   // board you can see, and signing in may show you more -- gives away nothing.
-  if (!load) {
+  if (missing || !load) {
     return (
       <div className="page">
         <h1>{id}</h1>
@@ -129,11 +150,25 @@ export default function LoadDetail() {
 
   // A signed-in account with a real role. 'none' is an approved-but-not-yet
   // -granted account, which is not somebody with a MyGeotab login either.
-  const showGeotab = Boolean(user) && user.role !== 'none'
+  const showGeotab = seesHistory
+  const { actions, ...fields } = load
 
   return (
     <div className="page">
-      <LoadCard load={load} geotabUrl={showGeotab ? geotabRouteUrl(load) : null} />
+      <LoadCard load={fields} geotabUrl={showGeotab ? geotabRouteUrl(load) : null} />
+
+      {waking && (
+        <p className="muted">Waking the database — this can take up to a minute after a quiet spell.</p>
+      )}
+
+      {actions && <DispatchPanel load={fields} actions={actions} onChange={handleChange} />}
+
+      {seesHistory && (
+        <>
+          <h2 className="section-title">History</h2>
+          <LoadHistory events={events} />
+        </>
+      )}
     </div>
   )
 }

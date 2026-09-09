@@ -141,6 +141,22 @@ function statementFixture({ driverType = 'COMPANY', payBasis = null } = {}) {
   }
 }
 
+// A load in the shape GET /api/loads returns since the dispatch work: every
+// column present, most of them null. Cases override what they care about.
+function blankLoad(overrides = {}) {
+  return {
+    id: 'L-10412', origin: 'Dubuque, IA', destination: 'Chicago, IL',
+    miles: 182, rate: 585, equipment: 'Dry Van', status: 'Available',
+    driverCode: null, unitNo: null, deliveredDate: null,
+    pickupStart: null, pickupEnd: null, deliveryStart: null, deliveryEnd: null,
+    customerName: null, referenceNo: null,
+    shipperName: null, shipperAddress: null, shipperPhone: null,
+    consigneeName: null, consigneeAddress: null, consigneePhone: null,
+    commodity: null, weightLbs: null, pieces: null, hazmat: false, tempF: null, notes: null,
+    ...overrides,
+  }
+}
+
 // Each entry is a state the component can actually be in. Rendering only the
 // happy path would miss the branches that exist precisely because something
 // went wrong -- which are the ones nobody looks at until they matter.
@@ -179,6 +195,65 @@ const cases = [
     },
     geotabUrl: "https://my.geotab.com/demo_millstream/#routes,search:'CEDAR%20RAPIDS,%20IA%20-%20KANSAS%20CITY,%20MO'",
   }],
+
+  // A load with everything filled in, as a dispatcher sees it: parties,
+  // freight, notes, unit. The sections that are conditional on data all have
+  // data here, so a typo in any of them fails this rather than the page.
+  ['LoadCard full', '/src/components/LoadCard.jsx', {
+    load: {
+      id: 'L-10420', origin: 'Cedar Rapids, IA', destination: 'Chicago, IL',
+      miles: 224, rate: 760, equipment: 'Reefer', status: 'In Transit',
+      driverCode: 'RVASQUEZ', unitNo: 'Demo - 21', deliveredDate: null,
+      pickupStart: '2026-09-10T08:00:00', pickupEnd: '2026-09-10T14:00:00',
+      deliveryStart: '2026-09-11T06:00:00', deliveryEnd: '2026-09-11T06:00:00',
+      customerName: 'Quaker Oats', referenceNo: 'PO-88213',
+      shipperName: 'Quaker Oats Plant', shipperAddress: '418 2nd St NE, Cedar Rapids, IA 52401', shipperPhone: '319-555-0100',
+      consigneeName: 'Jewel DC', consigneeAddress: '1955 W North Ave, Melrose Park, IL 60160', consigneePhone: '708-555-0199',
+      commodity: 'Frozen breakfast', weightLbs: 42000, pieces: 26, hazmat: true, tempF: -10,
+      notes: 'Check in at guard shack. Lumper on delivery, get receipt.',
+    },
+  }],
+
+  // The dispatch panel in the two shapes that matter: everything, for a
+  // dispatcher, and the driver's two-button version. The roster fetch is an
+  // effect and does not run here, so the dispatcher sees "Loading roster".
+  ['DispatchPanel dispatcher', '/src/components/DispatchPanel.jsx', {
+    load: blankLoad({ status: 'Available' }),
+    actions: { canEdit: true, canAssign: true, transitions: ['Covered', 'Cancelled'] },
+    onChange: async () => {},
+  }],
+  ['DispatchPanel driver', '/src/components/DispatchPanel.jsx', {
+    load: blankLoad({ status: 'In Transit', driverCode: 'JSMITH', unitNo: 'Demo - 01' }),
+    actions: { canEdit: false, canAssign: false, transitions: ['Delivered'] },
+    onChange: async () => {},
+  }],
+
+  ['LoadHistory', '/src/components/LoadHistory.jsx', {
+    events: [
+      { id: 1, at: '2026-09-09T14:02:11.000Z', actor: 'dispatch@millstream.example', type: 'Created', fromStatus: null, toStatus: null, driverCode: null, detail: 'Dubuque, IA → Chicago, IL' },
+      { id: 2, at: '2026-09-09T14:05:40.000Z', actor: 'dispatch@millstream.example', type: 'Assigned', fromStatus: null, toStatus: null, driverCode: 'JSMITH', detail: 'Assigned to JSMITH in Demo - 01' },
+      { id: 3, at: '2026-09-09T14:05:40.000Z', actor: 'dispatch@millstream.example', type: 'Status', fromStatus: 'Available', toStatus: 'Covered', driverCode: null, detail: null },
+    ],
+  }],
+  ['LoadHistory empty', '/src/components/LoadHistory.jsx', { events: [] }],
+
+  // The shared field set, blank. Both the add form and the edit panel render
+  // this, so one case covers the inputs of both.
+  ['LoadForm blank', '/src/components/LoadForm.jsx', {
+    form: { id: '', origin: '', destination: '', miles: '', rate: '', equipment: 'Reefer', pickupStart: '', pickupEnd: '', deliveryStart: '', deliveryEnd: '', customerName: '', referenceNo: '', shipperName: '', shipperAddress: '', shipperPhone: '', consigneeName: '', consigneeAddress: '', consigneePhone: '', commodity: '', weightLbs: '', pieces: '', hazmat: false, tempF: '', notes: '' },
+    onChange() {}, showId: true,
+  }],
+
+  // The board table without sort buttons, which is how the driver page uses
+  // it, with one of every status so every badge class is exercised.
+  ['LoadTable static', '/src/components/LoadTable.jsx', {
+    loads: ['Available', 'Covered', 'In Transit', 'Delivered', 'Cancelled'].map((status, i) => blankLoad({
+      id: `L-1000${i}`, status, driverCode: i ? 'JSMITH' : null, hazmat: i === 2,
+      pickupStart: i ? '2026-09-10T08:00:00' : null,
+    })),
+  }],
+
+  ['MyLoads loading', '/src/pages/MyLoads.jsx', {}],
 
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],

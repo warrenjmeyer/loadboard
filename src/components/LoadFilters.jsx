@@ -1,5 +1,11 @@
 const EQUIPMENT_TYPES = ['All', 'Dry Van', 'Reefer', 'Flatbed']
 
+// Every status the board can hold, plus one shortcut. "Current" is what a
+// dispatcher means by "the board" -- everything that is not finished -- and
+// is the default, because a signed-in account otherwise opens on 145 rows of
+// history before reaching the freight that needs a truck today.
+export const STATUS_FILTERS = ['Current', 'All', 'Available', 'Covered', 'In Transit', 'Delivered', 'Cancelled']
+
 // ---------------------------------------------------------------------------
 // A "controlled" component. Every input's value comes from props, and every
 // keystroke calls back up to the parent to change that value. The parent owns
@@ -12,10 +18,10 @@ const EQUIPMENT_TYPES = ['All', 'Dry Van', 'Reefer', 'Flatbed']
 export default function LoadFilters({
   search,
   equipment,
-  availableOnly,
+  status,
   onSearchChange,
   onEquipmentChange,
-  onAvailableOnlyChange,
+  onStatusChange,
 }) {
   return (
     <div className="filters">
@@ -24,7 +30,7 @@ export default function LoadFilters({
         <input
           type="text"
           value={search}
-          placeholder="Load #, origin, destination"
+          placeholder="Load #, city, driver, customer"
           onChange={(e) => onSearchChange(e.target.value)}
         />
       </label>
@@ -44,13 +50,15 @@ export default function LoadFilters({
         </select>
       </label>
 
-      <label className="checkbox">
-        <input
-          type="checkbox"
-          checked={availableOnly}
-          onChange={(e) => onAvailableOnlyChange(e.target.checked)}
-        />
-        Available only
+      <label>
+        Status
+        <select value={status} onChange={(e) => onStatusChange(e.target.value)}>
+          {STATUS_FILTERS.map((s) => (
+            <option key={s} value={s}>
+              {s}
+            </option>
+          ))}
+        </select>
       </label>
     </div>
   )
