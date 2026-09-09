@@ -6,6 +6,8 @@ import { geotabRouteUrl } from '../lib/geotab.js'
 import LoadCard from '../components/LoadCard.jsx'
 import DispatchPanel from '../components/DispatchPanel.jsx'
 import LoadHistory from '../components/LoadHistory.jsx'
+import LoadCharges from '../components/LoadCharges.jsx'
+import { postJson, deleteJson } from '../lib/api.js'
 
 // ---------------------------------------------------------------------------
 // One load, at /loads/L-10412.
@@ -51,12 +53,37 @@ export default function LoadDetail() {
   // there is no point asking for it on anyone else's behalf.
   const seesHistory = Boolean(user) && user.role !== 'none'
 
+  const [charges, setCharges] = useState(null)
+
   const loadEvents = useCallback(() => {
     if (!seesHistory) return
     fetchJson(`/api/loads/${encodeURIComponent(id)}/events`)
       .then(setEvents)
       .catch(() => setEvents(null))
+    fetchJson(`/api/loads/${encodeURIComponent(id)}/charges`)
+      .then(setCharges)
+      .catch(() => setCharges(null))
   }, [id, seesHistory])
+
+  // Who may add a charge here. Dispatch: anything. The driver on this load:
+  // a reimbursement, because they are the one holding the receipt. Mirrors
+  // chargeRules.canAdd on the server, which decides for real.
+  const staff = Boolean(user) && (user.role === 'dispatcher' || user.role === 'admin')
+  const onThisLoad = Boolean(user) && user.role === 'driver' && load?.driverCode
+    && user.driverCode && user.driverCode.toUpperCase() === load.driverCode.toUpperCase()
+  const canAddCharge = load && load.status !== 'Cancelled' ? (staff ? 'all' : onThisLoad ? 'reimbursement' : null) : null
+
+  async function handleAddCharge(body) {
+    const saved = await postJson(`/api/loads/${encodeURIComponent(id)}/charges`, body)
+    setCharges((list) => [...(list || []), saved])
+    loadEvents()
+  }
+
+  async function handleRemoveCharge(chargeId) {
+    await deleteJson(`/api/charges/${chargeId}`)
+    setCharges((list) => (list || []).filter((c) => c.chargeId !== chargeId))
+    loadEvents()
+  }
 
   // [id] and not [] as the dependency array. Clicking from one load straight
   // to another re-uses this component rather than remounting it, so an effect
@@ -165,6 +192,15 @@ export default function LoadDetail() {
 
       {seesHistory && (
         <>
+          <h2 className="section-title">Accessorials</h2>
+          <LoadCharges
+            charges={charges || []}
+            canAdd={canAddCharge}
+            canRemove={staff}
+            onAdd={handleAddCharge}
+            onRemove={handleRemoveCharge}
+          />
+
           <h2 className="section-title">History</h2>
           <LoadHistory events={events} />
         </>

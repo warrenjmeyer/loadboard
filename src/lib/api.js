@@ -137,3 +137,15 @@ export function patchJson(path, body, options) {
     options
   )
 }
+
+// DELETE is the one method that is honestly not idempotent in effect: a
+// retry of a delete that landed meets a 404, which is an answer, not a
+// failure, and the caller treats it as done. Retrying is still right for the
+// same reason as PATCH -- a first attempt lost to the database waking up
+// leaves the row where it was.
+export function deleteJson(path, options) {
+  return request(path, { method: 'DELETE' }, options).catch((err) => {
+    if (err.status === 404) return null
+    throw err
+  })
+}

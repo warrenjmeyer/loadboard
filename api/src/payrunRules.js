@@ -14,6 +14,7 @@
 // ---------------------------------------------------------------------------
 
 const { linesFor } = require('./deductionRules')
+const { linesFrom } = require('./chargeRules')
 
 const round2 = (n) => Math.round((n + Number.EPSILON) * 100) / 100
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/
@@ -96,6 +97,11 @@ function routeFor(load, driver) {
 //   existing        set of driverCodes that already have a settlement on checkDate
 //   deductions      keyed by driverCode: that driver's standing orders
 //   escrowBalances  keyed by driverCode: { escrowCode: balance on the last statement }
+//   charges         keyed by driverCode: unpaid accessorials on their delivered loads
+//
+// A driver with unpaid charges and no unpaid loads still gets a settlement:
+// a lumper receipt handed in after the load was settled is paid on its own
+// rather than waiting for the next load.
 //
 // A load delivered before the period started but never paid is carried into
 // this run rather than left behind -- that is what a real pay run does with a
@@ -105,25 +111,38 @@ function routeFor(load, driver) {
 // per-mile ones need the total. What comes out is the net: route pay plus the
 // (negative) deduction lines. Nothing here is a reimbursement or a revenue
 // line; those are still entered by hand.
-function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = new Set(), deductions = {}, escrowBalances = {} }) {
+function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = new Set(), deductions = {}, escrowBalances = {}, charges = {} }) {
   const byDriver = new Map()
 
-  for (const load of loads) {
-    const driver = drivers[load.driverCode]
-    if (!driver) continue
-    if (!byDriver.has(load.driverCode)) {
-      byDriver.set(load.driverCode, {
-        driverCode: load.driverCode,
+  const entryFor = (driverCode) => {
+    const driver = drivers[driverCode]
+    if (!driver) return null
+    if (!byDriver.has(driverCode)) {
+      byDriver.set(driverCode, {
+        driverCode,
         name: driver.name,
         driverType: driver.driverType,
         payBasis: driver.payBasis || null,
         payRate: Number(driver.payRate),
-        conflict: existing.has(load.driverCode),
+        conflict: existing.has(driverCode),
         routes: [],
+        charges: [],
         carriedOver: 0,
       })
     }
-    const entry = byDriver.get(load.driverCode)
+    return byDriver.get(driverCode)
+  }
+
+  for (const [driverCode, list] of Object.entries(charges)) {
+    if (!list || !list.length) continue
+    const entry = entryFor(driverCode)
+    if (entry) entry.charges = linesFrom(list)
+  }
+
+  for (const load of loads) {
+    const driver = drivers[load.driverCode]
+    if (!driver) continue
+    const entry = entryFor(load.driverCode)
     const route = routeFor(load, driver)
     route.deliveredDate = load.deliveredDate
     route.carriedOver = load.deliveredDate < periodStart
@@ -138,6 +157,9 @@ function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = ne
     const taken = linesFor(deductions[s.driverCode] || [], {
       totalMiles, escrowBalances: escrowBalances[s.driverCode] || {}, checkDate,
     })
+    const extras = s.charges
+    const revenueTotal = round2(extras.filter((l) => l.type === 'REVENUE').reduce((t, l) => t + l.amount, 0))
+    const reimbursementTotal = round2(extras.filter((l) => l.type === 'REIMBURSEMENT').reduce((t, l) => t + l.amount, 0))
     return {
       ...s,
       routes,
@@ -146,11 +168,16 @@ function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = ne
       emptyMiles: routes.reduce((t, r) => t + r.emptyMiles, 0),
       totalMiles,
       routePay,
-      lines: taken.lines,
+      // Every line the statement will carry, in the order it prints them:
+      // extra pay, money back, then what comes out.
+      lines: [...extras, ...taken.lines],
       escrow: taken.escrow,
       balanceUpdates: taken.balanceUpdates,
+      revenueTotal,
+      reimbursementTotal,
+      extrasTotal: round2(revenueTotal + reimbursementTotal),
       deductionTotal: taken.deductionTotal,
-      net: round2(routePay + taken.deductionTotal),
+      net: round2(routePay + revenueTotal + reimbursementTotal + taken.deductionTotal),
     }
   }).sort((a, b) => a.name.localeCompare(b.name))
 
@@ -164,6 +191,7 @@ function plan(loads, drivers, { periodStart, periodEnd, checkDate, existing = ne
       loads: settlements.reduce((t, s) => t + s.loadCount, 0),
       miles: settlements.reduce((t, s) => t + s.totalMiles, 0),
       pay: round2(settlements.reduce((t, s) => t + s.routePay, 0)),
+      extras: round2(settlements.reduce((t, s) => t + s.extrasTotal, 0)),
       deductions: round2(settlements.reduce((t, s) => t + s.deductionTotal, 0)),
       net: round2(settlements.reduce((t, s) => t + s.net, 0)),
       conflicts: settlements.filter((s) => s.conflict).length,

@@ -387,6 +387,23 @@ const cases = [
   }],
   ['Deductions loading', '/src/pages/Deductions.jsx', {}],
 
+  // Accessorials on a load: one paid, one not, as dispatch sees it (add and
+  // remove), then as the driver sees it (a receipt button, no remove), then
+  // empty for a reader who can do nothing.
+  ['LoadCharges dispatch', '/src/components/LoadCharges.jsx', {
+    charges: [
+      { chargeId: 1, lineType: 'REVENUE', code: 'DETENTION', description: 'DETENTION - 2 HRS', amount: 90, billCustomer: true, billAmount: 150, receiptNote: null, createdBy: 'dispatch@millstream.example', createdUtc: '2026-09-09T14:00:00.000Z', paidOn: { documentNo: 'CK-260911-0003', checkDate: '2026-09-11', driverCode: 'JSMITH' } },
+      { chargeId: 2, lineType: 'REIMBURSEMENT', code: 'LUMPER', description: 'LUMPER', amount: 125, billCustomer: true, billAmount: null, receiptNote: 'Receipt #4471, Jewel DC', createdBy: 'jsmith@example.invalid', createdUtc: '2026-09-09T18:00:00.000Z', paidOn: null },
+    ],
+    canAdd: 'all', canRemove: true, async onAdd() {}, async onRemove() {},
+  }],
+  ['LoadCharges driver', '/src/components/LoadCharges.jsx', {
+    charges: [], canAdd: 'reimbursement', canRemove: false, async onAdd() {}, async onRemove() {},
+  }],
+  ['LoadCharges read-only', '/src/components/LoadCharges.jsx', {
+    charges: [], canAdd: null, canRemove: false, async onAdd() {}, async onRemove() {},
+  }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

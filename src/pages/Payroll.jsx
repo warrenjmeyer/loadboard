@@ -153,8 +153,8 @@ export default function Payroll() {
             </p>
           )}
           <p className="muted hint">
-            Route pay from the loads, less each driver's standing deductions. Reimbursements and one-off
-            revenue lines are not on the load and are not invented here.
+            Route pay from the loads, plus the accessorials entered on them, less each driver's standing
+            deductions. A charge turned in after its load was settled is paid on the next run.
           </p>
         </>
       )}
@@ -167,7 +167,9 @@ export default function Payroll() {
               <li key={c.driverCode}>
                 <Link to={`/settlements/${encodeURIComponent(c.driverCode)}?date=${c.checkDate}`}>{c.documentNo}</Link>
                 {' · '}{c.name}{' · '}{c.loadCount} load{c.loadCount === 1 ? '' : 's'}{' · '}{formatMoney(c.routePay)}
-                {c.deductionTotal ? <> less {formatMoney(-c.deductionTotal)} = <strong>{formatMoney(c.net)}</strong></> : null}
+                {c.extrasTotal ? <> plus {formatMoney(c.extrasTotal)}</> : null}
+                {c.deductionTotal ? <> less {formatMoney(-c.deductionTotal)}</> : null}
+                {(c.extrasTotal || c.deductionTotal) ? <> = <strong>{formatMoney(c.net)}</strong></> : null}
               </li>
             ))}
           </ul>

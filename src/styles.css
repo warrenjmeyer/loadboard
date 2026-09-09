@@ -806,3 +806,11 @@ button:disabled { cursor: default; opacity: .6; }
 .deductions td { vertical-align: top; }
 .payrun-line td { color: var(--muted); }
 .payrun-line td:first-child { padding-left: 12px; }
+
+
+/* --------------------------------------------------------------------------
+   Accessorials
+   -------------------------------------------------------------------------- */
+
+.charges tfoot td { font-weight: 600; border-top: 2px solid var(--line); }
+.charges .add-form { margin-top: 12px; }

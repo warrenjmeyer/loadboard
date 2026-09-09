@@ -32,6 +32,7 @@ function captureHandlers() {
     require('../src/functions/customers')
     require('../src/functions/payrun')
     require('../src/functions/deductions')
+    require('../src/functions/charges')
   } finally {
     app.http = realHttp
   }
@@ -519,6 +520,65 @@ async function main() {
   assert.strictEqual(loanAfter.active, false)
   ok('the loan is paid off and switched itself off')
 
+  // --- accessorials -----------------------------------------------------------
+  // Load A is Delivered and already paid (the deductions run above). Charges
+  // added now are stragglers: the next run pays them on their own.
+  const chargesReq = (cookie, method = 'GET', body = null) => req({ cookie, method, body, params: { id: TEST_LOAD_ID + 'A' } })
+  r = await handlers.loadCharges(chargesReq(null), ctx)
+  assert.strictEqual(r.status, 401)
+  r = await handlers.loadCharges(chargesReq(people.driver.cookie, 'POST', { code: 'DETENTION', amount: 90 }), ctx)
+  assert.strictEqual(r.status, 403, 'a driver may not pay themselves detention')
+  r = await handlers.loadCharges(chargesReq(people.driver.cookie, 'POST', { code: 'TOLLS', amount: 12.5, receiptNote: 'authz toll' }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.lineType, 'REIMBURSEMENT')
+  assert.strictEqual(r.jsonBody.paidOn, null)
+  const tollId = r.jsonBody.chargeId
+  r = await handlers.loadCharges(chargesReq(people.dispatcher.cookie, 'POST', { code: 'DETENTION', description: 'Detention - 2 hrs', amount: 90, billCustomer: true, billAmount: 150 }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.description, 'DETENTION - 2 HRS')
+  assert.strictEqual(r.jsonBody.billAmount, 150)
+  ok('the driver turns in a toll receipt; dispatch adds detention billed at a different amount')
+
+  r = await handlers.loadCharges(chargesReq(people.driver.cookie), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.strictEqual(r.jsonBody.length, 2)
+  ok('both charges list on the load')
+
+  const PERIOD3 = { periodStart: '2031-01-19', periodEnd: '2031-01-25', checkDate: '2031-01-31' }
+  const payrunReq3 = (cookie, method = 'GET', body = null) => {
+    const q = new URLSearchParams(PERIOD3)
+    const base = req({ cookie, method, body })
+    base.query = { get: (k) => q.get(k) }
+    return base
+  }
+  r = await handlers.payrun(payrunReq3(people.admin.cookie), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  const mine3 = r.jsonBody.settlements.find((s) => s.driverCode === MINE)
+  assert.ok(mine3, 'a driver with only stragglers must still be in the run')
+  assert.strictEqual(mine3.loadCount, 0)
+  assert.strictEqual(mine3.routePay, 0)
+  assert.strictEqual(mine3.extrasTotal, 102.5)
+  assert.ok(mine3.lines.some((l) => l.code === 'TOLLS' && l.amount === 12.5 && l.orderNo === TEST_LOAD_ID + 'A'))
+  ok(`the preview pays the stragglers on their own: extras ${mine3.extrasTotal}, net ${mine3.net}`)
+
+  r = await handlers.payrun(payrunReq3(people.admin.cookie, 'POST', { ...PERIOD3, driverCodes: [MINE] }), ctx)
+  assert.strictEqual(r.status, 201, JSON.stringify(r.jsonBody))
+  const doc3 = r.jsonBody.created[0].documentNo
+
+  r = await handlers.loadCharges(chargesReq(people.driver.cookie), ctx)
+  assert.ok(r.jsonBody.every((c) => c.paidOn && c.paidOn.documentNo === doc3), JSON.stringify(r.jsonBody))
+  ok(`both charges now say paid on ${doc3}`)
+
+  r = await handlers.charge(req({ cookie: people.dispatcher.cookie, method: 'DELETE', params: { chargeId: String(tollId) } }), ctx)
+  assert.strictEqual(r.status, 409, 'a paid charge must not be removable')
+  ok('a paid charge cannot be removed')
+
+  r = await handlers.settlementDetail(req({ cookie: people.driver.cookie, params: { driverCode: MINE, checkDate: PERIOD3.checkDate } }), ctx)
+  assert.strictEqual(r.status, undefined, JSON.stringify(r.jsonBody))
+  assert.ok(r.jsonBody.reimbursements.some((l) => l.code === 'TOLLS' && l.orderNo === TEST_LOAD_ID + 'A'), JSON.stringify(r.jsonBody.reimbursements))
+  assert.ok(r.jsonBody.revenue.some((l) => l.code === 'DETENTION'), JSON.stringify(r.jsonBody.revenue))
+  ok('the statement shows the toll as a reimbursement on the load and the detention as revenue')
+
   // --- a revoked session loses everything immediately ---------------------
   await store.revokeSession(people.dispatcher.cookie.split('=')[1], 'Logout', IP)
   r = await handlers.settlementBoard(req({ cookie: people.dispatcher.cookie }), ctx)
@@ -532,7 +592,7 @@ async function cleanup() {
 
   // A generated settlement points at the test load (FK_Routes_load, NO ACTION),
   // so it goes first; its routes cascade.
-  await pool.request().query("DELETE s FROM dbo.Settlements AS s WHERE EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.settlement_id = s.settlement_id AND r.load_id LIKE 'ZZ-%');")
+  await pool.request().query("DELETE s FROM dbo.Settlements AS s WHERE EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.settlement_id = s.settlement_id AND r.load_id LIKE 'ZZ-%') OR EXISTS (SELECT 1 FROM dbo.SettlementLines AS l WHERE l.settlement_id = s.settlement_id AND l.order_no LIKE 'ZZ-%');")
   await pool.request().input('id', sql.VarChar(20), TEST_LOAD_ID)
     .query("DELETE FROM dbo.Loads WHERE id = @id OR id = @id + 'A'; DELETE FROM dbo.Trucks WHERE unit_no LIKE 'ZZ-%'; DELETE FROM dbo.DriverDeductions WHERE code LIKE 'ZZ%'; DELETE FROM dbo.Customers WHERE name LIKE 'ZZ Authz Customer %';")
 

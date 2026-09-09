@@ -66,6 +66,17 @@ async function gather(req, { periodEnd, checkDate }) {
              balance, start_date, end_date, active
       FROM dbo.DriverDeductions WHERE active = 1;
 
+      -- Unpaid accessorials on delivered loads up to the period's end. The
+      -- driver is the load's driver; a charge on a load nobody ran waits.
+      SELECT c.charge_id, c.load_id, c.line_type, c.code, c.description, c.amount, l.driver_code
+      FROM dbo.LoadCharges AS c
+      JOIN dbo.Loads AS l ON l.id = c.load_id
+      WHERE c.settlement_line_id IS NULL
+        AND l.status = N'Delivered'
+        AND l.driver_code IS NOT NULL
+        AND l.delivered_date <= CAST(@periodEnd AS DATE)
+      ORDER BY l.driver_code, c.load_id, c.charge_id;
+
       -- Each driver's latest balance per escrow account: the statement that
       -- most recently moved it, whichever check date that was.
       SELECT x.driver_code, x.escrow_code, x.current_balance
@@ -101,11 +112,18 @@ async function gather(req, { periodEnd, checkDate }) {
       startDate: isoDate(d.start_date), endDate: isoDate(d.end_date), active: Boolean(d.active),
     })
   }
+  const charges = {}
+  for (const c of result.recordsets[4]) {
+    ;(charges[c.driver_code] ||= []).push({
+      chargeId: c.charge_id, loadId: c.load_id, lineType: c.line_type, code: c.code,
+      description: c.description, amount: Number(c.amount),
+    })
+  }
   const escrowBalances = {}
-  for (const e of result.recordsets[4]) {
+  for (const e of result.recordsets[5]) {
     ;(escrowBalances[e.driver_code] ||= {})[e.escrow_code] = Number(e.current_balance)
   }
-  return { loads, drivers, existing, deductions, escrowBalances }
+  return { loads, drivers, existing, deductions, escrowBalances, charges }
 }
 
 function periodFrom(source) {
@@ -232,16 +250,28 @@ async function run(request, context) {
       // The standing deductions: a line each, an escrow row for the
       // contributions, and the loan balances moved on. All from the plan the
       // preview showed; nothing is recomputed here.
+      // Every line: the accessorials (with the load they belong to, and the
+      // charge marked paid by pointing it at the line) and the standing
+      // deductions.
       for (const l of s.lines) {
-        await new sql.Request(tx)
+        const inserted = await new sql.Request(tx)
           .input('sid', sql.Int, settlementId)
+          .input('type', sql.VarChar(15), l.type || 'DEDUCTION')
+          .input('orderNo', sql.VarChar(20), l.orderNo || null)
           .input('code', sql.VarChar(20), l.code)
           .input('description', sql.NVarChar(120), l.description)
           .input('amount', sql.Decimal(12, 2), l.amount)
           .query(`
             INSERT INTO dbo.SettlementLines (settlement_id, line_type, order_no, code, description, advance_reference, amount)
-            VALUES (@sid, 'DEDUCTION', NULL, @code, @description, NULL, @amount);
+            OUTPUT inserted.line_id
+            VALUES (@sid, @type, @orderNo, @code, @description, NULL, @amount);
           `)
+        if (l.chargeId) {
+          await new sql.Request(tx)
+            .input('c', sql.Int, l.chargeId)
+            .input('line', sql.Int, inserted.recordset[0].line_id)
+            .query('UPDATE dbo.LoadCharges SET settlement_line_id = @line WHERE charge_id = @c AND settlement_line_id IS NULL;')
+        }
       }
       for (const e of s.escrow) {
         await new sql.Request(tx)
@@ -275,7 +305,7 @@ async function run(request, context) {
         driverCode: s.driverCode, name: s.name, driverType: s.driverType,
         checkDate: period.checkDate, documentNo: docNo,
         loadCount: s.loadCount, totalMiles: s.totalMiles, routePay: s.routePay,
-        deductionTotal: s.deductionTotal, net: s.net,
+        extrasTotal: s.extrasTotal, deductionTotal: s.deductionTotal, net: s.net,
       })
     }
 

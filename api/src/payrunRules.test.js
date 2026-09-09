@@ -75,7 +75,7 @@ test('a plan groups loads by driver, carries stragglers, and flags conflicts', (
   assert.equal(smith.totalMiles, 404)
   assert.equal(okonkwo.conflict, true)
   assert.equal(okonkwo.routePay, 680)
-  assert.deepEqual(p.totals, { drivers: 2, loads: 3, miles: 606, pay: 930.48, deductions: 0, net: 930.48, conflicts: 1 })
+  assert.deepEqual(p.totals, { drivers: 2, loads: 3, miles: 606, pay: 930.48, extras: 0, deductions: 0, net: 930.48, conflicts: 1 })
 })
 
 test('document numbers keep the CK-YYMMDD-NNNN shape', () => {
@@ -111,4 +111,29 @@ test('a driver with no standing orders nets their route pay', () => {
   const p = rules.plan([load()], { JSMITH: company }, { periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11' })
   assert.equal(p.settlements[0].net, p.settlements[0].routePay)
   assert.deepEqual(p.settlements[0].lines, [])
+})
+
+test('accessorials on a paid load become lines, and a driver with only stragglers still gets a settlement', () => {
+  const drivers = { JSMITH: company, SOAKS: { ...company, name: 'Sherman Oaks', unitNo: 'Demo - 10' } }
+  const loads = [load({ id: 'L-2', driverCode: 'JSMITH', deliveredDate: '2026-09-03' })]
+  const charges = {
+    JSMITH: [{ chargeId: 1, loadId: 'L-2', lineType: 'REVENUE', code: 'DETENTION', description: 'DETENTION - 2 HRS', amount: 90 }],
+    SOAKS: [{ chargeId: 2, loadId: 'L-OLD', lineType: 'REIMBURSEMENT', code: 'LUMPER', description: 'LUMPER', amount: 125 }],
+  }
+  const p = rules.plan(loads, drivers, { periodStart: '2026-08-30', periodEnd: '2026-09-05', checkDate: '2026-09-11', charges })
+  const smith = p.settlements.find((s) => s.driverCode === 'JSMITH')
+  const oaks = p.settlements.find((s) => s.driverCode === 'SOAKS')
+
+  assert.equal(smith.routePay, 125.24)
+  assert.equal(smith.revenueTotal, 90)
+  assert.equal(smith.extrasTotal, 90)
+  assert.equal(smith.net, 215.24)
+  assert.deepEqual(smith.lines[0], { type: 'REVENUE', orderNo: 'L-2', code: 'DETENTION', description: 'DETENTION - 2 HRS', amount: 90, chargeId: 1 })
+
+  assert.equal(oaks.loadCount, 0)
+  assert.equal(oaks.routePay, 0)
+  assert.equal(oaks.reimbursementTotal, 125)
+  assert.equal(oaks.net, 125)
+  assert.equal(p.totals.extras, 215)
+  assert.equal(p.totals.net, 340.24)
 })

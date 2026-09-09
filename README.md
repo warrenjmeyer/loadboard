@@ -465,6 +465,41 @@ because that is where the money comes from.
 Still by hand: reimbursements (tolls, lumpers) and one-off revenue (fuel
 surcharge, detention). Those belong on the load, and that is the next piece.
 
+### Accessorials on the load
+
+`charges_01_ddl.sql` adds `dbo.LoadCharges`: the money on a load that is
+not the rate. Two kinds, matching `SettlementLines.line_type`:
+
+- **REVENUE** -- extra pay to the driver: detention, layover, stop-off pay,
+  fuel surcharge
+- **REIMBURSEMENT** -- the driver's own money coming back: tolls, lumper,
+  scale, wash-out
+
+Whether the customer is billed, and for how much, is its own pair of columns
+because the two often differ. A charge is *paid* when `settlement_line_id`
+points at the line that paid it; the pay run sets it, and deleting a
+settlement clears it, so an undone statement makes its charges payable
+again by themselves.
+
+**Who enters them.** Dispatch enters anything, on the load's page. The
+driver on the load can turn in a reimbursement -- they are the one holding
+the receipt -- and nothing that pays them more; `chargeRules.canAdd` is the
+rule, enforced on the server. A paid charge cannot be removed; a correction
+is a new charge.
+
+**The pay run** picks up every unpaid charge on a delivered load and puts it
+on the driver's statement with the load's number, before the standing
+deductions. A charge turned in after its load was settled is a straggler
+and goes out on the next run, on its own if the driver has no other load
+that week. The preview shows an Extras column between route pay and
+deductions.
+
+Routes: `GET`/`POST /api/loads/{id}/charges`, `DELETE /api/charges/{id}`.
+
+What this closes: the last hand-typed part of a statement. Route pay comes
+from the loads, extras from the charges on them, and deductions from the
+standing orders; nothing on a generated statement is invented.
+
 ## The driver settlement
 
 `?id=JSMITH` opens a company driver's pay statement; the load board is what you
