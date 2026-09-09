@@ -150,7 +150,8 @@ ON target.unit_no = source.unit_no
 WHEN NOT MATCHED THEN
     INSERT (unit_no, description, model_year, make, model, plate, plate_state, status, owner_type, owner_driver_code, registration_expires, inspection_due)
     VALUES (source.unit_no, source.description, source.model_year, source.make, source.model, source.plate, source.plate_state, source.status, source.owner_type, source.owner_driver_code, source.registration_expires, source.inspection_due);
-PRINT 'Trucks seeded: ' + CAST((SELECT COUNT(*) FROM dbo.Trucks) AS varchar(10));
+DECLARE @trucks INT = (SELECT COUNT(*) FROM dbo.Trucks);
+PRINT 'Trucks seeded: ' + CAST(@trucks AS varchar(10));
 GO
 
 ------------------------------------------------------------------------------
@@ -195,7 +196,8 @@ ON target.trailer_no = source.trailer_no
 WHEN NOT MATCHED THEN
     INSERT (trailer_no, trailer_type, description, plate, plate_state, status, registration_expires, inspection_due)
     VALUES (source.trailer_no, source.trailer_type, source.description, source.plate, source.plate_state, source.status, source.registration_expires, source.inspection_due);
-PRINT 'Trailers seeded: ' + CAST((SELECT COUNT(*) FROM dbo.Trailers) AS varchar(10));
+DECLARE @trailers INT = (SELECT COUNT(*) FROM dbo.Trailers);
+PRINT 'Trailers seeded: ' + CAST(@trailers AS varchar(10));
 GO
 
 ------------------------------------------------------------------------------
