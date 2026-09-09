@@ -94,7 +94,7 @@ const FIELDS = {
 const PUBLIC_FIELDS = new Set([
   'id', 'origin', 'destination', 'miles', 'rate', 'equipment', 'status',
   'pickupStart', 'pickupEnd', 'deliveryStart', 'deliveryEnd',
-  'commodity', 'weightLbs', 'pieces', 'hazmat', 'tempF',
+  'commodity', 'weightLbs', 'pieces', 'hazmat', 'tempF', 'stopCount',
 ])
 
 // Statuses an anonymous visitor may see loads in. Delivered and Cancelled are

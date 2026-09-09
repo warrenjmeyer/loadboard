@@ -152,6 +152,20 @@ export function patchJson(path, body, options) {
   )
 }
 
+// PUT replaces a whole resource -- a load's itinerary -- and is idempotent
+// by definition: sending the same list twice leaves the same list.
+export function putJson(path, body, options) {
+  return request(
+    path,
+    {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    },
+    options
+  )
+}
+
 // DELETE is the one method that is honestly not idempotent in effect: a
 // retry of a delete that landed meets a 404, which is an answer, not a
 // failure, and the caller treats it as done. Retrying is still right for the
