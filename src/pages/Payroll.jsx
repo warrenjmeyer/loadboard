@@ -143,11 +143,15 @@ export default function Payroll() {
             Untick a driver to leave them for the next run.
           </p>
           <PayrunPreview plan={plan} selected={selected} onToggle={toggle} />
-          <p className="actions">
-            <button type="button" className="primary" onClick={handleGenerate} disabled={busy || selected.size === 0}>
-              {busy ? 'Generating...' : `Generate ${selected.size} settlement${selected.size === 1 ? '' : 's'} · ${formatMoney(chosenPay)}`}
-            </button>
-          </p>
+          {/* No button when there is nothing to press it for. A disabled
+              "Generate 0 settlements" reads as something being wrong. */}
+          {plan.settlements.length > 0 && (
+            <p className="actions">
+              <button type="button" className="primary" onClick={handleGenerate} disabled={busy || selected.size === 0}>
+                {busy ? 'Generating...' : `Generate ${selected.size} settlement${selected.size === 1 ? '' : 's'} · ${formatMoney(chosenPay)}`}
+              </button>
+            </p>
+          )}
           <p className="muted hint">
             Route pay from the loads, less each driver's standing deductions. Reimbursements and one-off
             revenue lines are not on the load and are not invented here.
