@@ -350,8 +350,79 @@ if a hand-entered unit number exists that is not, the ALTER for that key will
 fail and name it.
 
 **Not here yet.** Maintenance records and PM schedules (the dates are the
-minimum that keeps a truck legal), odometer and fuel, and anything read live
-from Geotab.
+minimum that keeps a truck legal), odometer and fuel.
+
+## Live from GeoTab: positions and hours of service
+
+Everything above this point is what the app knows because somebody typed it.
+This is the first thing it knows because a truck said so. The API signs in to
+MyGeotab with a service credential and reads back where every truck is, who
+is in the seat, and how many hours each driver has left; the pages show it
+and poll it once a minute while they are open. **Reads only.** Nothing is
+written to Geotab and nothing read from it is stored -- Geotab stays the
+system of record for where a truck is, this app for what it is hauling.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/telematics/positions` | any real role | every truck: lat/long, mph and heading, moving or stopped, who is in it, how old the report is |
+| `GET /api/telematics/positions?unit=Demo - 05` | same | one truck |
+| `GET /api/telematics/hours` | dispatcher, admin | every driver's current duty status and drive / shift / cycle clocks, tightest first |
+| `GET /api/telematics/hours?driver=DFOSTER` | dispatch, or that driver | one driver's |
+
+**Where it shows.** `/fleet` gains "Where the trucks are" for anyone with a
+role and "Hours of service" for dispatch. A load's page gains "Truck now"
+while the load is Covered or In Transit: the truck's position, and the
+driver's clocks for dispatch and for the driver themselves. `/my-loads`
+shows the driver their own clocks at the top. Each position links out to
+the GeoTab live map (that one vehicle selected) and to a plain map.
+
+**How the two systems agree.** By name, both ways, the same as the route link:
+
+    truck    dbo.Trucks.unit_no          ==  Geotab Device.name    "Demo - 05"
+    driver   Drivers first + last name   ==  Geotab User first + last name
+
+Rename either side and that pairing goes quiet -- but not silent. A truck
+with no device of that name is listed as "not in GeoTab"; a driver with no
+user of that name gets a row of dashes and is named in a line under the
+table. Who is in the seat comes from Geotab's DriverChange record, which is
+what the Drive app writes, and it can disagree with the regular driver on
+the roster; when it does the seat wins and the row is marked *swap*.
+
+**Connecting it.** Three application settings on the Function App:
+`GEOTAB_DATABASE` (`demo_millstream`), `GEOTAB_USER` and `GEOTAB_PASSWORD`.
+`set-geotab-secrets.ps1` sets them, the same way `set-api-secrets.ps1` sets
+the SQL ones, and takes effect on the next request with no redeploy. The
+MyGeotab password is its own credential -- not the Azure one, even though
+the email is the same. Until the settings exist every telematics route
+answers `503 { configured: false }` and the pages say "GeoTab is not
+connected" in a line instead of showing the sections. Nothing else is
+affected, so the app runs fine without a Geotab account.
+
+**What Geotab is asked.** `api/src/geotab.js` is the client: JSON-RPC to
+`/apiv1`, the session cached across requests, one re-authenticate on
+`InvalidUserException`, and the `path` from Authenticate honoured (the
+federation may hand you a database on a different server, and ignoring
+that is the classic way a client authenticates and then fails on everything
+after). Positions are one `ExecuteMultiCall` of `Device` +
+`DeviceStatusInfo`; hours are one multicall of `DutyStatusAvailability` and
+36 hours of `DutyStatusLog` per matched driver, with `includeBoundaryLogs`
+so a driver who went off duty two days ago still has a status. Answers are
+remembered for twenty seconds so five open fleet pages cost one round trip.
+`api/src/telematicsRules.js` does every translation -- .NET `TimeSpan`
+strings to seconds, km/h to mph, the name joins, the current status from
+the log -- and is tested against literal Geotab payloads.
+
+**What to expect from the demo database.** `Demo - 01..20` are Geotab's own
+demo devices and report simulated trips; `Demo - 21..24` were added as
+untracked assets and will show "never" reported, because there is no device
+behind them. HOS clocks appear only for drivers who have duty status logs,
+which on a demo database may be none of them -- the row says "no HOS logs in
+GeoTab" rather than inventing eleven hours.
+
+**Not here.** Reverse geocoding (a lat/long is shown, not a town), ETA
+against the delivery window, exceptions and speeding events, and anything
+that would write to Geotab -- a dispatched load does not become a Geotab
+route or a zone visit. Those are the next reads and the first write.
 
 ## Customers
 
@@ -827,6 +898,16 @@ geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
+set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
+api/src/geotab.js       the MyGeotab client the API uses (session, path, retry)
+api/src/telematicsRules.js        Geotab payloads -> rows: name joins, TimeSpans, mph
+api/src/functions/telematics.js   GET /api/telematics/positions and /hours
+src/lib/hos.js          clocks, ages, compass points and the two map links
+src/lib/useTelematics.js          the polling hook the three pages share
+src/components/fleet/PositionTable.jsx   where every truck is
+src/components/HoursTable.jsx     every driver's clocks, tightest first
+src/components/HoursClocks.jsx    one driver's clocks, large
+src/components/TruckNow.jsx       the truck on a load, right now
 src/pages/Settlement.jsx          the statement shell — the router worked example
 src/components/settlement/        both statements, and the blocks they share
 src/lib/api.js          fetchJson / postJson / fetchUser — and the cold-start retry

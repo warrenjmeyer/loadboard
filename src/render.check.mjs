@@ -404,6 +404,62 @@ const cases = [
     charges: [], canAdd: null, canRemove: false, async onAdd() {}, async onRemove() {},
   }],
 
+  // Live from GeoTab: positions in every state a row can be in (fresh and
+  // moving, stale and stopped, a swapped driver, never reported, no device),
+  // the hours roster with a clock over and a driver Geotab does not know,
+  // and the one-driver clocks on the load page and the driver's page.
+  ['PositionTable', '/src/components/fleet/PositionTable.jsx', {
+    database: 'demo_millstream',
+    trucks: [
+      { unitNo: 'Demo - 01', status: 'Active', regularDriver: { driverCode: 'HBARNETT', name: 'Hollis Barnett' }, currentLoad: { id: 'L-10413', status: 'In Transit', destination: 'Kansas City, MO' },
+        geotabDeviceId: 'b1', reported: true, dateTime: '2026-09-09T14:55:00.000Z', ageMinutes: 5, latitude: 41.58681, longitude: -93.62499, speedMph: 65, bearing: 272, isDriving: true, communicating: true,
+        driver: { driverCode: 'HBARNETT', name: 'Hollis Barnett' } },
+      { unitNo: 'Demo - 05', status: 'Active', regularDriver: { driverCode: 'DFOSTER', name: 'Dale Foster' }, currentLoad: null,
+        geotabDeviceId: 'b5', reported: true, dateTime: '2026-09-08T09:00:00.000Z', ageMinutes: 1800, latitude: 42.5, longitude: -90.66, speedMph: 0, bearing: null, isDriving: false, communicating: false,
+        driver: { driverCode: 'TBOONE', name: 'Terrell Boone' } },
+      { unitNo: 'Demo - 07', status: 'Active', regularDriver: { driverCode: 'LHARTMAN', name: 'Lena Hartman' }, currentLoad: null,
+        geotabDeviceId: 'b7', reported: false, dateTime: null, ageMinutes: null, latitude: null, longitude: null, speedMph: null, bearing: null, isDriving: false, communicating: false, driver: null },
+      { unitNo: 'Demo - 30', status: 'Shop', regularDriver: null, currentLoad: null,
+        geotabDeviceId: null, reported: false, dateTime: null, ageMinutes: null, latitude: null, longitude: null, speedMph: null, bearing: null, isDriving: false, communicating: false, driver: null },
+    ],
+  }],
+  ['PositionTable empty', '/src/components/fleet/PositionTable.jsx', { trucks: [] }],
+  ['HoursTable', '/src/components/HoursTable.jsx', {
+    drivers: [
+      { driverCode: 'DFOSTER', name: 'Dale Foster', driverType: 'COMPANY', unitNo: 'Demo - 05', matched: true, status: 'D', statusLabel: 'Driving', statusGroup: 'D', statusSince: '2026-09-09T13:00:00.000Z', statusMinutes: 120,
+        hasAvailability: true, driving: -600, duty: 3600, workday: 7200, cycle: 183600, rest: 0, cycleRest: 122400, exemptions: { sixteenHour: false, adverseDriving: true, offDutyDeferral: false } },
+      { driverCode: 'HBARNETT', name: 'Hollis Barnett', driverType: 'COMPANY', unitNo: 'Demo - 01', matched: true, status: 'OFF', statusLabel: 'Off duty', statusGroup: 'OFF', statusSince: '2026-09-09T04:00:00.000Z', statusMinutes: 660,
+        hasAvailability: true, driving: 39600, duty: 50400, workday: 50400, cycle: 200000, rest: 28800, cycleRest: 0, exemptions: { sixteenHour: true, adverseDriving: false, offDutyDeferral: false } },
+      { driverCode: 'JSMITH', name: 'James Smith', driverType: 'COMPANY', unitNo: 'Demo - 02', matched: true, status: null, statusLabel: null, statusGroup: null, statusSince: null, statusMinutes: null,
+        hasAvailability: false, driving: null, duty: null, workday: null, cycle: null, rest: null, cycleRest: null, exemptions: { sixteenHour: false, adverseDriving: false, offDutyDeferral: false } },
+      { driverCode: 'NOBODY', name: 'No Match', driverType: 'OWNER', unitNo: null, matched: false, status: null, statusLabel: null, statusGroup: null, statusSince: null, statusMinutes: null,
+        hasAvailability: false, driving: null, duty: null, workday: null, cycle: null, rest: null, cycleRest: null, exemptions: { sixteenHour: false, adverseDriving: false, offDutyDeferral: false } },
+    ],
+  }],
+  ['HoursTable empty', '/src/components/HoursTable.jsx', { drivers: [] }],
+  ['HoursClocks', '/src/components/HoursClocks.jsx', {
+    hours: { driverCode: 'DFOSTER', name: 'Dale Foster', matched: true, status: 'ON', statusLabel: 'On duty', statusGroup: 'ON', statusMinutes: 35,
+      hasAvailability: true, driving: 29700, duty: 5400, workday: 39600, cycle: 183600, rest: 1800, cycleRest: 122400, exemptions: { sixteenHour: true, adverseDriving: false, offDutyDeferral: false } },
+  }],
+  ['HoursClocks unmatched', '/src/components/HoursClocks.jsx', {
+    hours: { driverCode: 'NOBODY', name: 'No Match', matched: false, status: null, hasAvailability: false, exemptions: {} },
+  }],
+  ['HoursClocks no logs', '/src/components/HoursClocks.jsx', {
+    hours: { driverCode: 'JSMITH', name: 'James Smith', matched: true, status: null, hasAvailability: false, exemptions: {} },
+  }],
+  ['TruckNow moving', '/src/components/TruckNow.jsx', {
+    database: 'demo_millstream',
+    position: { unitNo: 'Demo - 01', geotabDeviceId: 'b1', reported: true, ageMinutes: 5, latitude: 41.58681, longitude: -93.62499, speedMph: 65, bearing: 272, isDriving: true, communicating: true, driver: { driverCode: 'HBARNETT', name: 'Hollis Barnett' } },
+    hours: { driverCode: 'HBARNETT', name: 'Hollis Barnett', matched: true, status: 'D', statusLabel: 'Driving', statusGroup: 'D', statusMinutes: 120, hasAvailability: true, driving: 29700, duty: 38400, cycle: 183600, rest: 0, exemptions: {} },
+  }],
+  ['TruckNow stale, no hours', '/src/components/TruckNow.jsx', {
+    position: { unitNo: 'Demo - 05', geotabDeviceId: 'b5', reported: true, ageMinutes: 1800, latitude: 42.5, longitude: -90.66, speedMph: 0, bearing: null, isDriving: false, communicating: false, driver: null },
+    hours: null,
+  }],
+  ['TruckNow not connected', '/src/components/TruckNow.jsx', { position: null, hours: null, notConnected: true }],
+  ['TruckNow error', '/src/components/TruckNow.jsx', { position: null, hours: null, error: 'Incorrect login credentials' }],
+  ['TruckNow asking', '/src/components/TruckNow.jsx', { position: null, hours: null }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],

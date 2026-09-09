@@ -35,21 +35,24 @@ function fatal(message, status, extra) {
   return Object.assign(err, extra)
 }
 
-// A failed response may carry {"error": "..."} from our own function, or it
-// may be a platform page -- Static Web Apps answers an unauthorised POST with
-// HTML, not JSON. Try for the useful message, fall back to the given one.
-async function messageFrom(res, fallback) {
+// The JSON body of a failed response, or null when it has none -- a platform
+// page, say: Static Web Apps answers an unauthorised POST with HTML, not JSON.
+async function jsonBody(res) {
   try {
     const type = res.headers.get('content-type') || ''
-    if (type.includes('application/json')) {
-      const body = await res.json()
-      if (body && body.error) return body.error
-    }
+    if (type.includes('application/json')) return await res.json()
   } catch {
     // Ignore: an unreadable error body is not more interesting than the
     // status code we already have.
   }
-  return fallback
+  return null
+}
+
+// A failed response may carry {"error": "..."} from our own function. Try
+// for the useful message, fall back to the given one.
+async function messageFrom(res, fallback) {
+  const body = await jsonBody(res)
+  return body && body.error ? body.error : fallback
 }
 
 async function request(path, init, { onWaking } = {}) {
@@ -70,9 +73,20 @@ async function request(path, init, { onWaking } = {}) {
         throw fatal(await messageFrom(res, DEFAULT_MESSAGE[res.status] || 'That request was refused.'), res.status, extra)
       }
 
-      // 5xx falls through to the retry. The server message is carried on the
-      // error anyway, so if the retries run out the caller still gets the
-      // useful sentence rather than "HTTP 503".
+      // A 503 that carries our own {"configured": false} is an answer, not an
+      // outage: the server is up and saying a feature has not been set up.
+      // Retrying cannot set it up, and three waits followed by a red "could
+      // not read" turns what should be one quiet line into an alarm. It is
+      // fatal with its status so the caller can tell it from a real failure.
+      if (res.status === 503) {
+        const body = await jsonBody(res)
+        if (body && body.configured === false) throw fatal(body.error || 'Not configured.', 503)
+        throw new Error((body && body.error) || `HTTP ${res.status}`)
+      }
+
+      // Any other 5xx falls through to the retry. The server message is
+      // carried on the error anyway, so if the retries run out the caller
+      // still gets the useful sentence rather than "HTTP 502".
       if (!res.ok) throw new Error(await messageFrom(res, `HTTP ${res.status}`))
 
       // 204 has no body to parse. Nothing returns one today; this is here so

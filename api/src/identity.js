@@ -130,6 +130,9 @@ const CAN = {
   runPayroll: new Set(['admin']),
   approveUsers: new Set(['admin']),
   viewAllSettlements: new Set(['dispatcher', 'admin']),
+  // Every driver's hours-of-service clocks at once. One driver's own hours
+  // are not a role permission but a relationship, and canViewDriver decides.
+  viewAllHours: new Set(['dispatcher', 'admin']),
 }
 
 function can(user, action) {
