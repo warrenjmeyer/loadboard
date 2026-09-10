@@ -579,11 +579,32 @@ strings to seconds, km/h to mph, the name joins, the current status from
 the log -- and is tested against literal Geotab payloads.
 
 **What to expect from the demo database.** `Demo - 01..20` are Geotab's own
-demo devices and report simulated trips; `Demo - 21..24` were added as
+demo devices and report simulated trips (around Las Vegas, where Geotab's
+stock demo drives, not on the Midwest lanes); `Demo - 21..24` were added as
 untracked assets and will show "never" reported, because there is no device
 behind them. HOS clocks appear only for drivers who have duty status logs,
-which on a demo database may be none of them -- the row says "no HOS logs in
-GeoTab" rather than inventing eleven hours.
+and nobody has ever signed in to the Drive app as one of these drivers, so
+out of the box the row says "no HOS logs in GeoTab" rather than inventing
+eleven hours.
+
+**Seeding the hours.** `geotab-add-hos.ps1` writes the logs the Drive app
+would have written: eight days of realistic duty cycles per driver --
+off overnight, pre-trip, a driving block, the 30-minute break, a second
+block, post-trip -- ending today in a different state for each so the
+roster has somebody driving, somebody on a break, somebody off, and two
+drivers close to the 70-hour cycle. Start times and block lengths come
+from the driver's position in the roster, so `-Clear` and a re-run
+reproduce the same roster. It sets a driver's HOS rule set first if they
+have none, because availability is only computed against a rule set.
+
+    .\geotab-add-hos.ps1 -Database demo_millstream -WhatIf
+    .\geotab-add-hos.ps1 -Database demo_millstream
+    .\geotab-add-hos.ps1 -Database demo_millstream -ListLogs
+
+This is the project's first write to Geotab that is not setup: duty logs
+are a compliance record, and on a real fleet writing them would be
+falsifying one. The script refuses any database whose name does not
+contain "demo".
 
 **Not here.** Reverse geocoding (a lat/long is shown, not a town), ETA
 against the delivery window, exceptions and speeding events, and anything
@@ -1063,6 +1084,7 @@ geotab-add-vehicles.ps1 adds vehicles -- BLOCKED: Geotab must issue the serials
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
+geotab-add-hos.ps1      seeds eight days of duty status logs so the HOS clocks have numbers (demo only)
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
 documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
