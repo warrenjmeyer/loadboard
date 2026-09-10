@@ -54,6 +54,23 @@ param(
 
     [switch]$ListGroups,
 
+    # Make one new user shaped like an existing one -- the same groups, the
+    # same security clearance, the same time zone and units -- with a new
+    # name and address, and exit. What "a user like me" means in Geotab is
+    # those things; everything else on a user is preference or history.
+    #
+    #   .\geotab-add-drivers.ps1 -CloneUser -NewEmail jo@example.com -NewFirstName Jo -NewLastName Pace
+    #   .\geotab-add-drivers.ps1 -CloneUser -CloneFrom someone@else.com -NewEmail ... -WhatIf
+    #
+    # The database is in IAM mode: a user whose name is an email address sets
+    # their own password from the invitation Geotab sends, so none is set
+    # here. The new user is NOT a driver, whatever the template is.
+    [switch]$CloneUser,
+    [string]$CloneFrom,        # defaults to -UserName, i.e. yourself
+    [string]$NewEmail,
+    [string]$NewFirstName,
+    [string]$NewLastName,
+
     # Apply -HosRuleSet to every existing driver and exit, creating nobody.
     [switch]$ApplyHosRuleSetToAll,
 
@@ -101,6 +118,81 @@ $existing = Invoke-Geotab -ApiServer $apiServer -Method 'Get' -Params @{
 $existingNames = @{}
 foreach ($u in $existing) { $existingNames[$u.name.ToLower()] = $true }
 Write-Host "  $($existing.Count) users already in this database" -ForegroundColor DarkGray
+
+# --- optional: one new user shaped like an existing one --------------------
+if ($CloneUser) {
+    if ([string]::IsNullOrWhiteSpace($NewEmail) -or [string]::IsNullOrWhiteSpace($NewFirstName)) {
+        throw 'Pass -NewEmail and -NewFirstName (and -NewLastName) with -CloneUser.'
+    }
+    if ($NewEmail -notmatch '^[^@\s]+@[^@\s]+\.[^@\s]+$') { throw "'$NewEmail' is not an email address." }
+    if ($existingNames.ContainsKey($NewEmail.ToLower())) { throw "$NewEmail is already a user in this database." }
+
+    $from = if ([string]::IsNullOrWhiteSpace($CloneFrom)) { $UserName } else { $CloneFrom }
+    $template = $existing | Where-Object { $_.name -and $_.name.ToLower() -eq $from.ToLower() } | Select-Object -First 1
+    if (-not $template) { throw "No user named $from to clone from." }
+
+    # Groups are a tree, and Add refuses a set that contains both a group and
+    # its parent (the vehicle script learned this the hard way). Get returns
+    # the whole chain on an existing user, so keep only the deepest of any
+    # related pair; a parent contains everything its children contain.
+    $allGroups = Invoke-Geotab -ApiServer $apiServer -Method 'Get' -Params @{ typeName = 'Group'; credentials = $credentials }
+    $parentOf = @{}
+    foreach ($g in $allGroups) {
+        foreach ($c in $g.children) { if ($c.id) { $parentOf[$c.id] = $g.id } }
+        if ($g.parent -and $g.parent.id) { $parentOf[$g.id] = $g.parent.id }
+    }
+    function Select-Deepest {
+        param([object[]]$Groups)
+        $ids = @($Groups | ForEach-Object { $_.id } | Where-Object { $_ })
+        $keep = @()
+        foreach ($id in $ids) {
+            $isAncestor = $false
+            foreach ($other in $ids) {
+                $p = $parentOf[$other]
+                while ($p) { if ($p -eq $id) { $isAncestor = $true; break }; $p = $parentOf[$p] }
+                if ($isAncestor) { break }
+            }
+            if (-not $isAncestor) { $keep += @{ id = $id } }
+        }
+        return $keep
+    }
+
+    $entity = @{
+        name           = $NewEmail
+        firstName      = $NewFirstName
+        lastName       = $NewLastName
+        companyGroups  = @(Select-Deepest -Groups @($template.companyGroups))
+        securityGroups = @(Select-Deepest -Groups @($template.securityGroups))
+        timeZoneId     = $template.timeZoneId
+        isMetric       = [bool]$template.isMetric
+        dateFormat     = $template.dateFormat
+        language       = $template.language
+        activeFrom     = (Get-Date).ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.000Z')
+        activeTo       = '2050-01-01T00:00:00.000Z'
+        isDriver       = $false
+    }
+    if ($template.privateUserGroups) { $entity.privateUserGroups = @(Select-Deepest -Groups @($template.privateUserGroups)) }
+
+    Write-Host ''
+    Write-Host ("Cloning {0} -> {1} ({2} {3})" -f $template.name, $NewEmail, $NewFirstName, $NewLastName) -ForegroundColor Cyan
+    Write-Host ("  company groups : {0}" -f (($entity.companyGroups | ForEach-Object { $_.id }) -join ', ')) -ForegroundColor DarkGray
+    Write-Host ("  security       : {0}" -f (($entity.securityGroups | ForEach-Object { $_.id }) -join ', ')) -ForegroundColor DarkGray
+    Write-Host ("  time zone      : {0}" -f $entity.timeZoneId) -ForegroundColor DarkGray
+
+    if ($WhatIf) {
+        Write-Host 'Nothing was created (-WhatIf).' -ForegroundColor Yellow
+        return
+    }
+
+    $id = Invoke-Geotab -ApiServer $apiServer -Method 'Add' -Params @{
+        typeName    = 'User'
+        entity      = $entity
+        credentials = $credentials
+    }
+    Write-Host ("  created {0} ({1})" -f $NewEmail, $id) -ForegroundColor Green
+    Write-Host 'Geotab emails an invitation to that address; the password is set from it.'
+    return
+}
 
 # --- optional: fix the HOS rule set on everyone ----------------------------
 if ($ApplyHosRuleSetToAll) {
