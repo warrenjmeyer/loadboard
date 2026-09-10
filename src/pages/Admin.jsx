@@ -35,6 +35,12 @@ export default function Admin() {
   // the message belongs beside the control that caused it.
   const [busyId, setBusyId] = useState(null)
   const [rowError, setRowError] = useState({})
+  // Accounts whose role has been switched to "driver" on screen but whose
+  // driver has not been picked yet. Nothing is saved until it is: the server
+  // insists a driver has a code, and saving the first code in the list to
+  // satisfy it made every new driver Hollis Barnett for a moment -- and for
+  // good, if the admin did not notice.
+  const [choosing, setChoosing] = useState(() => new Set())
 
   useEffect(() => {
     let cancelled = false
@@ -151,18 +157,19 @@ export default function Admin() {
 
                 <td>
                   <select
-                    value={u.role}
+                    value={choosing.has(u.publicId) ? 'driver' : u.role}
                     disabled={busy || isYou || lastAdmin}
                     onChange={(e) => {
                       const role = e.target.value
-                      // A driver needs a code, so ask for it in the same
-                      // action rather than saving an invalid row and
-                      // complaining afterwards.
-                      if (role === 'driver') {
-                        const code = data.drivers[0]?.code
-                        update(u.publicId, { role, driverCode: u.driverCode || code })
+                      // A driver needs a code. If the account already has
+                      // one, save straight away; otherwise open the driver
+                      // list and save when one is picked, so nobody becomes
+                      // the first name in the list by accident.
+                      if (role === 'driver' && !u.driverCode) {
+                        setChoosing((s) => new Set(s).add(u.publicId))
                       } else {
-                        update(u.publicId, { role })
+                        setChoosing((s) => { const n = new Set(s); n.delete(u.publicId); return n })
+                        update(u.publicId, role === 'driver' ? { role, driverCode: u.driverCode } : { role })
                       }
                     }}
                   >
@@ -174,12 +181,19 @@ export default function Admin() {
                 </td>
 
                 <td>
-                  {u.role === 'driver' ? (
+                  {u.role === 'driver' || choosing.has(u.publicId) ? (
                     <select
                       value={u.driverCode || ''}
                       disabled={busy}
-                      onChange={(e) => update(u.publicId, { role: 'driver', driverCode: e.target.value })}
+                      onChange={(e) => {
+                        if (!e.target.value) return
+                        setChoosing((s) => { const n = new Set(s); n.delete(u.publicId); return n })
+                        update(u.publicId, { role: 'driver', driverCode: e.target.value })
+                      }}
                     >
+                      {/* Sorted by last name, so James Smith is near the
+                          bottom: the code is on the left for scanning. */}
+                      <option value="">Choose a driver…</option>
                       {data.drivers.map((d) => (
                         <option key={d.code} value={d.code}>{d.code} — {d.name}</option>
                       ))}
