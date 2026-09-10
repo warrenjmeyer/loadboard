@@ -1085,6 +1085,7 @@ geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
 geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-add-hos.ps1      seeds eight days of duty status logs so the HOS clocks have numbers (demo only)
+geotab-add-trailers.ps1 creates the 30 trailers from fleet_01_ddl.sql in GeoTab, by name, for the Drive app
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
 documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
