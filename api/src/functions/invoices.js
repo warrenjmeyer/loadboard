@@ -325,10 +325,21 @@ async function getOne(request) {
     ORDER BY l.delivered_date, x.load_id, CASE x.line_type WHEN 'LINEHAUL' THEN 0 ELSE 1 END, x.line_id;
     SELECT c.customer_id, c.name, c.contact_name, c.email, c.phone, c.mc_number, c.customer_type
     FROM dbo.Customers AS c JOIN dbo.Invoices AS i ON i.customer_id = c.customer_id WHERE i.invoice_no = @no;
+    -- The paper behind the lines: a POD per load is what the customer's AP
+    -- asks for before paying. Only when the documents table exists, so an
+    -- invoice still opens on a database that has not run that migration.
+    IF OBJECT_ID(N'dbo.LoadDocuments', N'U') IS NOT NULL
+      SELECT d.document_id, d.load_id, d.doc_type, d.file_name
+      FROM dbo.LoadDocuments AS d
+      WHERE d.load_id IN (SELECT x.load_id FROM dbo.InvoiceLines AS x JOIN dbo.Invoices AS i ON i.invoice_id = x.invoice_id WHERE i.invoice_no = @no)
+      ORDER BY d.load_id, d.document_id;
+    ELSE
+      SELECT TOP 0 NULL AS document_id, NULL AS load_id, NULL AS doc_type, NULL AS file_name;
   `)
   const head = result.recordsets[0][0]
   if (!head) return { status: 404, jsonBody: { error: 'No such invoice.' } }
   const c = result.recordsets[2][0]
+  const documents = (result.recordsets[3] || []).map((d) => ({ documentId: d.document_id, loadId: d.load_id, docType: d.doc_type, fileName: d.file_name }))
   return {
     jsonBody: {
       ...invoiceRow(head, today()),
@@ -338,6 +349,7 @@ async function getOne(request) {
         deliveredDate: isoDate(x.delivered_date), referenceNo: x.reference_no,
         miles: x.miles === null ? null : Number(x.miles), driverCode: x.driver_code,
       })),
+      documents,
     },
     headers: { 'Cache-Control': 'no-store' },
   }

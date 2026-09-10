@@ -352,6 +352,57 @@ fail and name it.
 **Not here yet.** Maintenance records and PM schedules (the dates are the
 minimum that keeps a truck legal), odometer and fuel.
 
+## Documents: the paper on a load
+
+The bill of lading, the signed proof of delivery, the lumper receipt, the
+rate confirmation. `documents_01_ddl.sql` adds `dbo.LoadDocuments`, the
+index: one row per file naming its load, the stop it was signed at if any,
+what kind of paper it is, and where the bytes are. **The bytes are not in
+the database.** They are in Azure Blob Storage, in a private container,
+and `api/src/storage.js` is the only thing that touches it.
+
+| Route | Who | What |
+|---|---|---|
+| `GET /api/loads/{id}/documents` | any real role | what is attached, each with a view link good for ten minutes |
+| `POST /api/loads/{id}/documents` | dispatch, or the driver on the load | multipart: `file`, `docType`, `stopId?`, `notes?` |
+| `GET /api/documents/{id}` | any real role | 302 to a signed URL for that one blob |
+| `DELETE /api/documents/{id}` | dispatch, or the uploader while the load is not invoiced | remove it, bytes and row |
+
+**How the browser never holds a credential.** It uploads to the API, which
+streams the bytes on. To view a file it follows a redirect to a URL the
+API signs for that one blob and the next ten minutes -- a hotel key card,
+not a master key. The container stays private, and a link pasted into a
+chat is dead by the time anyone else clicks it.
+
+**Rules.** `api/src/documentRules.js`, tested. PDF, JPEG, PNG, HEIC or
+WebP, up to 10 MB: what a phone or a scanner makes, and nothing else. Five
+kinds of paper. A POD is offered against the last delivery and a BOL
+against the first pickup, as a suggestion the form pre-selects. Upload
+first, then the row, and the blob is deleted again if the row fails, so a
+row never points at bytes that are not there.
+
+**Where it shows.** A Documents section on the load's page with an Attach
+button; on a phone the file input opens the camera, which is how a POD
+actually gets photographed. The invoice page lists the paper behind its
+lines, because a customer's AP asks for the signed POD before paying.
+The history records each attach and remove.
+
+**Setting it up.** One storage account (Standard, LRS, any region) and its
+connection string in the app settings as `STORAGE_CONNECTION`;
+`set-storage-secrets.ps1` prompts for it with masked input. The container
+is created on first use. Until the setting exists every document route
+answers `503 { configured: false }` and the page shows one line instead of
+the section. If a key is ever pasted somewhere it should not have been,
+regenerate it on the account's Access keys page and run the script again.
+
+**Running the migration.** `documents_01_ddl.sql` after `stops_01_ddl.sql`.
+Nothing else reads the table, so nothing breaks before it runs; the
+Documents section simply reports an error until it has.
+
+**Not here.** OCR of the BOL, e-signature, emailing the POD with the
+invoice, and retention rules. Each is a real feature; none is the
+minimum.
+
 ## Multi-stop loads: the itinerary
 
 A load used to be an origin and a destination, a shipper and a consignee,
@@ -1014,6 +1065,12 @@ geotab-add-zones.ps1    geofences for the 18 cities the lanes touch
 geotab-add-routes.ps1   one route per settlement lane, origin -> destination
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
+documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
+set-storage-secrets.ps1 puts the storage connection string in the Function App settings
+api/src/storage.js      the blob container: upload, remove, and ten-minute view URLs
+api/src/documentRules.js          file kinds and sizes, who may attach and remove
+api/src/functions/documents.js    GET/POST /api/loads/{id}/documents, GET/DELETE /api/documents/{id}
+src/components/LoadDocuments.jsx  the list and the attach form (camera on a phone)
 stops_01_ddl.sql        LoadStops, the itinerary; seeds two per existing load
 api/src/stopRules.js    valid lists, the summary columns, check-in order
 api/src/functions/stops.js        GET/PUT /api/loads/{id}/stops, POST /api/stops/{id}/checkin

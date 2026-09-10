@@ -913,3 +913,16 @@ button:disabled { cursor: default; opacity: .6; }
 .stop-edit legend { font-weight: 600; padding: 0 4px; }
 .stop-edit-locked { background: var(--bg); }
 .stop-edit-actions { gap: 14px; margin: 4px 0 6px; }
+
+/* --- Documents: the paper on a load ------------------------------------ */
+.badge-doc-pod     { background: #e6f4ea; color: #1a6b33; border-color: #b7e0c3; }
+.badge-doc-bol     { background: #eef2ff; color: #33418c; border-color: #c3cbf0; }
+.badge-doc-receipt { background: #fff4e0; color: #8a4b00; border-color: #f2d5a3; }
+.badge-doc-ratecon { background: #f1f2f4; color: #5b636d; border-color: #dfe3e8; }
+.badge-doc-other   { background: #f1f2f4; color: #5b636d; border-color: #dfe3e8; }
+
+.document-list { list-style: none; margin: 8px 0; padding: 0; display: grid; gap: 6px; }
+.document { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 8px 12px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.document .badge { margin-right: 4px; }
+.document .linklike { margin-left: auto; }
+.invoice-docs { display: block; margin-top: 16px; }

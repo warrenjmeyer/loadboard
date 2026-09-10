@@ -9,7 +9,8 @@ import LoadHistory from '../components/LoadHistory.jsx'
 import LoadCharges from '../components/LoadCharges.jsx'
 import TruckNow from '../components/TruckNow.jsx'
 import StopEditor, { stopToDraft, draftToBody } from '../components/StopEditor.jsx'
-import { postJson, deleteJson, putJson } from '../lib/api.js'
+import LoadDocuments from '../components/LoadDocuments.jsx'
+import { postJson, deleteJson, putJson, postForm } from '../lib/api.js'
 import { useTelematics } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
@@ -157,6 +158,35 @@ export default function LoadDetail() {
       setStopsBusy(false)
     }
   }
+
+  // The paper. Asked for by any real role; the answer says whether this
+  // reader may attach more. 503 means no storage account is connected yet.
+  const [documents, setDocuments] = useState(null)
+  const [docsNotConnected, setDocsNotConnected] = useState(false)
+  const loadDocuments = useCallback(() => {
+    if (!seesHistory) return
+    fetchJson(`/api/loads/${encodeURIComponent(id)}/documents`)
+      .then((r) => { setDocuments(r); setDocsNotConnected(false) })
+      .catch((err) => { setDocuments(null); setDocsNotConnected(err.status === 503) })
+  }, [id, seesHistory])
+  useEffect(() => { loadDocuments() }, [loadDocuments])
+
+  async function handleUploadDocument(form) {
+    await postForm(`/api/loads/${encodeURIComponent(id)}/documents`, form)
+    loadDocuments()
+    loadEvents()
+  }
+
+  async function handleRemoveDocument(documentId) {
+    await deleteJson(`/api/documents/${documentId}`)
+    loadDocuments()
+    loadEvents()
+  }
+
+  // Mirrors documentRules.canRemove: dispatch always; the uploader while
+  // the load is not yet invoiced.
+  const canRemoveDocument = (d) => staff
+    || (Boolean(user?.email) && Boolean(d.uploadedBy) && !load?.invoiceNo && user.email.toLowerCase() === d.uploadedBy.toLowerCase())
 
   async function handleAddCharge(body) {
     const saved = await postJson(`/api/loads/${encodeURIComponent(id)}/charges`, body)
@@ -328,6 +358,17 @@ export default function LoadDetail() {
             canRemove={staff}
             onAdd={handleAddCharge}
             onRemove={handleRemoveCharge}
+          />
+
+          <h2 className="section-title">Documents</h2>
+          <LoadDocuments
+            documents={documents ? documents.documents : []}
+            stops={stops || []}
+            canUpload={Boolean(documents && documents.canUpload)}
+            canRemove={canRemoveDocument}
+            onUpload={handleUploadDocument}
+            onRemove={handleRemoveDocument}
+            notConnected={docsNotConnected}
           />
 
           <h2 className="section-title">History</h2>

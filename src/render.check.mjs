@@ -578,6 +578,26 @@ const cases = [
     loads: [blankLoad({ id: 'L-10430', stopCount: 3 }), blankLoad({ id: 'L-10431', stopCount: 2 })],
   }],
 
+  // Documents: the list with every kind of paper and a remove button, the
+  // empty state with the attach button, read-only, and not connected.
+  ['LoadDocuments', '/src/components/LoadDocuments.jsx', {
+    documents: [
+      { documentId: 1, loadId: 'L-10416', stopId: 3, stopSeq: 3, stopPlace: 'Chicago, IL', docType: 'POD', docTypeLabel: 'Proof of delivery', fileName: 'IMG_0412.jpg', contentType: 'image/jpeg', sizeBytes: 2_400_000, notes: 'signed by receiver', uploadedUtc: '2026-09-10T19:40:00', uploadedBy: 'jsmith@example.invalid', viewUrl: 'https://example.invalid/blob?sig=x' },
+      { documentId: 2, loadId: 'L-10416', stopId: null, stopSeq: null, stopPlace: null, docType: 'RATECON', docTypeLabel: 'Rate confirmation', fileName: 'ratecon-4471.pdf', contentType: 'application/pdf', sizeBytes: 90_000, notes: null, uploadedUtc: '2026-09-09T14:00:00', uploadedBy: 'dispatch@millstream.example', viewUrl: null },
+    ],
+    stops: [{ stopId: 1, seq: 1, stopType: 'Pickup', place: 'Waterloo, IA' }, { stopId: 3, seq: 3, stopType: 'Delivery', place: 'Chicago, IL' }],
+    canUpload: true, canRemove: () => true, async onUpload() {}, async onRemove() {},
+  }],
+  ['LoadDocuments empty', '/src/components/LoadDocuments.jsx', {
+    documents: [], stops: [], canUpload: true, canRemove: () => false, async onUpload() {}, async onRemove() {},
+  }],
+  ['LoadDocuments read-only', '/src/components/LoadDocuments.jsx', {
+    documents: [], stops: [], canUpload: false, canRemove: () => false, async onUpload() {}, async onRemove() {},
+  }],
+  ['LoadDocuments not connected', '/src/components/LoadDocuments.jsx', {
+    documents: [], notConnected: true, async onUpload() {}, async onRemove() {},
+  }],
+
   ['AccessNotice 401', '/src/components/AccessNotice.jsx', { error: 'Sign in to continue.', status: 401 }],
   ['AccessNotice 403', '/src/components/AccessNotice.jsx', { error: 'Not yours.', status: 403 }],
   ['AccessNotice 500', '/src/components/AccessNotice.jsx', { error: 'boom', status: 500 }],
