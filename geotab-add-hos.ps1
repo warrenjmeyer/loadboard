@@ -92,18 +92,60 @@ $credentials = $session.Credentials
 $api = $session.Server
 Write-Host "  authenticated; using $api" -ForegroundColor Green
 
-# --- several calls in one round trip ---------------------------------------
+# --- several calls in one round trip, under the quota ----------------------
+# Geotab admits 250 API calls per minute, and EVERY call inside a multicall
+# counts as one -- forty adds in one request is forty against the quota.
+# The first run of this script learned that at driver eleven. So the
+# calls are paced: a ledger of what was sent in the last sixty seconds,
+# and a wait before any chunk that would push it past the ceiling. The
+# ceiling is under the limit because the Gets around the adds count too.
+$script:ledger = New-Object System.Collections.Generic.List[object]
+$script:ceiling = 200
+
+function Wait-ForQuota {
+    param([int]$Wanted)
+    while ($true) {
+        $cutoff = (Get-Date).AddSeconds(-60)
+        for ($i = $script:ledger.Count - 1; $i -ge 0; $i--) { if ($script:ledger[$i].At -lt $cutoff) { $script:ledger.RemoveAt($i) } }
+        $used = 0
+        foreach ($e in $script:ledger) { $used += $e.Count }
+        if ($used + $Wanted -le $script:ceiling) { return }
+        $oldest = ($script:ledger | Sort-Object At | Select-Object -First 1).At
+        $sleep = [Math]::Max(1, [int]([Math]::Ceiling(($oldest.AddSeconds(61) - (Get-Date)).TotalSeconds)))
+        Write-Host ("    pausing {0}s for the API quota ({1}/{2} used this minute)" -f $sleep, $used, $script:ceiling) -ForegroundColor DarkGray
+        Start-Sleep -Seconds $sleep
+    }
+}
+
+function Invoke-GeotabPaced {
+    param([Parameter(Mandatory)][string]$Method, [Parameter(Mandatory)][hashtable]$Params, [int]$Weight = 1)
+    Wait-ForQuota -Wanted $Weight
+    try {
+        $r = Invoke-Geotab -ApiServer $api -Method $Method -Params $Params
+    } catch {
+        if ($_.Exception.Message -notmatch 'quota') { throw }
+        # The ledger undercounted (a call from elsewhere, or a slow clock).
+        # Wait the minute out and try once more.
+        Write-Host '    quota hit; waiting 61s' -ForegroundColor DarkGray
+        Start-Sleep -Seconds 61
+        $script:ledger.Clear()
+        $r = Invoke-Geotab -ApiServer $api -Method $Method -Params $Params
+    }
+    $script:ledger.Add(@{ At = Get-Date; Count = $Weight })
+    return $r
+}
+
 function Invoke-GeotabMulti {
     param([Parameter(Mandatory)][object[]]$Calls)
     if ($Calls.Count -eq 0) { return @() }
     $results = @()
-    # Chunked: a multicall with hundreds of adds is fine for Geotab but a
-    # single failure fails the whole batch, and a smaller batch names the
-    # failure more usefully.
+    # Chunked: a single failure fails the whole batch, and a smaller batch
+    # names the failure more usefully; and a chunk is what the pacing above
+    # waits for room for.
     for ($i = 0; $i -lt $Calls.Count; $i += 40) {
-        $chunk = $Calls[$i..([Math]::Min($i + 39, $Calls.Count - 1))]
-        $results += Invoke-Geotab -ApiServer $api -Method 'ExecuteMultiCall' -Params @{
-            calls       = @($chunk)
+        $chunk = @($Calls[$i..([Math]::Min($i + 39, $Calls.Count - 1))])
+        $results += Invoke-GeotabPaced -Method 'ExecuteMultiCall' -Weight $chunk.Count -Params @{
+            calls       = $chunk
             credentials = $credentials
         }
     }
@@ -217,6 +259,21 @@ foreach ($d in $drivers) {
         Write-Warning "  $name has no truck (no DriverChange and not in driver-vehicles.json); skipped."
         $index++
         continue
+    }
+
+    # Already seeded: leave alone, so a run that stopped part way (the quota,
+    # a dropped connection) is simply run again and carries on from where it
+    # got to. -Clear is the way to redo a driver.
+    if (-not $Clear) {
+        $have = @(Invoke-GeotabPaced -Method 'Get' -Params @{
+            typeName = 'DutyStatusLog'; credentials = $credentials
+            search = @{ userSearch = @{ id = $d.id }; fromDate = (& $iso $fromUtc); toDate = (& $iso $nowUtc.AddDays(1)) }
+        })
+        if ($have.Count -gt 0) {
+            Write-Host ("  {0,-24} already has {1} logs in the window; skipped (use -Clear to redo)" -f $name, $have.Count) -ForegroundColor DarkGray
+            $index++
+            continue
+        }
     }
 
     # Rule set first, or availability will never be computed.
