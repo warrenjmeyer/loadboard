@@ -152,6 +152,14 @@ export function patchJson(path, body, options) {
   )
 }
 
+// A file upload. No Content-Type header: the browser sets multipart with
+// its own boundary, and naming it by hand breaks exactly that. Retried
+// like a POST -- a second copy of a POD is a nuisance, not a wrong
+// payment -- but only after the database-waking failure, never a 4xx.
+export function postForm(path, formData, options) {
+  return request(path, { method: 'POST', body: formData }, options)
+}
+
 // PUT replaces a whole resource -- a load's itinerary -- and is idempotent
 // by definition: sending the same list twice leaves the same list.
 export function putJson(path, body, options) {

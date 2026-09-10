@@ -164,7 +164,14 @@ async function replace(request, context) {
     const keptIds = new Set(stops.map((s) => s.stopId).filter(Boolean))
     for (const s of existing) {
       if (!keptIds.has(s.stopId)) {
-        await new sql.Request(tx).input('sid', sql.Int, s.stopId).query('DELETE FROM dbo.LoadStops WHERE stop_id = @sid;')
+        // Paper attached to a removed stop stays on the load, unlabelled by
+        // stop. FK_Documents_stop has no cascade (see documents_01_ddl.sql),
+        // so this has to happen here, first.
+        await new sql.Request(tx).input('sid', sql.Int, s.stopId).query(`
+          IF OBJECT_ID(N'dbo.LoadDocuments', N'U') IS NOT NULL
+            UPDATE dbo.LoadDocuments SET stop_id = NULL WHERE stop_id = @sid;
+          DELETE FROM dbo.LoadStops WHERE stop_id = @sid;
+        `)
       }
     }
     for (const s of stops) {

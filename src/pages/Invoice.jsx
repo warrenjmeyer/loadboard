@@ -176,6 +176,28 @@ export default function Invoice() {
 
       <InvoiceDocument invoice={invoice} />
 
+      {/* The paper behind the lines, for the person sending the invoice:
+          a customer's AP asks for the signed POD before paying. Off the
+          printed page (stmt-toolbar hides in print); each link opens the
+          file through the API, which mints a short-lived URL. */}
+      {invoice.documents && invoice.documents.length > 0 && (
+        <div className="stmt-toolbar invoice-docs">
+          <h2 className="section-title">Attached paper</h2>
+          <ul className="document-list">
+            {invoice.documents.map((d) => (
+              <li key={d.documentId} className="document">
+                <Link className="mono" to={`/loads/${encodeURIComponent(d.loadId)}`}>{d.loadId}</Link>
+                <span className={`badge badge-doc-${d.docType.toLowerCase()}`}>{d.docType}</span>
+                <a href={`/api/documents/${d.documentId}`} target="_blank" rel="noreferrer">{d.fileName}</a>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+      {invoice.documents && invoice.documents.length === 0 && invoice.status === 'Open' && (
+        <p className="muted hint stmt-toolbar">No proof of delivery is attached to the loads on this invoice yet.</p>
+      )}
+
       {invoice.status === 'Paid' && (
         <p className="muted hint stmt-toolbar">Paid {formatDate(invoice.paidDate)}.</p>
       )}
