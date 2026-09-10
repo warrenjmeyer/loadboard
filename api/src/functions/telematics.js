@@ -114,6 +114,51 @@ async function geotabDrivers() {
 }
 
 // ---------------------------------------------------------------------------
+// Where each position is, in words: "Ankeny, IA" beside the coordinates.
+//
+// Geotab's own reverse geocoding, one API call for every truck at once, and
+// a cache keyed on the position rounded to about a hundred metres, kept
+// for a day. Twenty demo trucks circling the same town all day ask a few
+// dozen times, not a few thousand. A geocode that fails leaves the row
+// with coordinates only; the position is the fact, the name is a comfort.
+// ---------------------------------------------------------------------------
+const PLACE_TTL_MS = 24 * 3600 * 1000
+const places = new Map()
+
+async function addPlaceNames(rows) {
+  const want = []
+  for (const r of rows) {
+    r.near = null
+    const key = rules.placeKey(r.latitude, r.longitude)
+    if (!key) continue
+    const hit = places.get(key)
+    if (hit && hit.until > Date.now()) r.near = hit.near
+    else if (!want.some((w) => w.key === key)) want.push({ key, latitude: r.latitude, longitude: r.longitude })
+  }
+  if (want.length === 0) return
+  let answers
+  try {
+    answers = await geotab.getAddresses(want)
+  } catch {
+    return
+  }
+  want.forEach((w, i) => {
+    const near = rules.nearFrom(answers && answers[i])
+    places.set(w.key, { near, until: Date.now() + PLACE_TTL_MS })
+  })
+  for (const r of rows) {
+    if (r.near === null) {
+      const hit = places.get(rules.placeKey(r.latitude, r.longitude))
+      if (hit) r.near = hit.near
+    }
+  }
+  // A cache that only grows is a leak with a long fuse.
+  if (places.size > 5000) {
+    for (const [k, v] of places) if (v.until <= Date.now()) places.delete(k)
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/telematics/positions
 // ---------------------------------------------------------------------------
 async function positions(request) {
@@ -141,6 +186,7 @@ async function positions(request) {
 
   const now = new Date()
   let rows = rules.positionRows({ trucks, devices: fleet.devices, statuses: fleet.statuses, users, drivers }, now)
+  await addPlaceNames(rows)
 
   const unit = (request.query.get('unit') || '').trim()
   if (unit) {

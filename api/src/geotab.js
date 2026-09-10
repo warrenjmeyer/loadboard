@@ -119,6 +119,19 @@ function get(typeName, search, resultsLimit) {
   return call('Get', params)
 }
 
+// Coordinates to addresses, Geotab's own reverse geocoding. One API call
+// however many coordinates are sent, which is what makes it affordable
+// under the 250-a-minute quota: every truck on the fleet page is one call.
+// Answers come back in the same order as the coordinates, each with
+// city, region, country and a formattedAddress.
+function getAddresses(coordinates) {
+  if (!coordinates.length) return Promise.resolve([])
+  return call('GetAddresses', {
+    coordinates: coordinates.map((c) => ({ x: c.longitude, y: c.latitude })),
+    movingAddresses: false,
+  })
+}
+
 // Several calls in one round trip. The answer is an array in the same order
 // as the calls, which is what lets the caller zip results back to drivers.
 // Twenty-four drivers' hours in one request rather than forty-eight.
@@ -133,4 +146,4 @@ function forget() {
   session = null
 }
 
-module.exports = { configured, call, get, multiCall, authenticate, forget, GeotabError, settings }
+module.exports = { configured, call, get, multiCall, getAddresses, authenticate, forget, GeotabError, settings }

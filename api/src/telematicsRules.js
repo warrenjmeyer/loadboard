@@ -229,7 +229,49 @@ function tightestClock(row) {
   return { clock: clocks[0][0], seconds: clocks[0][1], over: clocks[0][1] < 0 }
 }
 
+// ---------------------------------------------------------------------------
+// Where a position IS, in words. Geotab's reverse geocoding answers with a
+// city, a region and a country; the board wants "Ankeny, IA".
+// ---------------------------------------------------------------------------
+const STATES = {
+  ALABAMA: 'AL', ALASKA: 'AK', ARIZONA: 'AZ', ARKANSAS: 'AR', CALIFORNIA: 'CA', COLORADO: 'CO', CONNECTICUT: 'CT',
+  DELAWARE: 'DE', FLORIDA: 'FL', GEORGIA: 'GA', HAWAII: 'HI', IDAHO: 'ID', ILLINOIS: 'IL', INDIANA: 'IN', IOWA: 'IA',
+  KANSAS: 'KS', KENTUCKY: 'KY', LOUISIANA: 'LA', MAINE: 'ME', MARYLAND: 'MD', MASSACHUSETTS: 'MA', MICHIGAN: 'MI',
+  MINNESOTA: 'MN', MISSISSIPPI: 'MS', MISSOURI: 'MO', MONTANA: 'MT', NEBRASKA: 'NE', NEVADA: 'NV', 'NEW HAMPSHIRE': 'NH',
+  'NEW JERSEY': 'NJ', 'NEW MEXICO': 'NM', 'NEW YORK': 'NY', 'NORTH CAROLINA': 'NC', 'NORTH DAKOTA': 'ND', OHIO: 'OH',
+  OKLAHOMA: 'OK', OREGON: 'OR', PENNSYLVANIA: 'PA', 'RHODE ISLAND': 'RI', 'SOUTH CAROLINA': 'SC', 'SOUTH DAKOTA': 'SD',
+  TENNESSEE: 'TN', TEXAS: 'TX', UTAH: 'UT', VERMONT: 'VT', VIRGINIA: 'VA', WASHINGTON: 'WA', 'WEST VIRGINIA': 'WV',
+  WISCONSIN: 'WI', WYOMING: 'WY', 'DISTRICT OF COLUMBIA': 'DC',
+  // Provinces, for the day a load crosses the border.
+  ALBERTA: 'AB', 'BRITISH COLUMBIA': 'BC', MANITOBA: 'MB', 'NEW BRUNSWICK': 'NB', 'NOVA SCOTIA': 'NS', ONTARIO: 'ON',
+  QUEBEC: 'QC', SASKATCHEWAN: 'SK',
+}
+
+// "Ankeny, IA" from a Geotab address, or the formatted address when the
+// pieces are missing, or null when there is nothing usable at all.
+function nearFrom(address) {
+  if (!address) return null
+  const city = (address.city || '').trim()
+  const region = (address.region || '').trim()
+  const short = region.length === 2 ? region.toUpperCase() : STATES[region.toUpperCase()] || region
+  if (city && short) return `${city}, ${short}`
+  if (city) return city
+  const formatted = (address.formattedAddress || '').trim()
+  return formatted || null
+}
+
+// Positions that round to the same key share one geocode. Three decimals
+// is about a hundred metres, which is finer than a town and coarse enough
+// that a truck idling at a dock asks once, not once a minute.
+function placeKey(latitude, longitude) {
+  if (!Number.isFinite(latitude) || !Number.isFinite(longitude)) return null
+  return `${latitude.toFixed(3)},${longitude.toFixed(3)}`
+}
+
 module.exports = {
+  STATES,
+  nearFrom,
+  placeKey,
   parseTimeSpan,
   ageMinutes,
   kphToMph,

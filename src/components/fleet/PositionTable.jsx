@@ -77,7 +77,15 @@ export default function PositionTable({ trucks, database = null }) {
                   {t.reported && !t.communicating && <span className="muted small"> · offline</span>}
                 </td>
                 <td className="nowrap">
-                  {maps && <a className="mono small" href={maps} target="_blank" rel="noreferrer">{t.latitude}, {t.longitude}</a>}
+                  {/* The town from GeoTab's reverse geocoding when it
+                      answered; the coordinates are the link either way,
+                      because "near Ankeny" is where to look and the
+                      numbers are where it is. */}
+                  {maps && (
+                    <a className={t.near ? undefined : 'mono small'} href={maps} target="_blank" rel="noreferrer" title={`${t.latitude}, ${t.longitude}`}>
+                      {t.near || `${t.latitude}, ${t.longitude}`}
+                    </a>
+                  )}
                   {maps && geotab && <span className="muted"> · </span>}
                   {geotab && <a className="small" href={geotab} target="_blank" rel="noreferrer">GeoTab map</a>}
                   {!maps && !geotab && <span className="muted">—</span>}

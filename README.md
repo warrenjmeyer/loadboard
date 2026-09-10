@@ -606,10 +606,20 @@ are a compliance record, and on a real fleet writing them would be
 falsifying one. The script refuses any database whose name does not
 contain "demo".
 
-**Not here.** Reverse geocoding (a lat/long is shown, not a town), ETA
-against the delivery window, exceptions and speeding events, and anything
-that would write to Geotab -- a dispatched load does not become a Geotab
-route or a zone visit. Those are the next reads and the first write.
+**Where a truck is, in words.** Beside the coordinates the positions list
+says "Ankeny, IA". That comes from Geotab's own reverse geocoding
+(`GetAddresses`): one API call for every truck at once, and a cache keyed
+on the position rounded to about a hundred metres, kept for a day, so
+twenty trucks circling one town ask a few dozen times rather than a few
+thousand. No Azure Maps account is involved, and nothing is billed. A
+geocode that fails leaves the coordinates alone; the name is a comfort,
+the position is the fact.
+
+**Not here.** ETA against the delivery window (that would need a routing
+service, Azure Maps being the obvious one, at a few hundred calls a month
+inside its free allowance), exceptions and speeding events, and anything
+that would write to Geotab from the app -- a dispatched load does not
+become a Geotab route or a zone visit.
 
 ## Customers
 

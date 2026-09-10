@@ -152,6 +152,24 @@ test('a driver Geotab knows nothing about still gets a row, all dashes', () => {
   assert.equal(row.cycle, null)
 })
 
+test('a Geotab address becomes "City, ST"', () => {
+  assert.equal(rules.nearFrom({ city: 'Ankeny', region: 'Iowa', country: 'United States', formattedAddress: '123 SE Oralabor Rd, Ankeny, IA 50021' }), 'Ankeny, IA')
+  assert.equal(rules.nearFrom({ city: 'Las Vegas', region: 'NV' }), 'Las Vegas, NV')
+  assert.equal(rules.nearFrom({ city: 'Winnipeg', region: 'Manitoba' }), 'Winnipeg, MB')
+  assert.equal(rules.nearFrom({ city: 'Somewhere', region: 'Yucatán' }), 'Somewhere, Yucatán')
+  assert.equal(rules.nearFrom({ city: 'Ankeny', region: '' }), 'Ankeny')
+  assert.equal(rules.nearFrom({ city: '', region: '', formattedAddress: 'I-80 W, Nebraska' }), 'I-80 W, Nebraska')
+  assert.equal(rules.nearFrom({}), null)
+  assert.equal(rules.nearFrom(null), null)
+})
+
+test('positions a hundred metres apart share a place key', () => {
+  assert.equal(rules.placeKey(41.586812, -93.624987), '41.587,-93.625')
+  assert.equal(rules.placeKey(41.58690, -93.62510), '41.587,-93.625')
+  assert.notEqual(rules.placeKey(41.59, -93.62), rules.placeKey(41.587, -93.625))
+  assert.equal(rules.placeKey(null, -93.6), null)
+})
+
 test('the tightest clock is the smallest, and negative means over', () => {
   assert.deepEqual(rules.tightestClock({ driving: 29700, duty: 3600, workday: 39600, cycle: 183600 }), { clock: 'duty', seconds: 3600, over: false })
   assert.deepEqual(rules.tightestClock({ driving: -600, duty: 3600, workday: null, cycle: null }), { clock: 'driving', seconds: -600, over: true })

@@ -55,7 +55,11 @@ export default function TruckNow({ position, hours, database = null, notConnecte
           <div>
             <dt>Position</dt>
             <dd>
-              {maps ? <a className="mono" href={maps} target="_blank" rel="noreferrer">{position.latitude}, {position.longitude}</a> : <span className="muted">—</span>}
+              {maps
+                ? <a className={position.near ? undefined : 'mono'} href={maps} target="_blank" rel="noreferrer" title={`${position.latitude}, ${position.longitude}`}>
+                  {position.near ? `near ${position.near}` : `${position.latitude}, ${position.longitude}`}
+                </a>
+                : <span className="muted">—</span>}
               {geotab && (
                 <div className="addr"><a href={geotab} target="_blank" rel="noreferrer">Open in GeoTab map</a></div>
               )}
