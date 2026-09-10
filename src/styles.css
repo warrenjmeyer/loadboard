@@ -891,7 +891,6 @@ button:disabled { cursor: default; opacity: .6; }
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-left-width: 4px;
   border-radius: 8px;
   background: var(--panel);
 }
@@ -902,11 +901,13 @@ button:disabled { cursor: default; opacity: .6; }
 .stop-when { margin-top: 2px; }
 .stop-notes { margin-top: 2px; }
 .stop-actions { margin-top: 8px; }
-.stop-done { border-left-color: #1a6b33; opacity: 0.75; }
+/* State shows in the number, not in a coloured edge: a done stop is dimmed
+   with a green number, the one at the dock is amber, the next is the
+   accent, and pending stays grey. */
+.stop-done { opacity: 0.75; }
 .stop-done .stop-seq { color: #1a6b33; }
-.stop-at-dock { border-left-color: #8a4b00; }
-.stop-next { border-left-color: var(--accent); }
-.stop-pending { border-left-color: var(--line); }
+.stop-at-dock .stop-seq { color: #8a4b00; }
+.stop-next .stop-seq { color: var(--accent); }
 
 .stop-editor { display: grid; gap: 12px; }
 .stop-edit { border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px 4px; margin: 0; }
