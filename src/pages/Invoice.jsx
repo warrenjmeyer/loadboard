@@ -3,6 +3,7 @@ import { Link, useParams } from 'react-router-dom'
 import { fetchJson, patchJson } from '../lib/api.js'
 import { fetchMe } from '../lib/auth.js'
 import { formatMoney, formatDate } from '../lib/format.js'
+import { groupInvoice, loadsMissingPod } from '../lib/invoicePaper.js'
 import AccessNotice from '../components/AccessNotice.jsx'
 import InvoiceDocument from '../components/billing/InvoiceDocument.jsx'
 
@@ -102,6 +103,10 @@ export default function Invoice() {
 
   const isAdmin = user.role === 'admin'
   const balance = Math.round((invoice.total - invoice.paidAmount) * 100) / 100
+  // Which loads went out without their signed POD. Dispatch's problem, and
+  // only dispatch's: it is screen-only, and the document says nothing about
+  // paper that is missing.
+  const missingPod = loadsMissingPod(groupInvoice(invoice))
 
   return (
     <div className="page stmt">
@@ -176,10 +181,12 @@ export default function Invoice() {
 
       <InvoiceDocument invoice={invoice} />
 
-      {/* The paper behind the lines, for the person sending the invoice:
-          a customer's AP asks for the signed POD before paying. Off the
-          printed page (stmt-toolbar hides in print); each link opens the
-          file through the API, which mints a short-lived URL. */}
+      {/* The paper behind the lines, for the person sending the invoice: a
+          customer's AP asks for the signed POD before paying. The printed
+          document names which loads have one and marks the dock that signed
+          it; this list is how you open the file, so it stays off the page
+          (stmt-toolbar hides in print). Each link goes through the API,
+          which mints a short-lived URL. */}
       {invoice.documents && invoice.documents.length > 0 && (
         <div className="stmt-toolbar invoice-docs">
           <h2 className="section-title">Attached paper</h2>
@@ -194,8 +201,11 @@ export default function Invoice() {
           </ul>
         </div>
       )}
-      {invoice.documents && invoice.documents.length === 0 && invoice.status === 'Open' && (
-        <p className="muted hint stmt-toolbar">No proof of delivery is attached to the loads on this invoice yet.</p>
+      {missingPod.length > 0 && invoice.status === 'Open' && (
+        <p className="muted hint stmt-toolbar">
+          No proof of delivery is attached for <span className="mono">{missingPod.join(', ')}</span>.
+          AP will ask for it before paying; it is uploaded on the load.
+        </p>
       )}
 
       {invoice.status === 'Paid' && (

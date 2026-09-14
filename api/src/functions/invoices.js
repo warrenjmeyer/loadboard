@@ -14,7 +14,9 @@ const rules = require('../invoiceRules')
 //                                                   transaction (admin)
 //   GET   /api/invoices?customer=&status=           the list, aged
 //                                                   (dispatcher, admin)
-//   GET   /api/invoices/{invoiceNo}                 one, with its lines
+//   GET   /api/invoices/{invoiceNo}                 one, with its lines, the
+//                                                   docks on its loads and
+//                                                   the paper attached
 //   PATCH /api/invoices/{invoiceNo}                 { payment: { amount, paidDate } }
 //                                                   or { status: 'Void' }
 //                                                   (admin)
@@ -34,6 +36,7 @@ const rules = require('../invoiceRules')
 // ---------------------------------------------------------------------------
 
 const isoDate = (v) => (v ? v.toISOString().slice(0, 10) : null)
+const isoDateTime = (v) => (v ? v.toISOString().slice(0, 19) : null)
 const today = () => new Date().toISOString().slice(0, 10)
 const INVOICE_NO = /^INV-\d{6}-\d{4}$/
 
@@ -329,17 +332,36 @@ async function getOne(request) {
     -- asks for before paying. Only when the documents table exists, so an
     -- invoice still opens on a database that has not run that migration.
     IF OBJECT_ID(N'dbo.LoadDocuments', N'U') IS NOT NULL
-      SELECT d.document_id, d.load_id, d.doc_type, d.file_name
+      SELECT d.document_id, d.load_id, d.stop_id, d.doc_type, d.file_name, d.uploaded_utc
       FROM dbo.LoadDocuments AS d
       WHERE d.load_id IN (SELECT x.load_id FROM dbo.InvoiceLines AS x JOIN dbo.Invoices AS i ON i.invoice_id = x.invoice_id WHERE i.invoice_no = @no)
       ORDER BY d.load_id, d.document_id;
     ELSE
-      SELECT TOP 0 NULL AS document_id, NULL AS load_id, NULL AS doc_type, NULL AS file_name;
+      SELECT TOP 0 NULL AS document_id, NULL AS load_id, NULL AS stop_id, NULL AS doc_type, NULL AS file_name, NULL AS uploaded_utc;
+    -- Every dock on every load billed here. The number a customer's AP
+    -- searches for is their own PO, and that lives on the STOP -- the one
+    -- reference_no on dbo.Loads is only the first stop's, which is the
+    -- wrong number on a load that delivered to three consignees.
+    IF OBJECT_ID(N'dbo.LoadStops', N'U') IS NOT NULL
+      SELECT s.stop_id, s.load_id, s.seq, s.stop_type, s.place, s.name, s.reference_no, s.arrived_utc, s.departed_utc
+      FROM dbo.LoadStops AS s
+      WHERE s.load_id IN (SELECT x.load_id FROM dbo.InvoiceLines AS x JOIN dbo.Invoices AS i ON i.invoice_id = x.invoice_id WHERE i.invoice_no = @no)
+      ORDER BY s.load_id, s.seq;
+    ELSE
+      SELECT TOP 0 NULL AS stop_id, NULL AS load_id, NULL AS seq, NULL AS stop_type, NULL AS place, NULL AS name, NULL AS reference_no, NULL AS arrived_utc, NULL AS departed_utc;
   `)
   const head = result.recordsets[0][0]
   if (!head) return { status: 404, jsonBody: { error: 'No such invoice.' } }
   const c = result.recordsets[2][0]
-  const documents = (result.recordsets[3] || []).map((d) => ({ documentId: d.document_id, loadId: d.load_id, docType: d.doc_type, fileName: d.file_name }))
+  const documents = (result.recordsets[3] || []).map((d) => ({
+    documentId: d.document_id, loadId: d.load_id, stopId: d.stop_id, docType: d.doc_type,
+    fileName: d.file_name, uploadedUtc: isoDateTime(d.uploaded_utc),
+  }))
+  const stops = (result.recordsets[4] || []).map((s) => ({
+    stopId: s.stop_id, loadId: s.load_id, seq: Number(s.seq), stopType: s.stop_type,
+    place: s.place, name: s.name, referenceNo: s.reference_no,
+    arrivedUtc: isoDateTime(s.arrived_utc), departedUtc: isoDateTime(s.departed_utc),
+  }))
   return {
     jsonBody: {
       ...invoiceRow(head, today()),
@@ -350,6 +372,7 @@ async function getOne(request) {
         miles: x.miles === null ? null : Number(x.miles), driverCode: x.driver_code,
       })),
       documents,
+      stops,
     },
     headers: { 'Cache-Control': 'no-store' },
   }

@@ -507,6 +507,34 @@ const cases = [
         { lineId: 2, loadId: 'L-10416', lineType: 'CHARGE', description: 'DETENTION - 2 HRS', amount: 150, deliveredDate: '2026-09-09', referenceNo: 'PO-77', miles: 246 },
         { lineId: 3, loadId: 'L-30012', lineType: 'CHARGE', description: 'STOP-OFF', amount: 75, deliveredDate: '2026-08-20', referenceNo: null, miles: 180 },
       ],
+      // Three docks on the billed load, each with the consignee's own number,
+      // and a POD signed at the last one. L-30012's stops carry nothing the
+      // lane does not already say, so they must not print.
+      stops: [
+        { stopId: 21, loadId: 'L-10416', seq: 1, stopType: 'Pickup', place: 'Waterloo, IA', name: 'Tyson Foods', referenceNo: 'PU-4412', arrivedUtc: '2026-09-08T13:02:00', departedUtc: '2026-09-08T15:40:00' },
+        { stopId: 22, loadId: 'L-10416', seq: 2, stopType: 'Delivery', place: 'Rochester, MN', name: 'Hy-Vee 1288', referenceNo: 'PO-99120', arrivedUtc: '2026-09-09T09:15:00', departedUtc: '2026-09-09T10:30:00' },
+        { stopId: 23, loadId: 'L-10416', seq: 3, stopType: 'Delivery', place: 'Minneapolis, MN', name: 'Cub Foods DC', referenceNo: 'PO-99121', arrivedUtc: '2026-09-09T14:00:00', departedUtc: '2026-09-09T16:20:00' },
+        { stopId: 31, loadId: 'L-30012', seq: 1, stopType: 'Pickup', place: 'Dubuque, IA', name: null, referenceNo: null, arrivedUtc: null, departedUtc: null },
+        { stopId: 32, loadId: 'L-30012', seq: 2, stopType: 'Delivery', place: 'Chicago, IL', name: null, referenceNo: null, arrivedUtc: null, departedUtc: null },
+      ],
+      documents: [
+        { documentId: 5, loadId: 'L-10416', stopId: 23, docType: 'POD', fileName: 'pod-cub-foods.pdf', uploadedUtc: '2026-09-09T17:04:00' },
+        { documentId: 6, loadId: 'L-10416', stopId: null, docType: 'BOL', fileName: 'bol-L-10416.pdf', uploadedUtc: '2026-09-08T16:00:00' },
+      ],
+    },
+  }],
+  // The same document with the paper missing: no POD line under the totals,
+  // and the dock rows still print because they carry reference numbers.
+  ['InvoiceDocument no paper', '/src/components/billing/InvoiceDocument.jsx', {
+    invoice: {
+      invoiceNo: 'INV-260910-0002', invoiceDate: '2026-09-10', dueDate: '2026-09-25', termsDays: 15,
+      billToName: 'Mississippi Valley Foods', billToAddress: null, status: 'Open', total: 700, paidAmount: 0, paidDate: null, notes: null, customer: null,
+      lines: [{ lineId: 1, loadId: 'L-10420', lineType: 'LINEHAUL', description: 'AMES, IA - PEORIA, IL', amount: 700, deliveredDate: '2026-09-09', referenceNo: 'PO-31', miles: 312 }],
+      stops: [
+        { stopId: 41, loadId: 'L-10420', seq: 1, stopType: 'Pickup', place: 'Ames, IA', name: null, referenceNo: 'PU-9', arrivedUtc: null, departedUtc: null },
+        { stopId: 42, loadId: 'L-10420', seq: 2, stopType: 'Delivery', place: 'Peoria, IL', name: null, referenceNo: 'PO-31', arrivedUtc: null, departedUtc: null },
+      ],
+      documents: [],
     },
   }],
   ['InvoiceDocument part paid', '/src/components/billing/InvoiceDocument.jsx', {

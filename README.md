@@ -471,7 +471,7 @@ device the pay run uses.
 | `GET /api/invoicerun?invoiceDate=&through=` | admin | what a run would bill, customer by customer, nothing written |
 | `POST /api/invoicerun` | admin | create them, in one transaction; `customerIds` narrows it |
 | `GET /api/invoices?customer=&status=` | dispatcher, admin | the list, each aged against today, with an aging summary |
-| `GET /api/invoices/{invoiceNo}` | dispatcher, admin | one, with its lines and the bill-to |
+| `GET /api/invoices/{invoiceNo}` | dispatcher, admin | one, with its lines, the bill-to, every dock on its loads and the paper attached to them |
 | `PATCH /api/invoices/{invoiceNo}` | admin | `{ payment: { amount, paidDate } }` or `{ status: "Void", reason }` |
 
 **Pages.** `/billing` is the run: preview, tick customers, generate, like
@@ -482,6 +482,20 @@ the document, printable to PDF the way a statement is, with Record payment
 and Void above it for an admin. A customer's page shows their invoices and
 what they owe; a load's page names the invoice it went on; a charge shows
 which invoice billed it and can no longer be removed.
+
+**What makes an invoice payable.** AP does not match on our load number,
+they match on their own purchase order, and a multi-stop load has one per
+dock. So each load line is followed by its stops, each printing ITS
+`LoadStops.reference_no` -- the single `Loads.reference_no` is only the
+first stop's, which is the wrong number on a load that delivered to three
+consignees. Stops print only when they say something the lane above them
+does not: a dock name, a reference, or a POD. The second half is the
+paper. A dock whose signed proof of delivery is on file is marked `POD`,
+and a line under the totals names the loads it covers, because "where is
+the POD" is the commonest reason a correct invoice sits unpaid for a
+month. What is MISSING is dispatch's business and never prints: the page
+says on screen which loads went out without one. The rearranging is
+`src/lib/invoicePaper.js`, tested.
 
 **Rules.** `api/src/invoiceRules.js`, tested without a database. One invoice
 per customer per run. Everything delivered on or before the through date

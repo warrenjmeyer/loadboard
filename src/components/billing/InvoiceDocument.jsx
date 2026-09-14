@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { formatMoney, formatDate, formatMiles } from '../../lib/format.js'
+import { groupInvoice, loadsWithPod } from '../../lib/invoicePaper.js'
 import { COMPANY } from '../../lib/company.js'
 
 // ---------------------------------------------------------------------------
@@ -8,21 +9,26 @@ import { COMPANY } from '../../lib/company.js'
 // payload, and reusing the statement's masthead classes so the two
 // documents the carrier sends out look like they came from one office.
 //
-// Lines are grouped by load: the line haul, then that load's charges
-// indented under it, so a stop-off reads as part of the load it was on.
-// A charge whose load was billed on an earlier invoice (a straggler) has
-// no line haul here; it prints under its load number with a note, because
-// the customer's AP will look for that number.
+// Lines are grouped by load: the line haul, then that load's docks, then
+// that load's charges indented under it, so a stop-off reads as part of the
+// load it was on. A charge whose load was billed on an earlier invoice (a
+// straggler) has no line haul here; it prints under its load number with a
+// note, because the customer's AP will look for that number.
+//
+// The dock lines are what makes this payable. AP matches an invoice against
+// a purchase order, and on a multi-stop load each consignee raised their
+// own -- so each stop prints ITS reference number, not the one summary
+// number on the load. Where the signed proof of delivery is already on
+// file, the dock that signed it is marked, and a line under the totals
+// names the loads it covers: "where is the POD" is the commonest reason a
+// correct invoice sits unpaid for a month.
+//
+// Each load is its own <tbody> so that printing keeps a load with its docks
+// and charges rather than breaking the group across two pages.
 // ---------------------------------------------------------------------------
 export default function InvoiceDocument({ invoice }) {
-  const byLoad = new Map()
-  for (const line of invoice.lines) {
-    if (!byLoad.has(line.loadId)) byLoad.set(line.loadId, { loadId: line.loadId, linehaul: null, charges: [], deliveredDate: line.deliveredDate, referenceNo: line.referenceNo, miles: line.miles })
-    const g = byLoad.get(line.loadId)
-    if (line.lineType === 'LINEHAUL') g.linehaul = line
-    else g.charges.push(line)
-  }
-  const groups = [...byLoad.values()]
+  const groups = groupInvoice(invoice)
+  const withPod = loadsWithPod(groups)
   const balance = Math.round((invoice.total - invoice.paidAmount) * 100) / 100
 
   return (
@@ -72,11 +78,9 @@ export default function InvoiceDocument({ invoice }) {
               <th className="num">Amount</th>
             </tr>
           </thead>
-          <tbody>
-            {groups.map((g) => (
-              <GroupRows key={g.loadId} group={g} />
-            ))}
-          </tbody>
+          {groups.map((g) => (
+            <GroupRows key={g.loadId} group={g} />
+          ))}
           <tfoot>
             <tr className="stmt-subtotal">
               <td colSpan={5}>Total</td>
@@ -98,6 +102,13 @@ export default function InvoiceDocument({ invoice }) {
         </table>
       </div>
 
+      {withPod.length > 0 && (
+        <p className="stmt-note small">
+          Signed proof of delivery attached for{' '}
+          <span className="mono">{withPod.join(', ')}</span>.
+        </p>
+      )}
+
       {invoice.notes && <p className="stmt-note">{invoice.notes}</p>}
       <p className="stmt-note muted small">
         Please remit to {COMPANY.name}, {COMPANY.address}, {COMPANY.city}, {COMPANY.state} {COMPANY.postalCode}, and reference the invoice number.
@@ -109,7 +120,7 @@ export default function InvoiceDocument({ invoice }) {
 function GroupRows({ group }) {
   const g = group
   return (
-    <>
+    <tbody className="invoice-group">
       {g.linehaul ? (
         <tr className="stmt-row">
           <td className="mono"><Link to={`/loads/${encodeURIComponent(g.loadId)}`}>{g.loadId}</Link></td>
@@ -129,6 +140,24 @@ function GroupRows({ group }) {
           <td />
         </tr>
       )}
+
+      {g.showStops && g.stops.map((s) => (
+        <tr key={s.stopId ?? `${g.loadId}-${s.seq}`} className="stmt-row invoice-stop">
+          <td />
+          <td />
+          <td className="stmt-route">
+            <span className="mono muted small">{s.seq}</span>{' '}
+            {s.stopType}
+            {' · '}{s.place}
+            {s.name && <span className="muted"> — {s.name}</span>}
+            {s.pod && <span className="pod-mark"> POD</span>}
+          </td>
+          <td className="mono">{s.referenceNo || ''}</td>
+          <td />
+          <td />
+        </tr>
+      ))}
+
       {g.charges.map((c) => (
         <tr key={c.lineId} className="stmt-row invoice-charge">
           <td />
@@ -139,6 +168,6 @@ function GroupRows({ group }) {
           <td className="num stmt-amount">{formatMoney(c.amount)}</td>
         </tr>
       ))}
-    </>
+    </tbody>
   )
 }
