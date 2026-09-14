@@ -455,6 +455,19 @@ It also widens the LoadEvents type check to allow Arrived and Departed.
 Until it has run, the load list 500s, because the load select now counts
 stops.
 
+**The reference numbers.** `stops_02_refs.sql` fills in what dispatch would
+have typed when each load was booked, which the first migration had nothing
+to copy: an order number on the load (three letters of the customer's name
+and six digits), a `PU-` pickup number on every pickup, and a `PO-`
+purchase order on every delivery. Three different numbers on one load, on
+purpose -- that is the case the invoice's Ref # column exists for, and
+seeding them all alike would hide it. The digits are a stable arithmetic
+hash of the load number and the stop's sequence rather than `NEWID()`,
+because a reference that changes between two copies of one invoice is a
+dispute. Only NULLs are filled, so anything typed by hand survives and a
+second run changes nothing. Nothing in the app requires it; without it the
+Ref # column simply prints blank.
+
 ## Invoicing: what the customer owes
 
 The pay run said what the carrier owes its drivers. This is the other side:
@@ -1114,6 +1127,8 @@ geotab-add-trailers.ps1 creates the 30 trailers from fleet_01_ddl.sql in GeoTab,
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
 documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
+stops_02_refs.sql       seeds the order number on each load and the PU-/PO- number on each dock
+src/lib/invoicePaper.js the docks and the paper behind an invoice's lines; what prints and what does not
 set-storage-secrets.ps1 puts the storage connection string in the Function App settings
 api/src/storage.js      the blob container: upload, remove, and ten-minute view URLs
 api/src/documentRules.js          file kinds and sizes, who may attach and remove
