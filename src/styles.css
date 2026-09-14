@@ -498,6 +498,12 @@ button.primary {
      rather than overflowing, so it is safe on the Details block too. */
   .stmt-block, .stmt-section, .stmt-row { break-inside: avoid; }
 
+  /* A load and its docks and charges are one group -- an invoice that breaks
+     between "WATERLOO, IA - MINNEAPOLIS, MN" and the stop that carries the
+     consignee's purchase order has separated the two things AP matches. Each
+     load is its own tbody for exactly this. */
+  .invoice-group { break-inside: avoid; }
+
   /* A heading alone at the bottom of a page is the same bug one level down. */
   .stmt-block h2, .stmt-section-title, .stmt-head { break-after: avoid; }
 }
@@ -880,6 +886,24 @@ button:disabled { cursor: default; opacity: .6; }
 .invoice-lines th, .invoice-lines td { padding: 6px 8px; }
 .invoice-charge td { padding-top: 2px; padding-bottom: 6px; }
 .invoice-doc .stmt-netpay { font-size: 18px; }
+
+/* The docks under a load line. Set smaller and indented so the eye reads the
+   load, then its stops, rather than six rows of equal weight -- the money is
+   on the load line and these are the detail that proves it. */
+.invoice-stop td { padding-top: 2px; padding-bottom: 2px; font-size: 13px; }
+.invoice-stop .stmt-route { padding-left: 18px; color: var(--muted); }
+.invoice-stop .stmt-route .mono { margin-right: 2px; }
+
+/* "POD" against a dock means the signed paper is on file for that delivery.
+   It prints, so it keeps its colour rather than relying on a background the
+   printer may drop. */
+.pod-mark {
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #1a6b33;
+}
 
 /* --- Stops: the itinerary and its editor -------------------------------- */
 .badge-stops { margin-left: 6px; background: #eef2ff; color: #33418c; border-color: #c3cbf0; }
