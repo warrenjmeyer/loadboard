@@ -175,3 +175,47 @@ test('the tightest clock is the smallest, and negative means over', () => {
   assert.deepEqual(rules.tightestClock({ driving: -600, duty: 3600, workday: null, cycle: null }), { clock: 'driving', seconds: -600, over: true })
   assert.equal(rules.tightestClock({ driving: null, duty: null, workday: null, cycle: null }), null)
 })
+
+// ---------------------------------------------------------------------------
+// Zones: the join between a stop that says "Waterloo, IA" and a geofence that
+// says the same thing. Every failure here is a pin in the wrong place on a
+// map, which is the kind of wrong that looks authoritative.
+// ---------------------------------------------------------------------------
+const BOX = [
+  { x: -92.3789, y: 42.4658 },
+  { x: -92.3063, y: 42.4658 },
+  { x: -92.3063, y: 42.5198 },
+  { x: -92.3789, y: 42.5198 },
+]
+
+test('a zone name matches however it was typed', () => {
+  assert.equal(rules.zoneKey('Waterloo, IA'), 'WATERLOO, IA')
+  assert.equal(rules.zoneKey('  waterloo,   ia  '), 'WATERLOO, IA')
+  // Loose about case and spacing, strict about everything else: a stop
+  // typed without the comma is a different place, not this one.
+  assert.notEqual(rules.zoneKey('Waterloo IA'), rules.zoneKey('Waterloo, IA'))
+  assert.equal(rules.zoneKey(null), '')
+})
+
+test('a zone centre is the middle of its box', () => {
+  const c = rules.zoneCentre(BOX)
+  assert.equal(Math.round(c.latitude * 1e4) / 1e4, 42.4928)
+  assert.equal(Math.round(c.longitude * 1e4) / 1e4, -92.3426)
+  assert.deepEqual([c.north, c.south], [42.5198, 42.4658])
+})
+
+test('a zone with no usable points is dropped, not plotted in the Atlantic', () => {
+  // (0, 0) is off the coast of Africa. A zone that lands there on a map is
+  // worse than a zone that is absent from it.
+  assert.equal(rules.zoneCentre([]), null)
+  assert.equal(rules.zoneCentre(null), null)
+  assert.equal(rules.zoneCentre([{ x: null, y: 42 }]), null)
+  const rows = rules.zoneRows([
+    { id: 'b12', name: 'WATERLOO, IA', points: BOX },
+    { id: 'bad', name: 'NOWHERE', points: [] },
+    { id: 'b2', name: 'CHICAGO, IL', points: [{ x: -87.66, y: 41.85 }, { x: -87.6, y: 41.9 }] },
+  ])
+  assert.deepEqual(rows.map((r) => r.id), ['b2', 'b12'])
+  assert.deepEqual(rows.map((r) => r.key), ['CHICAGO, IL', 'WATERLOO, IA'])
+  assert.equal(rules.zoneRows(null).length, 0)
+})

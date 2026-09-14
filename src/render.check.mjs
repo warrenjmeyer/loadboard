@@ -564,6 +564,41 @@ const cases = [
     canAdd: 'all', canRemove: true, async onAdd() {}, async onRemove() {},
   }],
 
+  // The load map. A Map, not an object, because that is what useZones hands
+  // the component. Four states worth drawing: the ordinary one, the demo
+  // fleet's truck 1,500 miles away (which must be described in words rather
+  // than drawn), a place GeoTab has never heard of, and no places at all.
+  ...(() => {
+    const zonesByKey = new Map([
+      ['WATERLOO, IA', { key: 'WATERLOO, IA', name: 'WATERLOO, IA', latitude: 42.4928, longitude: -92.3426 }],
+      ['MINNEAPOLIS, MN', { key: 'MINNEAPOLIS, MN', name: 'MINNEAPOLIS, MN', latitude: 44.9778, longitude: -93.265 }],
+      ['DUBUQUE, IA', { key: 'DUBUQUE, IA', name: 'DUBUQUE, IA', latitude: 42.5006, longitude: -90.6646 }],
+      ['CHICAGO, IL', { key: 'CHICAGO, IL', name: 'CHICAGO, IL', latitude: 41.8781, longitude: -87.6298 }],
+      ['DES MOINES, IA', { key: 'DES MOINES, IA', name: 'DES MOINES, IA', latitude: 41.5868, longitude: -93.625 }],
+      ['MADISON, WI', { key: 'MADISON, WI', name: 'MADISON, WI', latitude: 43.0731, longitude: -89.4012 }],
+    ])
+    const stops = [
+      { stopId: 21, seq: 1, stopType: 'Pickup', place: 'Waterloo, IA', departedUtc: '2026-09-08T15:40:00' },
+      { stopId: 22, seq: 2, stopType: 'Delivery', place: 'Dubuque, IA', departedUtc: null },
+      { stopId: 23, seq: 3, stopType: 'Delivery', place: 'Minneapolis, MN', departedUtc: null },
+    ]
+    const nearby = { unitNo: 'Demo - 15', latitude: 42.61, longitude: -91.35, near: 'Manchester, IA' }
+    const vegas = { unitNo: 'Demo - 15', latitude: 36.0668, longitude: -115.0396, near: 'Henderson, NV' }
+    return [
+      ['LaneMap with truck', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: nearby }],
+      ['LaneMap truck far away', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: vegas }],
+      ['LaneMap unknown place', '/src/components/LaneMap.jsx', {
+        stops: [...stops, { stopId: 24, seq: 4, stopType: 'Delivery', place: 'Rockford, IL', departedUtc: null }],
+        zonesByKey, truck: null,
+      }],
+      ['LaneMap no known places', '/src/components/LaneMap.jsx', {
+        stops: [{ stopId: 1, seq: 1, stopType: 'Pickup', place: 'Nowhere, ZZ' }], zonesByKey, truck: null,
+      }],
+      ['LaneMap loading', '/src/components/LaneMap.jsx', { stops, zonesByKey: null, loading: true }],
+      ['LaneMap not connected', '/src/components/LaneMap.jsx', { stops, zonesByKey: null, notConnected: true }],
+    ]
+  })(),
+
   // Stops: the itinerary in every state a stop can be in (done, at the dock,
   // next, pending), as the driver sees it with a button and as an anonymous
   // visitor sees it with the dock nulled; the editor with a departed stop

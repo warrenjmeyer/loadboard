@@ -951,3 +951,54 @@ button:disabled { cursor: default; opacity: .6; }
 .document .badge { margin-right: 4px; }
 .document .linklike { margin-left: auto; }
 .invoice-docs { display: block; margin-top: 16px; }
+
+/* --- The load map: SVG, no tiles, no library ---------------------------- */
+.lane-map { margin: 12px 0 0; }
+.lane-map-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+}
+.lane-map-bg { fill: #f7f9fb; }
+
+/* The rest of the fleet's zones: context, so they must never compete with
+   the stops. Grey, small, and set in title case rather than the shouting
+   upper case Geotab stores. */
+.lane-ref circle { fill: #c4cbd3; }
+.lane-ref text { font-size: 10px; fill: var(--muted); }
+
+/* Dashed on purpose. There is no routing engine behind this app, so the
+   line is the straight distance between two towns; a solid line would read
+   as a road and claim something untrue. */
+.lane-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2;
+  stroke-dasharray: 6 5;
+  stroke-linejoin: round;
+}
+
+.lane-stop circle { fill: #fff; stroke-width: 2.5; }
+.lane-stop-pickup circle { stroke: #1a6b33; }
+.lane-stop-delivery circle { stroke: #33418c; }
+.lane-stop-done circle { fill: #eef2f5; }
+.lane-stop-seq { font-size: 11px; font-weight: 700; text-anchor: middle; fill: var(--ink); }
+.lane-stop-label { font-size: 11px; font-weight: 600; text-anchor: middle; fill: var(--ink); }
+
+.lane-truck circle { fill: #8a4b00; }
+.lane-truck-halo { fill: #8a4b00; opacity: 0.18; }
+.lane-truck text { font-size: 11px; font-weight: 600; fill: #8a4b00; text-anchor: middle; }
+
+/* Labels sit over the lane and over each other's dots at some zooms. A
+   stroke of the background colour painted UNDER the glyphs keeps them
+   readable without a box to draw and position. */
+.lane-stop-label, .lane-truck text {
+  paint-order: stroke;
+  stroke: #f7f9fb;
+  stroke-width: 3px;
+  stroke-linejoin: round;
+}
+
+.lane-map-note { margin: 6px 0 0; }

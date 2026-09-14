@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import { fetchJson } from './api.js'
 
 // ---------------------------------------------------------------------------
@@ -75,4 +75,30 @@ export function useTelematics(path, { enabled = true, every = POLL_MS } = {}) {
   }, [path, enabled, every])
 
   return { data, error, notConnected, loading }
+}
+
+// ---------------------------------------------------------------------------
+// The fleet's named places, for the load map. One fetch, not a poll: a
+// geofence is drawn once and then sits there for years, and the server keeps
+// its own copy for a day.
+//
+// Handed back as a Map keyed the way telematicsRules.zoneKey keys it --
+// trimmed, single-spaced, upper-cased -- so a stop's `place` can be looked
+// up directly. Keying here rather than in the component means the map is
+// built once per fetch instead of once per render.
+// ---------------------------------------------------------------------------
+export function zoneKey(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+export function useZones({ enabled = true } = {}) {
+  const { data, error, notConnected, loading } = useTelematics(
+    enabled ? '/api/telematics/zones' : null,
+    { enabled, every: 0 }
+  )
+  const zonesByKey = useMemo(() => {
+    if (!data || !data.zones) return null
+    return new Map(data.zones.map((z) => [z.key || zoneKey(z.name), z]))
+  }, [data])
+  return { zonesByKey, error, notConnected, loading }
 }

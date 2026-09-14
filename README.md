@@ -561,6 +561,7 @@ system of record for where a truck is, this app for what it is hauling.
 | `GET /api/telematics/positions?unit=Demo - 05` | same | one truck |
 | `GET /api/telematics/hours` | dispatcher, admin | every driver's current duty status and drive / shift / cycle clocks, tightest first |
 | `GET /api/telematics/hours?driver=DFOSTER` | dispatch, or that driver | one driver's |
+| `GET /api/telematics/zones` | any real role | the fleet's named places with their centres, so a stop can go on a map |
 
 **Where it shows.** `/fleet` gains "Where the trucks are" for anyone with a
 role and "Hours of service" for dispatch. A load's page gains "Truck now"
@@ -642,11 +643,39 @@ thousand. No Azure Maps account is involved, and nothing is billed. A
 geocode that fails leaves the coordinates alone; the name is a comfort,
 the position is the fact.
 
+**The map, drawn without a map.** A load's page and a driver's own page
+show the stops plotted, and there is no map library, no tile provider and
+no geocoding behind it. `geotab-add-zones.ps1 -FromLanes` drew a 3 km box
+around every city the lanes touch and named it the way the load board
+spells it, so a stop that says "WATERLOO, IA" and a Geotab Zone that says
+the same thing are the same place. `/api/telematics/zones` hands back
+those boxes' centres -- kept for a day, because a geofence is drawn once
+and then sits there for years -- and `src/lib/mapProject.js` projects them
+into an SVG. The basemap is the fleet's other zones in grey: the Midwest
+cities this carrier runs between are a map to anyone who works here, and
+they arrive in the same call as everything else.
+
+Three things it deliberately does not claim. The line between stops is
+dashed and labelled as the crow flies, because there is no routing engine
+and a solid line would read as a road. The pins are city centres, not
+docks -- a 3 km box is a town, which is also why this is drawn at state
+scale and not as a street map. And the truck is only drawn when it is
+within about 550 miles of the lane: the demo fleet circles Las Vegas while
+the freight runs Iowa, and a map fitted to both is a map of the United
+States with two specks on it. When it is too far, the caption says where
+it actually is, in words. `mapProject.js` is tested -- north is up, east
+is right, the aspect ratio holds, one stop does not zoom to infinity, and
+a null coordinate is dropped rather than plotted at (0, 0) in the
+Atlantic.
+
 **Not here.** ETA against the delivery window (that would need a routing
 service, Azure Maps being the obvious one, at a few hundred calls a month
-inside its free allowance), exceptions and speeding events, and anything
-that would write to Geotab from the app -- a dispatched load does not
-become a Geotab route or a zone visit.
+inside its free allowance), the breadcrumb trail of where a truck actually
+drove (Geotab's `LogRecord` would give it, at the cost of thinning a few
+thousand points per trip), a real coastline or state outline behind the
+map, exceptions and speeding events, and anything that would write to
+Geotab from the app -- a dispatched load does not become a Geotab route or
+a zone visit.
 
 ## Customers
 
@@ -1128,6 +1157,8 @@ set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App setting
 documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
 stops_02_refs.sql       seeds the order number on each load and the PU-/PO- number on each dock
 src/lib/invoicePaper.js the docks and the paper behind an invoice's lines; what prints and what does not
+src/lib/mapProject.js   Mercator, fit-to-box and distances for the load map -- no map library
+src/components/LaneMap.jsx  the load's stops drawn as SVG from GeoTab's own zones
 set-storage-secrets.ps1 puts the storage connection string in the Function App settings
 api/src/storage.js      the blob container: upload, remove, and ten-minute view URLs
 api/src/documentRules.js          file kinds and sizes, who may attach and remove
