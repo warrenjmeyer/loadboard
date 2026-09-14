@@ -1116,7 +1116,6 @@ settlement_04_fleet2.sql eight more, bringing the fleet to twenty
 settlement_05_link.sql  ties SettlementRoutes.load_id to dbo.Loads
 settlement_06_owner.sql owner/operators: driver_type, escrow, four contractors
 tools/gen_owner_settlements.mjs   generates the file above — edit this, not it
-tools/copy-table.mjs    copies one table between two Azure SQL servers (MERGE on the key; --create, --dry-run)
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-add-vehicles.ps1 adds vehicles -- BLOCKED: Geotab must issue the serials
 geotab-assign-vehicles.ps1  pairs each driver with a vehicle (DriverChange)
