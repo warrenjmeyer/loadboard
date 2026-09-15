@@ -7,7 +7,9 @@
 // ---------------------------------------------------------------------------
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { layout, mercatorY, milesBetween, isPlaceable } from './mapProject.js'
+import {
+  layout, mercatorY, latitudeAt, milesBetween, isPlaceable, bordersInView, borderPath,
+} from './mapProject.js'
 
 const WATERLOO = { name: 'WATERLOO, IA', latitude: 42.4928, longitude: -92.3426 }
 const MINNEAPOLIS = { name: 'MINNEAPOLIS, MN', latitude: 44.9778, longitude: -93.2650 }
@@ -109,4 +111,80 @@ test('fitTo zooms for the points that matter, not the background', () => {
   // A reference city outside the zoom is still positioned, just off the box.
   // The component drops those; the projection does not have to.
   assert.ok(fitted.points.some((p) => p.kind === 'ref' && (p.x < 0 || p.x > 640)))
+})
+
+// ---------------------------------------------------------------------------
+// The geography behind the map.
+// ---------------------------------------------------------------------------
+
+test('mercator run backwards gives the latitude back', () => {
+  for (const lat of [-44.5, 0, 25.76, 42.4928, 64.84]) {
+    assert.ok(Math.abs(latitudeAt(mercatorY(lat)) - lat) < 1e-9, `${lat} round-trips`)
+  }
+})
+
+test('project agrees with the points layout already returned', () => {
+  // The whole reason project() is handed back rather than rewritten by the
+  // caller: a border drawn with different arithmetic to the pins is a map
+  // that disagrees with itself, and it would look plausible.
+  const fitted = layout([WATERLOO, MINNEAPOLIS, CHICAGO], { width: 640, height: 360 })
+  for (const p of fitted.points) {
+    const { x, y } = fitted.project(p.longitude, p.latitude)
+    assert.equal(round(x), round(p.x))
+    assert.equal(round(y), round(p.y))
+  }
+})
+
+test('the view is the slice of the world the box is showing', () => {
+  const fitted = layout([WATERLOO, MINNEAPOLIS], { width: 640, height: 360 })
+  const { view } = fitted
+  assert.ok(view.west < -93.265 && view.east > -92.3426, 'holds both cities east to west')
+  assert.ok(view.south < 42.4928 && view.north > 44.9778, 'and north to south')
+  // The corners of the view are the corners of the box, by construction.
+  const topLeft = fitted.project(view.west, view.north)
+  assert.ok(Math.abs(topLeft.x) < 0.01, 'west edge is x = 0')
+  assert.ok(Math.abs(topLeft.y) < 0.01, 'north edge is y = 0')
+  const bottomRight = fitted.project(view.east, view.south)
+  assert.ok(Math.abs(bottomRight.x - 640) < 0.01, 'east edge is the full width')
+  assert.ok(Math.abs(bottomRight.y - 360) < 0.01, 'south edge is the full height')
+})
+
+test('nothing can be placed or seen on an empty map', () => {
+  const empty = layout([], { width: 640, height: 360 })
+  assert.equal(empty.project, null)
+  assert.equal(empty.view, null)
+  // And the border helpers say "nothing" rather than throwing, because a
+  // null view reaches them on any load whose places GeoTab does not know.
+  assert.deepEqual(bordersInView([[-92, 42, -91, 42]], empty.view), [])
+  assert.equal(borderPath([-92, 42, -91, 42], empty.project), '')
+})
+
+test('borders outside the view are dropped, ones crossing it are kept', () => {
+  const { view } = layout([WATERLOO, MINNEAPOLIS], { width: 640, height: 360 })
+  const iowaish = [-93.5, 43.5, -92.5, 43.0]          // inside
+  const crossing = [-120, 43.5, -70, 43.5]            // coast to coast, straight through
+  const florida = [-81.5, 27.5, -80.5, 26.5]          // nowhere near
+  const alaska = [-150, 61, -149, 61.5]
+  const kept = bordersInView([iowaish, crossing, florida, alaska], view)
+  assert.deepEqual(kept, [iowaish, crossing])
+  // A line whose box only touches the edge is kept: over-including costs a
+  // path the browser clips, under-including loses a border that shows.
+  const justWest = [view.west - 0.4, 43, view.west + 0.05, 43]
+  assert.equal(bordersInView([justWest], view).length, 1)
+})
+
+test('a border becomes path data, and one bad point cannot poison it', () => {
+  const { project, view } = layout([WATERLOO, MINNEAPOLIS], { width: 640, height: 360 })
+  const d = borderPath([-93.5, 43.5, -92.5, 43.0, -92.0, 42.5], project)
+  assert.match(d, /^M[-\d.]+,[-\d.]+ L[-\d.]+,[-\d.]+ L[-\d.]+,[-\d.]+$/)
+  assert.ok(!d.includes('NaN'))
+  // The file is generated, so the component cannot assume it is clean. One
+  // NaN in a path makes the browser drop the whole path, taking the good
+  // half of the border with it -- so the line ends at the bad point.
+  const truncated = borderPath([-93.5, 43.5, -92.5, 43.0, NaN, 42.5], project)
+  assert.equal(truncated.split(' ').length, 2)
+  // Too short to be a line at all.
+  assert.equal(borderPath([-93.5, 43.5], project), '')
+  assert.equal(borderPath(null, project), '')
+  assert.ok(view)
 })

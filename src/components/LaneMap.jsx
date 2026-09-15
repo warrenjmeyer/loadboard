@@ -1,4 +1,5 @@
-import { layout, milesBetween, isPlaceable } from '../lib/mapProject.js'
+import { useState, useEffect } from 'react'
+import { layout, milesBetween, isPlaceable, bordersInView, borderPath } from '../lib/mapProject.js'
 import { formatMiles } from '../lib/format.js'
 
 // ---------------------------------------------------------------------------
@@ -12,13 +13,18 @@ import { formatMiles } from '../lib/format.js'
 // to link a load to its MyGeotab route. The map is therefore aligned with
 // Geotab by construction: it plots Geotab's own places.
 //
-// WHAT THE BASEMAP IS. The fleet's other zones, in grey. There is no
-// coastline and no state outline, because an accurate one means committing
-// a geography file this repo has no other use for. The Midwest cities this
-// carrier runs between are a map to anyone who works here -- Dubuque,
-// Chicago, Des Moines, Minneapolis -- and they come from the same Geotab
-// call as everything else. If a real outline is wanted later it drops in
-// behind this as one more <path>.
+// WHAT THE BASEMAP IS. State borders, and behind them the fleet's other
+// zones in grey. The borders are a file in this repo, not a service: US
+// Census boundaries, public domain, generated into src/lib/stateOutlines.js
+// by tools/gen-state-outlines.mjs. So there is still no tile provider, no
+// key, no attribution banner and nothing that can begin charging later --
+// and, unlike tiles, nothing that can be down. They cost 150 KB, which is
+// why they are not in the bundle: the first map to draw fetches them in
+// their own chunk and every map after that has them already.
+//
+// The cities are still what makes it legible. An outline says which state,
+// but Dubuque, Chicago, Des Moines and Minneapolis are what tell someone
+// who works here where the freight is going.
 //
 // WHAT IT DOES NOT CLAIM. The line between stops is straight, and labelled
 // as the crow flies, because there is no routing engine here -- a road
@@ -36,6 +42,37 @@ const H = 360
 const COMPACT_H = 230
 const COMPACT_REFS = 8
 
+// The borders, fetched the first time a map draws rather than shipped to
+// everyone. They are 150 KB of coordinates -- a third again of everything
+// else this app sends -- and most visitors never open a load.
+//
+// `import()` returns a promise for a module, and Vite gives anything behind
+// one its own hashed file. Held at module level, not in state, so the
+// second map on a page has them already and a page with ten maps fetches
+// once. The map draws without them and redraws with them a moment later;
+// nothing spins, and if the fetch fails the map is simply the one that
+// shipped last week. That is not worth an error message.
+let borderCache = null
+function useStateBorders(enabled) {
+  const [borders, setBorders] = useState(borderCache)
+  useEffect(() => {
+    // `enabled` is false while there is no map to draw -- GeoTab not
+    // connected, zones still loading, no place matched. Fetching a country
+    // for a picture that is not going to appear is the one case where this
+    // costs somebody 150 KB for nothing.
+    if (!enabled || borderCache) return undefined
+    let alive = true
+    import('../lib/stateOutlines.js')
+      .then((module) => {
+        borderCache = module.STATE_BORDERS
+        if (alive) setBorders(borderCache)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [enabled])
+  return borders
+}
+
 export default function LaneMap({
   stops = [],
   zonesByKey = null,
@@ -45,7 +82,15 @@ export default function LaneMap({
   loading = false,
   compact = false,
   caption = null,
+  borders = null,
 }) {
+  // Before the early returns below, because a hook that is sometimes called
+  // is a hook that breaks the next render -- so the decision not to fetch
+  // goes to the hook as an argument rather than being made by not calling
+  // it. `borders` as a prop is for tests and for render.check, which never
+  // runs an effect.
+  const fetched = useStateBorders(!borders && !notConnected && !error && !loading && Boolean(zonesByKey))
+  const geography = borders || fetched
   // In a card, a line of apology for something the reader did not ask for is
   // worse than nothing at all. The load page says all of this properly.
   if (notConnected || error) {
@@ -103,9 +148,16 @@ export default function LaneMap({
   // where they land; one that falls off the edge is simply off the map, the
   // way a city off the edge of any map is.
   const height = compact ? COMPACT_H : H
-  const { points } = layout([...drawn, ...reference], {
+  const { points, project, view } = layout([...drawn, ...reference], {
     width: W, height, padding: 30, fitSlack: 1.45, fitTo: (p) => p.kind !== 'ref',
   })
+
+  // Of four hundred border lines, a Midwest lane can see about twenty. The
+  // rest are thrown away before any path data is built for them -- cheaper
+  // than handing the browser the whole country and letting it clip.
+  const borderPaths = geography
+    ? bordersInView(geography, view).map((line) => borderPath(line, project)).filter(Boolean)
+    : []
   const stopPts = points.filter((p) => p.kind === 'stop')
   const truckPt = points.find((p) => p.kind === 'truck') || null
   const refPts = points.filter((p) => p.kind === 'ref' && p.x > 4 && p.x < W - 60 && p.y > 12 && p.y < height - 6)
@@ -120,6 +172,13 @@ export default function LaneMap({
       <svg viewBox={`0 0 ${W} ${height}`} className="lane-map-svg" role="img"
         aria-label={`Map of ${placed.map((s) => s.place).join(' to ')}`}>
         <rect x="0" y="0" width={W} height={height} className="lane-map-bg" />
+
+        {/* State borders, under everything. Drawn by index because they are
+            geometry, not records: there is nothing about line 37 that
+            outlives this render. */}
+        {borderPaths.map((d, i) => (
+          <path key={`border-${i}`} d={d} className="lane-border" />
+        ))}
 
         {/* The rest of the fleet's places, for context only. */}
         {refPts.map((p) => (

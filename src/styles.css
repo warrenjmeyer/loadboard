@@ -963,6 +963,19 @@ button:disabled { cursor: default; opacity: .6; }
 }
 .lane-map-bg { fill: #f7f9fb; }
 
+/* State borders. The faintest thing on the map on purpose: they are there
+   to be recognised, not read. Lighter than the reference dots, which are
+   themselves lighter than the stops -- three steps back from the subject.
+   Open lines, never filled: the data is shared border segments, so a fill
+   would be meaningless. */
+.lane-border {
+  fill: none;
+  stroke: #d7dde4;
+  stroke-width: 1;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+}
+
 /* The rest of the fleet's zones: context, so they must never compete with
    the stops. Grey, small, and set in title case rather than the shouting
    upper case Geotab stores. */

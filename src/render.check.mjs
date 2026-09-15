@@ -20,6 +20,10 @@ import { createServer } from 'vite'
 import { renderToString } from 'react-dom/server'
 import React from 'react'
 import { MemoryRouter } from 'react-router-dom'
+// Plain data, plain JS: imported directly rather than through Vite, so one
+// render state draws the real state borders and not a hand-written stand-in.
+// In the browser these arrive through import() the first time a map draws.
+import { STATE_BORDERS } from './lib/stateOutlines.js'
 
 const vite = await createServer({
   server: { middlewareMode: true },
@@ -565,9 +569,10 @@ const cases = [
   }],
 
   // The load map. A Map, not an object, because that is what useZones hands
-  // the component. Four states worth drawing: the ordinary one, the demo
-  // fleet's truck 1,500 miles away (which must be described in words rather
-  // than drawn), a place GeoTab has never heard of, and no places at all.
+  // the component. The states worth drawing: the ordinary one, the same map
+  // with the geography behind it, the demo fleet's truck 1,500 miles away
+  // (which must be described in words rather than drawn), a place GeoTab has
+  // never heard of, and no places at all.
   ...(() => {
     const zonesByKey = new Map([
       ['WATERLOO, IA', { key: 'WATERLOO, IA', name: 'WATERLOO, IA', latitude: 42.4928, longitude: -92.3426 }],
@@ -586,6 +591,12 @@ const cases = [
     const vegas = { unitNo: 'Demo - 15', latitude: 36.0668, longitude: -115.0396, near: 'Henderson, NV' }
     return [
       ['LaneMap with truck', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: nearby }],
+      // Effects do not run here, so the borders come in as a prop. This is
+      // the state that would catch a generated file the path builder cannot
+      // read -- the browser's version of it arrives a moment after the map.
+      ['LaneMap with state borders', '/src/components/LaneMap.jsx', {
+        stops, zonesByKey, truck: nearby, borders: STATE_BORDERS,
+      }],
       ['LaneMap truck far away', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: vegas }],
       ['LaneMap unknown place', '/src/components/LaneMap.jsx', {
         stops: [...stops, { stopId: 24, seq: 4, stopType: 'Delivery', place: 'Rockford, IL', departedUtc: null }],

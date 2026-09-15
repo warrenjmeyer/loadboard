@@ -29,6 +29,13 @@ export function mercatorY(latitude) {
   return (Math.log(Math.tan(Math.PI / 4 + (lat * DEG) / 2)) / DEG)
 }
 
+// Mercator, run backwards: the latitude a projected y stands for. Only used
+// to say which slice of the world a box is showing, which is how the
+// geography behind the map is cut down to the lines that can be seen.
+export function latitudeAt(y) {
+  return (2 * Math.atan(Math.exp(Number(y) * DEG)) - Math.PI / 2) / DEG
+}
+
 // A coordinate is usable only if it is actually a number. Number(null) is 0
 // and Number('') is 0, both finite, both in the Atlantic off Africa -- so
 // the empty cases have to be refused before the conversion, not after it.
@@ -70,7 +77,11 @@ export function layout(points, {
 
   const inner = { w: Math.max(1, width - padding * 2), h: Math.max(1, height - padding * 2) }
   if (usable.length === 0) {
-    return { width, height, padding, scale: 1, points: [] }
+    // No points means no zoom was ever chosen, so there is no honest way to
+    // place anything else either. `project` and `view` are null rather than
+    // some default centred on nowhere, which would silently draw geography
+    // in the wrong place instead of drawing none.
+    return { width, height, padding, scale: 1, points: [], project: null, view: null }
   }
 
   const fitPoints = typeof fitTo === 'function'
@@ -97,17 +108,35 @@ export function layout(points, {
   // One scale for both axes: the map keeps its shape.
   const scale = Math.min(inner.w / spanX, inner.h / spanY)
 
+  // The same arithmetic the points get, handed back so that anything else
+  // drawn on this map -- a state border, say -- lands in the same places.
+  // A separate copy of these two lines somewhere else is a map that agrees
+  // with itself until one of them is edited.
+  const project = (longitude, latitude) => ({
+    x: width / 2 + (Number(longitude) - midX) * scale,
+    // SVG y grows downward and north is up, so this one is negated.
+    y: height / 2 - (mercatorY(latitude) - midY) * scale,
+  })
+
+  // Which slice of the world the box is showing, in plain degrees. The box
+  // is `width` wide at `scale` pixels per degree, so half of it either side
+  // of the centre; north and south come back through Mercator because the
+  // projection is only linear in longitude.
+  const view = {
+    west: midX - (width / 2) / scale,
+    east: midX + (width / 2) / scale,
+    south: latitudeAt(midY - (height / 2) / scale),
+    north: latitudeAt(midY + (height / 2) / scale),
+  }
+
   return {
     width,
     height,
     padding,
     scale,
-    points: usable.map((p) => ({
-      ...p,
-      x: width / 2 + (p._x - midX) * scale,
-      // SVG y grows downward and north is up, so this one is negated.
-      y: height / 2 - (p._y - midY) * scale,
-    })),
+    project,
+    view,
+    points: usable.map((p) => ({ ...p, ...project(p.longitude, p.latitude) })),
   }
 }
 
@@ -122,4 +151,57 @@ export function milesBetween(a, b) {
   const lat2 = b.latitude * DEG
   const h = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLon / 2) ** 2
   return 2 * R * Math.asin(Math.min(1, Math.sqrt(h)))
+}
+
+// ---------------------------------------------------------------------------
+// The geography behind the map.
+//
+// src/lib/stateOutlines.js holds the state borders as flat arrays of
+// [lon, lat, lon, lat, ...] -- ten thousand points, so a pair of brackets
+// around each one would be a third of the file. These two functions are
+// everything the map does with them: throw away the ones it cannot see, and
+// turn the rest into path data.
+// ---------------------------------------------------------------------------
+
+// Does any part of this line's bounding box fall inside the view? A line
+// lies entirely within its own box, so a box that misses the view cannot
+// have a visible point OR a segment crossing the middle -- the test is
+// conservative in the safe direction, keeping a few lines that turn out to
+// be just off the edge and never dropping one that shows.
+export function borderInView(line, view, margin = 0) {
+  if (!view || !line || line.length < 4) return false
+  let west = Infinity; let east = -Infinity; let south = Infinity; let north = -Infinity
+  for (let i = 0; i + 1 < line.length; i += 2) {
+    const lon = line[i]
+    const lat = line[i + 1]
+    if (lon < west) west = lon
+    if (lon > east) east = lon
+    if (lat < south) south = lat
+    if (lat > north) north = lat
+  }
+  return (
+    east >= view.west - margin && west <= view.east + margin
+    && north >= view.south - margin && south <= view.north + margin
+  )
+}
+
+export function bordersInView(lines, view, { margin = 0 } = {}) {
+  if (!view || !Array.isArray(lines)) return []
+  return lines.filter((line) => borderInView(line, view, margin))
+}
+
+// One line as SVG path data. Coordinates are rounded to a tenth of a pixel:
+// nobody can see the difference and it is a quarter of the characters. A
+// point that does not project to a finite pair -- which should not happen,
+// but the file is generated -- ends the line rather than poisoning it with
+// a NaN, because one NaN makes the browser drop the whole path.
+export function borderPath(line, project) {
+  if (!line || typeof project !== 'function') return ''
+  const parts = []
+  for (let i = 0; i + 1 < line.length; i += 2) {
+    const { x, y } = project(line[i], line[i + 1])
+    if (!Number.isFinite(x) || !Number.isFinite(y)) break
+    parts.push(`${parts.length === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`)
+  }
+  return parts.length > 1 ? parts.join(' ') : ''
 }
