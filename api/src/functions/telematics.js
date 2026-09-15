@@ -12,6 +12,8 @@ const rules = require('../telematicsRules')
 //   GET /api/telematics/positions?unit=X     one truck
 //   GET /api/telematics/hours                every driver's HOS clocks
 //   GET /api/telematics/hours?driver=CODE    one driver's
+//   GET /api/telematics/zones                the named places, with centres,
+//                                            so a stop can go on a map
 //
 // READS ONLY. Nothing here changes anything in Geotab, and nothing here is
 // stored: every answer is fetched when asked for and handed straight back.
@@ -201,6 +203,43 @@ async function positions(request) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/telematics/zones
+//
+// The places this fleet goes, as named polygons in Geotab, reduced to a name
+// and a centre. It is what lets the load map put a stop on the page without
+// geocoding anything: the stop says "Waterloo, IA" and so does the zone.
+//
+// Kept for a day rather than twenty seconds. A geofence is drawn once and
+// then sits there for years; re-reading it every time somebody opens a load
+// would spend the Geotab quota on a list that never changes.
+//
+// Same audience as positions -- anyone with a role. A zone list is where the
+// carrier's customers are, which is commercial but not personal, and every
+// name in it is already printed on the load board.
+// ---------------------------------------------------------------------------
+const ZONE_TTL_MS = 24 * 3600 * 1000
+let zoneCache = null
+
+async function zones(request) {
+  const user = await identity.currentUser(request)
+  if (!user) return identity.unauthorized('Sign in to see the map.')
+  if (user.role === 'none') return identity.forbidden('Your account is waiting for approval.')
+  if (!geotab.configured()) return notConfigured()
+
+  if (!zoneCache || zoneCache.until <= Date.now()) {
+    const raw = await geotab.get('Zone')
+    zoneCache = { rows: rules.zoneRows(raw), until: Date.now() + ZONE_TTL_MS }
+  }
+
+  return {
+    jsonBody: { database: geotab.settings().database, zones: zoneCache.rows },
+    // A day in Geotab, a minute in the browser: the page asks again on a
+    // reload, and gets the Function's copy without troubling Geotab.
+    headers: { 'Cache-Control': 'private, max-age=60' },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/telematics/hours
 // ---------------------------------------------------------------------------
 async function hours(request) {
@@ -309,4 +348,11 @@ app.http('telematics-hours', {
   authLevel: 'anonymous',
   route: 'telematics/hours',
   handler: wrap('/api/telematics/hours', hours),
+})
+
+app.http('telematics-zones', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'telematics/zones',
+  handler: wrap('/api/telematics/zones', zones),
 })

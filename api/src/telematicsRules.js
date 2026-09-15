@@ -268,10 +268,66 @@ function placeKey(latitude, longitude) {
   return `${latitude.toFixed(3)},${longitude.toFixed(3)}`
 }
 
+// ---------------------------------------------------------------------------
+// Zones: the places this fleet goes, as Geotab holds them.
+//
+// A Geotab Zone is a named polygon -- geotab-add-zones.ps1 drew a 3 km box
+// around each city the lanes touch, and named it exactly as the load board
+// spells it, "WATERLOO, IA". That name is the join, the same one
+// src/lib/geotab.js already uses to link a load to its MyGeotab route.
+//
+// So a stop can be put on a map without geocoding anything: match the
+// stop's place to the zone of the same name and take the box's centre.
+// The coordinate is a city, not a dock -- a 3 km box is a town, and the map
+// must not pretend otherwise.
+//
+// zoneKey is deliberately loose about case and spacing and nothing else. A
+// stop typed "waterloo, ia" should find its zone; one typed "Waterloo IA"
+// should not quietly match something else.
+// ---------------------------------------------------------------------------
+function zoneKey(name) {
+  return String(name || '').trim().replace(/\s+/g, ' ').toUpperCase()
+}
+
+// The centre of a polygon, as the middle of its bounding box rather than a
+// centroid. These are boxes; for a box the two agree, and for a hand-drawn
+// polygon the bounding centre is the one that stays inside the shape.
+function zoneCentre(points) {
+  const good = (points || []).filter((p) => p && Number.isFinite(p.y) && Number.isFinite(p.x))
+  if (good.length === 0) return null
+  let north = -Infinity; let south = Infinity; let east = -Infinity; let west = Infinity
+  for (const p of good) {
+    if (p.y > north) north = p.y
+    if (p.y < south) south = p.y
+    if (p.x > east) east = p.x
+    if (p.x < west) west = p.x
+  }
+  return {
+    latitude: (north + south) / 2,
+    longitude: (east + west) / 2,
+    north, south, east, west,
+  }
+}
+
+// Every zone worth putting on a map. A zone with no usable points is
+// dropped rather than plotted at (0, 0), which is in the Atlantic.
+function zoneRows(zones) {
+  const rows = []
+  for (const z of zones || []) {
+    const centre = zoneCentre(z && z.points)
+    if (!centre) continue
+    rows.push({ id: z.id, name: z.name, key: zoneKey(z.name), ...centre })
+  }
+  return rows.sort((a, b) => a.key.localeCompare(b.key))
+}
+
 module.exports = {
   STATES,
   nearFrom,
   placeKey,
+  zoneKey,
+  zoneCentre,
+  zoneRows,
   parseTimeSpan,
   ageMinutes,
   kphToMph,

@@ -11,7 +11,8 @@ import TruckNow from '../components/TruckNow.jsx'
 import StopEditor, { stopToDraft, draftToBody } from '../components/StopEditor.jsx'
 import LoadDocuments from '../components/LoadDocuments.jsx'
 import { postJson, deleteJson, putJson, postForm } from '../lib/api.js'
-import { useTelematics } from '../lib/useTelematics.js'
+import { useTelematics, useZones } from '../lib/useTelematics.js'
+import LaneMap from '../components/LaneMap.jsx'
 
 // ---------------------------------------------------------------------------
 // One load, at /loads/L-10412.
@@ -92,6 +93,13 @@ export default function LoadDetail() {
     askHours ? `/api/telematics/hours?driver=${encodeURIComponent(load.driverCode)}` : null,
     { enabled: askHours }
   )
+
+  // The map's places. Asked for on any load with stops, moving or not -- a
+  // delivered load is still worth seeing drawn, and a driver picking up
+  // tomorrow wants to see where they are going. Anyone with a role; an
+  // anonymous visitor gets no map, because they get no zones.
+  const askZones = seesHistory
+  const zones = useZones({ enabled: askZones })
 
   // The itinerary. Asked for by everyone -- the server answers an anonymous
   // visitor with where and when on a current load and 404 on a delivered
@@ -335,6 +343,20 @@ export default function LoadDetail() {
       )}
 
       {actions && <DispatchPanel load={fields} actions={actions} onChange={handleChange} />}
+
+      {askZones && stops && stops.length > 0 && (
+        <>
+          <h2 className="section-title">On the map</h2>
+          <LaneMap
+            stops={stops}
+            zonesByKey={zones.zonesByKey}
+            truck={position.data && position.data.trucks[0] ? position.data.trucks[0] : null}
+            notConnected={zones.notConnected}
+            error={zones.error}
+            loading={zones.loading}
+          />
+        </>
+      )}
 
       {(askPosition || askHours) && (
         <>

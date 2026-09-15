@@ -6,7 +6,8 @@ import { formatWindow, formatMoney, formatMiles, statusSlug } from '../lib/forma
 import LoadTable from '../components/LoadTable.jsx'
 import AccessNotice from '../components/AccessNotice.jsx'
 import HoursClocks from '../components/HoursClocks.jsx'
-import { useTelematics } from '../lib/useTelematics.js'
+import { useTelematics, useZones } from '../lib/useTelematics.js'
+import LaneMap from '../components/LaneMap.jsx'
 
 // ---------------------------------------------------------------------------
 // A driver's loads, at /my-loads.
@@ -24,7 +25,15 @@ import { useTelematics } from '../lib/useTelematics.js'
 
 const CURRENT = new Set(['Covered', 'In Transit'])
 
-function Current({ load }) {
+// The card carries the load's two ends and a count, not its itinerary, so
+// the map here is the ends and says so. A driver who wants every dock taps
+// through; this is the glance that tells them which way they are pointed.
+function Current({ load, zones }) {
+  const ends = [
+    { seq: 1, stopType: 'Pickup', place: load.origin },
+    { seq: load.stopCount || 2, stopType: 'Delivery', place: load.destination },
+  ]
+  const between = (load.stopCount || 2) - 2
   return (
     <Link to={`/loads/${encodeURIComponent(load.id)}`} className="my-load">
       <div className="my-load-head">
@@ -43,6 +52,18 @@ function Current({ load }) {
         {load.shipperName && <div><dt>Shipper</dt><dd>{load.shipperName}</dd></div>}
         {load.consigneeName && <div><dt>Consignee</dt><dd>{load.consigneeName}</dd></div>}
       </dl>
+      <LaneMap
+        compact
+        stops={ends}
+        zonesByKey={zones.zonesByKey}
+        notConnected={zones.notConnected}
+        error={zones.error}
+        loading={zones.loading}
+        caption={between > 0
+          ? `Both ends only — ${between} more ${between === 1 ? 'stop' : 'stops'} in between. Open the load for all of them.`
+          : 'Places are GeoTab zones, centred on the town — not the dock.'}
+      />
+
       <p className="my-load-cta">
         {load.status === 'Covered' ? 'Open to check in at the pickup →' : 'Open to check in at the next stop →'}
       </p>
@@ -72,6 +93,10 @@ export default function MyLoads() {
     isDriver ? `/api/telematics/hours?driver=${encodeURIComponent(user.driverCode)}` : null,
     { enabled: isDriver }
   )
+
+  // One fetch for the whole page, however many loads are on it: the places
+  // are the fleet's, not the load's.
+  const zones = useZones({ enabled: isDriver })
 
   useEffect(() => {
     if (!user || user.role !== 'driver') return
@@ -133,7 +158,7 @@ export default function MyLoads() {
         <p className="muted">Nothing assigned to you right now. Dispatch will put the next load here.</p>
       )}
 
-      {current.map((l) => <Current key={l.id} load={l} />)}
+      {current.map((l) => <Current key={l.id} load={l} zones={zones} />)}
 
       {loads && past.length > 0 && (
         <>
