@@ -706,15 +706,87 @@ bounding box a world wide and would draw as a streak across Iowa -- and
 the Aleutians' genuinely positive longitudes allowed for rather than
 "fixed".
 
-**Not here.** ETA against the delivery window (that would need a routing
-service, Azure Maps being the obvious one, at a few hundred calls a month
-inside its free allowance), the breadcrumb trail of where a truck actually
+**Not here.** The breadcrumb trail of where a truck actually
 drove (Geotab's `LogRecord` would give it, at the cost of thinning a few
 thousand points per trip), a real coastline or a road behind the outlines
 (that is tiles, and tiles are a vendor), exceptions and speeding events,
 and anything that would write to
 Geotab from the app -- a dispatched load does not become a Geotab route or
 a zone visit.
+
+## When it gets there: the ETA
+
+`GET /api/loads/{id}/eta` answers the question the map deliberately would
+not: **what time does this truck reach each stop it has left, and is that
+late.** Three systems answer it together and none of them could alone.
+GeoTab says where the truck is now. The app says which stops are left and
+what window each dock gave. HERE turns those into a road route and hands
+back an arrival time per leg.
+
+**Why a third party, in an app that has avoided them.** The map draws lanes
+as the crow flies and says so, because a straight line is honest about
+knowing nothing. An ETA cannot be honest that way -- it is a road question,
+and answering it needs a road network with truck restrictions on it. The
+free routers (OSRM, Valhalla, OpenRouteService) all route a car. On this
+fleet's own lane the difference is not academic: **Dubuque to Minneapolis
+is 263 miles as a car and 312 as a truck**, a 49-mile detour onto roads a
+53-foot trailer is allowed on. A car ETA would have been three quarters of
+an hour early, every time, and looked authoritative.
+
+**The key never reaches the browser.** This is the whole reason the ETA is
+a server route and not a map layer: a basemap key has to ship to every
+visitor, a routing key does not. `HERE_API_KEY` lives in the Function App's
+settings beside the GeoTab and SQL credentials -- `set-here-secrets.ps1`
+puts it there, masked, and `tools/here-probe.mjs` is how you make one live
+call from a laptop when Azure will not read the setting back. Until the
+setting exists the route answers 503 `configured: false` and the section
+simply does not appear, the same as the telematics routes without GeoTab.
+
+**Transactions cost money, so almost everything here is about not spending
+one.** Nothing polls HERE. The browser asks when someone opens a load and
+every five minutes after, matching how long the server keeps its answer;
+ten dispatchers watching one load is one transaction, not ten. And
+`etaRules.planEta` refuses to ask at all when the answer would be
+meaningless -- a load nobody is driving, every stop already departed, no
+position or one six hours old, a stop GeoTab has no zone for, or a truck
+more than about 550 miles from the lane. Each returns 200 with
+`available: false` and a sentence, because "we are not going to answer
+that" is an answer, not an error. The demo fleet circling Las Vegas while
+the freight runs Iowa is exactly that case: the route would come back
+correct, three days long, useless, and billed.
+
+**The time zone, which is the subtle part.** Dock windows are stored and
+shown as naive local wall-clock -- `2026-09-10T08:00:00`, no zone -- because
+a window is local to the dock. HERE returns each time in the local zone *of
+that location*, offset attached. So the comparable value is HERE's
+wall-clock part with the offset dropped, and the two line up even on a lane
+that crosses a zone. Convert either side to UTC "to be safe" and a Denver
+delivery is an hour wrong, plausibly. There is a test named after that trap.
+
+**What it refuses to claim**, all of it said on the page and not only here.
+The ETA is to the **town, not the dock**: coordinates are GeoTab zone
+centres, so the last few minutes across town and the wait at the gate are
+not in it. The traffic in it is the traffic at the moment it was asked. And
+it does not know the **driver's hours** -- it is how long the driving takes,
+not when someone with six hours left on the clock can legally do it. If the
+account ever loses truck-routing entitlement the API falls back to a car
+route rather than failing, and then the page says *these are CAR times* in
+as many words, because a car ETA presented as a truck one is the quiet kind
+of wrong.
+
+`api/src/etaRules.js` is pure and tested against a real HERE answer (13
+tests): which section belongs to which stop, early/late against a
+one-ended window, the time zone trap, a truncated answer paired with the
+right docks rather than the wrong ones, and a blank position refused
+before `Number(null)` can turn it into 0 and put the truck in the Atlantic
+-- a bug the test caught on the way in.
+
+**Not here.** Hours-of-service-aware arrival (HERE has `driver[...]`
+parameters for rest schedules; wiring the GeoTab clocks into them is the
+obvious next step), an ETA history so "it said 3pm this morning" can be
+checked, alerting when a load goes late, per-load truck dimensions (the
+profile is a legal 80,000 lb rig for every load), and anything written back
+to GeoTab.
 
 ## Customers
 
@@ -1196,6 +1268,12 @@ set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App setting
 documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
 stops_02_refs.sql       seeds the order number on each load and the PU-/PO- number on each dock
 src/lib/invoicePaper.js the docks and the paper behind an invoice's lines; what prints and what does not
+api/src/here.js         HERE Routing v8 from the server: one request, one section per leg, key never in the browser
+api/src/etaRules.js     whether an ETA is worth asking for, and what the answer means against the window
+api/src/functions/eta.js  GET /api/loads/{id}/eta -- GeoTab says where, the app says which stops, HERE says when
+src/components/EtaPanel.jsx  the ETA table, and every sentence it refuses to claim
+set-here-secrets.ps1    puts HERE_API_KEY in the Function App settings
+tools/here-probe.mjs    one live HERE call from a laptop, for when Azure will not read the key back
 src/lib/mapProject.js   Mercator, fit-to-box, distances and border culling for the load map -- no map library
 src/lib/stateOutlines.js  GENERATED state borders (US Census, public domain); loaded on demand, not bundled
 tools/gen-state-outlines.mjs  generates the file above — edit this, not it

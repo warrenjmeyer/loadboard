@@ -138,6 +138,12 @@ const CAN = {
   // Every driver's hours-of-service clocks at once. One driver's own hours
   // are not a role permission but a relationship, and canViewDriver decides.
   viewAllHours: new Set(['dispatcher', 'admin']),
+  // Ask HERE what time this load gets there. Narrower than the other reads
+  // for a reason that is not about privacy: every ETA is a metered
+  // transaction on somebody's bill. A driver still gets one for their own
+  // load -- that is a relationship, not a role, and functions/eta.js
+  // decides it the way hours does.
+  requestEta: new Set(['dispatcher', 'admin']),
 }
 
 function can(user, action) {

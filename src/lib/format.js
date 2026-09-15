@@ -71,6 +71,17 @@ export function formatDateTime(iso) {
   return hhmm && hhmm !== '00:00' ? `${formatDate(date)} ${hhmm}` : formatDate(date)
 }
 
+// A span of driving, as a driver says it: "6h 39m", "45m". Never "0h 45m",
+// and never seconds -- an ETA four hours out is not accurate to the second
+// and printing one would claim it was.
+export function formatDuration(seconds) {
+  const total = Math.max(0, Math.round((seconds ?? 0) / 60))
+  const h = Math.floor(total / 60)
+  const m = total % 60
+  if (h === 0) return `${m}m`
+  return `${h}h ${String(m).padStart(2, '0')}m`
+}
+
 // A window reads as one thing when both ends are the same moment, and as a
 // range when they differ. A window with only one end is still worth showing.
 export function formatWindow(start, end) {

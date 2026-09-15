@@ -610,6 +610,47 @@ const cases = [
     ]
   })(),
 
+  // The ETA. Everything this component can be handed: the ordinary answer,
+  // the same answer as a driver sees it in a card, a car route standing in
+  // for a truck one, each of the server's refusals, and the states before
+  // an answer exists at all.
+  ...(() => {
+    const legs = [
+      {
+        stopId: 2, seq: 2, stopType: 'Delivery', place: 'DUBUQUE, IA', dock: 'Mississippi Valley Foods',
+        windowStart: '2026-09-15T13:00:00', windowEnd: '2026-09-15T15:00:00',
+        eta: '2026-09-15T14:55:02', driveSeconds: 5910, miles: 92, cumulativeSeconds: 5910,
+        timing: { state: 'inWindow', minutes: null },
+      },
+      {
+        stopId: 3, seq: 3, stopType: 'Delivery', place: 'MINNEAPOLIS, MN', dock: null,
+        windowStart: '2026-09-15T18:00:00', windowEnd: '2026-09-15T19:00:00',
+        eta: '2026-09-15T19:55:08', driveSeconds: 18006, miles: 312, cumulativeSeconds: 23916,
+        timing: { state: 'late', minutes: 55 },
+      },
+    ]
+    const answer = {
+      available: true, loadId: 'L-10416', unitNo: 'Demo - 15', mode: 'truck',
+      from: { latitude: 42.61, longitude: -91.35, near: 'Manchester, IA', ageMinutes: 4 },
+      legs, next: legs[0], last: legs[1], totalSeconds: 23916, totalMiles: 404, partial: false,
+    }
+    return [
+      ['EtaPanel', '/src/components/EtaPanel.jsx', { eta: answer }],
+      ['EtaPanel compact', '/src/components/EtaPanel.jsx', { eta: answer, compact: true }],
+      ['EtaPanel car fallback', '/src/components/EtaPanel.jsx', { eta: { ...answer, mode: 'car', fellBack: true } }],
+      ['EtaPanel too far', '/src/components/EtaPanel.jsx', { eta: {
+        available: false, reason: 'too-far', unitNo: 'Demo - 15', near: 'Henderson, NV',
+        message: 'The truck is too far from this load for an ETA to mean anything.',
+      } }],
+      ['EtaPanel not moving', '/src/components/EtaPanel.jsx', { eta: {
+        available: false, reason: 'not-moving', message: 'An ETA is only worth having while a load is on the road.',
+      } }],
+      ['EtaPanel loading', '/src/components/EtaPanel.jsx', { loading: true }],
+      ['EtaPanel not connected', '/src/components/EtaPanel.jsx', { notConnected: true }],
+      ['EtaPanel error', '/src/components/EtaPanel.jsx', { error: 'Invalid credentials' }],
+    ]
+  })(),
+
   // Stops: the itinerary in every state a stop can be in (done, at the dock,
   // next, pending), as the driver sees it with a button and as an anonymous
   // visitor sees it with the dock nulled; the editor with a departed stop

@@ -24,6 +24,12 @@ import { fetchJson } from './api.js'
 // ---------------------------------------------------------------------------
 export const POLL_MS = 60000
 
+// An ETA is a metered call to a third party, so it is asked for far less
+// often than a position -- and never faster than the server keeps its own
+// answer, which is also five minutes. A number about the next four hours
+// does not change usefully in less.
+export const ETA_POLL_MS = 300000
+
 export function useTelematics(path, { enabled = true, every = POLL_MS } = {}) {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)

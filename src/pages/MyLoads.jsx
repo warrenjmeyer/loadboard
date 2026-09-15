@@ -8,6 +8,8 @@ import AccessNotice from '../components/AccessNotice.jsx'
 import HoursClocks from '../components/HoursClocks.jsx'
 import { useTelematics, useZones } from '../lib/useTelematics.js'
 import LaneMap from '../components/LaneMap.jsx'
+import EtaPanel from '../components/EtaPanel.jsx'
+import { ETA_POLL_MS } from '../lib/useTelematics.js'
 
 // ---------------------------------------------------------------------------
 // A driver's loads, at /my-loads.
@@ -29,6 +31,15 @@ const CURRENT = new Set(['Covered', 'In Transit'])
 // the map here is the ends and says so. A driver who wants every dock taps
 // through; this is the glance that tells them which way they are pointed.
 function Current({ load, zones }) {
+  // The driver's own ETA to their next stop. Only while the load is moving:
+  // the server refuses anything else, and asking would spend a metered
+  // routing transaction to be told so. Slow on purpose -- five minutes,
+  // matching how long the server keeps its answer.
+  const moving = load.status === 'Covered' || load.status === 'In Transit'
+  const eta = useTelematics(
+    moving ? `/api/loads/${encodeURIComponent(load.id)}/eta` : null,
+    { enabled: moving, every: ETA_POLL_MS },
+  )
   const ends = [
     { seq: 1, stopType: 'Pickup', place: load.origin },
     { seq: load.stopCount || 2, stopType: 'Delivery', place: load.destination },
@@ -62,6 +73,14 @@ function Current({ load, zones }) {
         caption={between > 0
           ? `Both ends only — ${between} more ${between === 1 ? 'stop' : 'stops'} in between. Open the load for all of them.`
           : 'Places are GeoTab zones, centred on the town — not the dock.'}
+      />
+
+      <EtaPanel
+        compact
+        eta={eta.data}
+        loading={eta.loading}
+        notConnected={eta.notConnected}
+        error={eta.error}
       />
 
       <p className="my-load-cta">

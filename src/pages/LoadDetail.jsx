@@ -11,8 +11,9 @@ import TruckNow from '../components/TruckNow.jsx'
 import StopEditor, { stopToDraft, draftToBody } from '../components/StopEditor.jsx'
 import LoadDocuments from '../components/LoadDocuments.jsx'
 import { postJson, deleteJson, putJson, postForm } from '../lib/api.js'
-import { useTelematics, useZones } from '../lib/useTelematics.js'
+import { useTelematics, useZones, ETA_POLL_MS } from '../lib/useTelematics.js'
 import LaneMap from '../components/LaneMap.jsx'
+import EtaPanel from '../components/EtaPanel.jsx'
 
 // ---------------------------------------------------------------------------
 // One load, at /loads/L-10412.
@@ -100,6 +101,17 @@ export default function LoadDetail() {
   // anonymous visitor gets no map, because they get no zones.
   const askZones = seesHistory
   const zones = useZones({ enabled: askZones })
+
+  // The ETA, which is a metered call to HERE and so the most carefully
+  // rationed thing on this page: only while the load is actually moving,
+  // only for someone the server would answer anyway, and every five
+  // minutes rather than every minute. The server refuses the rest and says
+  // why, which EtaPanel prints as a sentence.
+  const askEta = seesHistory && moving
+  const eta = useTelematics(
+    askEta ? `/api/loads/${encodeURIComponent(id)}/eta` : null,
+    { enabled: askEta, every: ETA_POLL_MS },
+  )
 
   // The itinerary. Asked for by everyone -- the server answers an anonymous
   // visitor with where and when on a current load and 404 on a delivered
@@ -367,6 +379,18 @@ export default function LoadDetail() {
             database={position.data ? position.data.database : null}
             notConnected={position.notConnected || (!askPosition && hours.notConnected)}
             error={position.error || hours.error}
+          />
+        </>
+      )}
+
+      {askEta && (
+        <>
+          <h2 className="section-title">When it gets there</h2>
+          <EtaPanel
+            eta={eta.data}
+            loading={eta.loading}
+            notConnected={eta.notConnected}
+            error={eta.error}
           />
         </>
       )}
