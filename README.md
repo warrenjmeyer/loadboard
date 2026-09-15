@@ -708,11 +708,42 @@ the Aleutians' genuinely positive longitudes allowed for rather than
 
 **Not here.** The breadcrumb trail of where a truck actually
 drove (Geotab's `LogRecord` would give it, at the cost of thinning a few
-thousand points per trip), a real coastline or a road behind the outlines
-(that is tiles, and tiles are a vendor), exceptions and speeding events,
+thousand points per trip), exceptions and speeding events,
 and anything that would write to
 Geotab from the app -- a dispatched load does not become a Geotab route or
 a zone visit.
+
+**Streets, when you ask for them.** The map has a `Streets` button. Off --
+the default, and what it has always looked like -- it is the drawn map
+above: zone pins, a dashed lane, state outlines from a file. On, real
+raster tiles from HERE go in behind everything and the outlines step aside,
+because a basemap draws a border better than a 1 km-simplified file can.
+
+Three things make that a small change rather than a rewrite. The map was
+already **Web Mercator**, so a tile at zoom z covers an exact box of
+longitude and Mercator latitude and lands as an exact rectangle under
+`project()` -- no map library, no canvas, and the basemap cannot drift away
+from the pins on it. The tiles come from **`/api/maptile/{z}/{x}/{y}`**, not
+from HERE directly, so the key stays in the Function App settings: every
+other mapping site ships a domain-restricted key in its bundle, and this app
+has never shipped a credential to a client. And the zoom is **chosen from
+the scale the map is already drawn at**, rounded and biased up slightly
+because the SVG displays wider than its 640-unit viewBox.
+
+**What it costs**, which is why it is a button and not the default: with the
+Raster Tile API **each tile is one billed transaction**. Measured on this
+app's own lanes, a view is four to six tiles at 512 px -- so streets cost
+several ETAs every time a load is opened. Off costs nothing. The preference
+is per-viewer in `localStorage`, the answer is cached for a day, a view that
+would need more than forty tiles draws none at all, and both the browser and
+the proxy bound the zoom to 2-12, because a limit that only exists in the
+page is not a limit. `tools/here-tile-probe.mjs` fetches one tile per style
+and writes it out to look at; that is how `lite.day` was chosen over
+`explore.day` (quieter labels under our own) and how the `logistics.*`
+styles were ruled out, since they bill as **Advanced** rather than base.
+`src/lib/tiles.js` is tested (11): the tile arithmetic, that a pin lands
+inside its own tile's rectangle, that neighbours abut with no seam, and that
+the tile URL carries no credential.
 
 ## When it gets there: the ETA
 
@@ -1275,6 +1306,9 @@ src/components/EtaPanel.jsx  the ETA table, and every sentence it refuses to cla
 set-here-secrets.ps1    puts HERE_API_KEY in the Function App settings
 tools/here-probe.mjs    one live HERE call from a laptop, for when Azure will not read the key back
 src/lib/mapProject.js   Mercator, fit-to-box, distances and border culling for the load map -- no map library
+src/lib/tiles.js        slippy-map tile arithmetic, placed by the map's own projection
+api/src/functions/maptile.js  GET /api/maptile/{z}/{x}/{y} -- HERE's tiles, fetched with the key kept on the server
+tools/here-tile-probe.mjs  one tile per style, written out to look at
 src/lib/stateOutlines.js  GENERATED state borders (US Census, public domain); loaded on demand, not bundled
 tools/gen-state-outlines.mjs  generates the file above — edit this, not it
 src/components/LaneMap.jsx  the load's stops drawn as SVG from GeoTab's own zones, on state outlines
