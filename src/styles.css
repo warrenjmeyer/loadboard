@@ -952,6 +952,48 @@ button:disabled { cursor: default; opacity: .6; }
 .document .linklike { margin-left: auto; }
 .invoice-docs { display: block; margin-top: 16px; }
 
+/* --- When it gets there: the ETA ---------------------------------------- */
+.eta-from { margin: 0 0 8px; }
+.eta-table { margin-top: 4px; }
+.eta-note { margin: 8px 0 0; }
+
+/* The stop's number, the same figure the map draws in its pin, so the two
+   pictures of one itinerary can be read against each other. */
+.eta-seq {
+  display: inline-block;
+  min-width: 18px;
+  padding: 0 5px;
+  margin-right: 6px;
+  border-radius: 9px;
+  background: #eef2f5;
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+/* Late is what a dispatcher is scanning for, so it is the only one with
+   weight behind it. Early is useful and quiet; in the window is the
+   ordinary case and should not look like an alarm. */
+.eta-late { color: #8c1c1c; font-weight: 600; }
+.eta-early { color: #6b7480; }
+.eta-ok { color: #1a6b33; }
+
+.eta-compact { margin: 8px 0 0; font-size: 14px; }
+
+/* Said once, in the one case it is true: a car route standing in for a
+   truck one. Not an error -- the times are real, they just do not know
+   about bridges. */
+.warn {
+  background: #fff6e5;
+  border: 1px solid #f0d9a8;
+  color: #6b4a00;
+  padding: 8px 12px;
+  border-radius: 8px;
+  font-size: 13px;
+  margin: 0 0 8px;
+}
+
 /* --- The load map: SVG, no tiles, no library ---------------------------- */
 .lane-map { margin: 12px 0 0; }
 .lane-map-svg {
