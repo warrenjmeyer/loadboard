@@ -20,3 +20,8 @@ driver-vehicles.json
 # Written by tools/here-probe.mjs. No credential in them, but they are a
 # scratch capture of one API call, not something the repo needs to carry.
 here-probe-*.json
+
+# Written by tools/here-tile-probe.mjs -- a picture of a town and a styles
+# listing. No credential in them, but scratch captures, not repo content.
+here-tile-*.png
+here-tile-info.json

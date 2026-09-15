@@ -597,6 +597,12 @@ const cases = [
       ['LaneMap with state borders', '/src/components/LaneMap.jsx', {
         stops, zonesByKey, truck: nearby, borders: STATE_BORDERS,
       }],
+      // Streets on: the HERE basemap behind the pins. The prop forces it
+      // because the real switch is a localStorage preference read in an
+      // effect, and effects do not run here.
+      ['LaneMap with streets', '/src/components/LaneMap.jsx', {
+        stops, zonesByKey, truck: nearby, borders: STATE_BORDERS, streets: true,
+      }],
       ['LaneMap truck far away', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: vegas }],
       ['LaneMap unknown place', '/src/components/LaneMap.jsx', {
         stops: [...stops, { stopId: 24, seq: 4, stopType: 'Delivery', place: 'Rockford, IL', departedUtc: null }],

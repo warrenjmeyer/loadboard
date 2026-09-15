@@ -1,9 +1,10 @@
 import { useState, useEffect } from 'react'
 import { layout, milesBetween, isPlaceable, bordersInView, borderPath } from '../lib/mapProject.js'
+import { chooseZoom, tilesFor, tileRect, tileUrl } from '../lib/tiles.js'
 import { formatMiles } from '../lib/format.js'
 
 // ---------------------------------------------------------------------------
-// A load's stops on a map, drawn as SVG, with no map library and no tiles.
+// A load's stops on a map, drawn as SVG, with no map library.
 //
 // WHERE THE COORDINATES COME FROM. Nothing here is geocoded. A stop says
 // "WATERLOO, IA" and so does a Geotab Zone -- geotab-add-zones.ps1 drew a
@@ -13,18 +14,28 @@ import { formatMiles } from '../lib/format.js'
 // to link a load to its MyGeotab route. The map is therefore aligned with
 // Geotab by construction: it plots Geotab's own places.
 //
-// WHAT THE BASEMAP IS. State borders, and behind them the fleet's other
-// zones in grey. The borders are a file in this repo, not a service: US
-// Census boundaries, public domain, generated into src/lib/stateOutlines.js
-// by tools/gen-state-outlines.mjs. So there is still no tile provider, no
-// key, no attribution banner and nothing that can begin charging later --
-// and, unlike tiles, nothing that can be down. They cost 150 KB, which is
-// why they are not in the bundle: the first map to draw fetches them in
-// their own chunk and every map after that has them already.
+// WHAT THE BASEMAP IS, BY DEFAULT. State borders, and behind them the
+// fleet's other zones in grey. The borders are a file in this repo, not a
+// service: US Census boundaries, public domain, generated into
+// src/lib/stateOutlines.js by tools/gen-state-outlines.mjs. Nothing to be
+// down, nothing that can begin charging, no attribution banner. They cost
+// 150 KB, which is why they are not in the bundle: the first map to draw
+// fetches them in their own chunk and every map after that has them
+// already.
 //
 // The cities are still what makes it legible. An outline says which state,
 // but Dubuque, Chicago, Des Moines and Minneapolis are what tell someone
 // who works here where the freight is going.
+//
+// STREETS, off by default. Press it and real map tiles from HERE go in
+// behind everything, fetched through /api/maptile so the key stays on the
+// server. It is a button rather than the default because EACH TILE IS A
+// BILLED TRANSACTION -- four to six a view, measured -- and because the
+// picture answers its question without one. Off is free and is what this
+// map has always looked like.
+// When tiles are on the state outlines are hidden: the basemap draws
+// borders better than a 1 km-simplified file can, and two sets of the same
+// line is just noise.
 //
 // WHAT IT DOES NOT CLAIM. The line between stops is straight, and labelled
 // as the crow flies, because there is no routing engine here -- a road
@@ -73,6 +84,39 @@ function useStateBorders(enabled) {
   return borders
 }
 
+// Whether this reader wants streets, remembered for next time. A per-viewer
+// convenience, so localStorage is the right home for it -- nothing here is
+// worth a database row, and it must not follow them to another machine.
+//
+// Read inside an effect rather than at first render: this component is
+// server-rendered by render.check, where there is no window, and a value
+// that differs between the server's HTML and the browser's first paint is
+// the classic hydration mismatch.
+const STREETS_KEY = 'loadboard.streets'
+
+function useStreets(enabled) {
+  const [on, setOn] = useState(false)
+  useEffect(() => {
+    if (!enabled) return
+    try {
+      setOn(window.localStorage.getItem(STREETS_KEY) === '1')
+    } catch {
+      // Private windows and blocked site data throw on access. A map
+      // without a remembered preference is a map; an exception is not.
+    }
+  }, [enabled])
+
+  const toggle = () => setOn((was) => {
+    const next = !was
+    try {
+      window.localStorage.setItem(STREETS_KEY, next ? '1' : '0')
+    } catch { /* see above */ }
+    return next
+  })
+
+  return [enabled && on, toggle]
+}
+
 export default function LaneMap({
   stops = [],
   zonesByKey = null,
@@ -83,6 +127,7 @@ export default function LaneMap({
   compact = false,
   caption = null,
   borders = null,
+  streets: streetsOverride = null,
 }) {
   // Before the early returns below, because a hook that is sometimes called
   // is a hook that breaks the next render -- so the decision not to fetch
@@ -91,6 +136,14 @@ export default function LaneMap({
   // runs an effect.
   const fetched = useStateBorders(!borders && !notConnected && !error && !loading && Boolean(zonesByKey))
   const geography = borders || fetched
+
+  // Never in a driver's card: it sits inside a link, so a button in it would
+  // be a button inside an anchor, and a map in a card that someone scrolls
+  // past would spend a dozen transactions nobody asked for.
+  const [remembered, toggleStreets] = useStreets(!compact)
+  // The prop is for tests and for render.check, which never runs an effect
+  // and so could never reach the tiles path on its own.
+  const streets = streetsOverride === null ? remembered : Boolean(streetsOverride) && !compact
   // In a card, a line of apology for something the reader did not ask for is
   // worse than nothing at all. The load page says all of this properly.
   if (notConnected || error) {
@@ -148,9 +201,14 @@ export default function LaneMap({
   // where they land; one that falls off the edge is simply off the map, the
   // way a city off the edge of any map is.
   const height = compact ? COMPACT_H : H
-  const { points, project, view } = layout([...drawn, ...reference], {
+  const { points, project, view, scale } = layout([...drawn, ...reference], {
     width: W, height, padding: 30, fitSlack: 1.45, fitTo: (p) => p.kind !== 'ref',
   })
+
+  // The basemap, when asked for. The zoom is chosen to match the scale the
+  // map is already drawn at, so a tile lands at its own resolution rather
+  // than stretched or four times sharper than anyone can see.
+  const tiles = streets ? tilesFor(view, chooseZoom(scale)) : []
 
   // Of four hundred border lines, a Midwest lane can see about twenty. The
   // rest are thrown away before any path data is built for them -- cheaper
@@ -169,14 +227,47 @@ export default function LaneMap({
 
   return (
     <div className="lane-map">
+      {/* Off costs nothing and is the map this app has always drawn; on is a
+          dozen billed tiles. So the control says which it is rather than
+          hiding behind an icon. */}
+      {!compact && (
+        <div className="lane-map-controls">
+          <button
+            type="button"
+            className={`lane-streets${streets ? ' is-on' : ''}`}
+            aria-pressed={streets}
+            onClick={toggleStreets}
+          >
+            Streets
+          </button>
+        </div>
+      )}
       <svg viewBox={`0 0 ${W} ${height}`} className="lane-map-svg" role="img"
         aria-label={`Map of ${placed.map((s) => s.place).join(' to ')}`}>
         <rect x="0" y="0" width={W} height={height} className="lane-map-bg" />
 
-        {/* State borders, under everything. Drawn by index because they are
-            geometry, not records: there is nothing about line 37 that
-            outlives this render. */}
-        {borderPaths.map((d, i) => (
+        {/* Tiles first, under everything. Each is placed by the map's own
+            project(), so the basemap cannot drift away from the pins on it.
+            preserveAspectRatio="none" because the rectangle IS the tile's
+            true shape here -- the projection has already done that work. */}
+        {tiles.map((t) => {
+          const rect = tileRect(t, project)
+          return rect ? (
+            <image
+              key={`${t.z}/${t.x}/${t.y}`}
+              href={tileUrl(t)}
+              x={rect.x} y={rect.y} width={rect.width} height={rect.height}
+              preserveAspectRatio="none"
+            />
+          ) : null
+        })}
+
+        {/* State borders, under everything else but over the tiles -- except
+            there are none when tiles are on, because the basemap already
+            draws them. Keyed by index because they are geometry, not
+            records: there is nothing about line 37 that outlives this
+            render. */}
+        {!streets && borderPaths.map((d, i) => (
           <path key={`border-${i}`} d={d} className="lane-border" />
         ))}
 
@@ -202,6 +293,13 @@ export default function LaneMap({
                 goes in the caption, where there is room for it. */}
             <text x={truckPt.x} y={truckPt.y + 21}>{truck.unitNo}</text>
           </g>
+        )}
+
+        {/* HERE's terms require the notice whenever their tiles are shown,
+            and it is theirs to be credited for: the roads, the river and the
+            state line in the picture are all their survey, not ours. */}
+        {streets && (
+          <text x={W - 6} y={height - 6} className="lane-attrib" textAnchor="end">© HERE</text>
         )}
 
         {stopPts.map((p, i) => (

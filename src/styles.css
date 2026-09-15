@@ -1056,4 +1056,35 @@ button:disabled { cursor: default; opacity: .6; }
   stroke-linejoin: round;
 }
 
+/* The Streets control. A button that says what it does, because what it
+   does costs money: off is the drawn map and free, on fetches real tiles. */
+.lane-map-controls { display: flex; justify-content: flex-end; margin-bottom: 6px; }
+.lane-streets {
+  border: 1px solid var(--line);
+  background: var(--panel);
+  color: var(--muted);
+  border-radius: 999px;
+  padding: 3px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.lane-streets:hover { border-color: #c4cbd3; color: var(--ink); }
+.lane-streets.is-on {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+/* Required wherever HERE's tiles are drawn, and small enough not to fight
+   the map it sits on. */
+.lane-attrib {
+  font-size: 9px;
+  fill: #4a5561;
+  paint-order: stroke;
+  stroke: rgba(255, 255, 255, 0.75);
+  stroke-width: 2.5px;
+  stroke-linejoin: round;
+}
+
 .lane-map-note { margin: 6px 0 0; }
