@@ -674,6 +674,17 @@ const cases = [
           { ...legs[1], restSeconds: 0, rests: 0 },
         ],
       } }],
+      // What demo_millstream always looks like: the simulated fleet drives
+      // around the clock, so the 70-hour cycle is permanently spent.
+      ['EtaPanel out of hours', '/src/components/EtaPanel.jsx', { eta: {
+        ...answer,
+        totalRestSeconds: 36000,
+        hours: { driverCode: 'HBARNETT', driving: 0, duty: 0, cycle: 0, scheduled: true },
+        legs: [
+          { ...legs[0], restSeconds: 36000, rests: 1, eta: '2026-09-17T00:55:02', timing: { state: 'late', minutes: 595 } },
+          { ...legs[1], restSeconds: 0, rests: 0 },
+        ],
+      } }],
       // And the honest opposite: no clocks, so these are driving times.
       ['EtaPanel without hours', '/src/components/EtaPanel.jsx', { eta: { ...answer, hours: null } }],
       ['EtaPanel car fallback', '/src/components/EtaPanel.jsx', { eta: { ...answer, mode: 'car', fellBack: true } }],

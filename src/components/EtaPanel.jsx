@@ -81,10 +81,22 @@ export default function EtaPanel({
       </p>
 
       {eta.hours && eta.hours.scheduled && eta.totalRestSeconds > 0 && (
-        <p className="muted small eta-from">
-          {`These times include ${formatDuration(eta.totalRestSeconds)} of legally required rest: `}
-          {`the driver has ${formatDuration(Math.max(0, eta.hours.driving || 0))} of driving left before they must stop.`}
-        </p>
+        exhausted(eta.hours) ? (
+          // The case this demo fleet is always in, and a real fleet is
+          // sometimes in. Saying "0m of driving left" on its own reads like
+          // a fault; naming the cycle says which clock ran out and why the
+          // arrival is tomorrow.
+          <p className="muted small eta-from">
+            {`GeoTab shows this driver out of hours — nothing left on the ${cycleName(eta.hours)}. `}
+            {`These times include the ${formatDuration(eta.totalRestSeconds)} reset that requires, `}
+            {`which is why the arrival is later than the driving.`}
+          </p>
+        ) : (
+          <p className="muted small eta-from">
+            {`These times include ${formatDuration(eta.totalRestSeconds)} of legally required rest: `}
+            {`the driver has ${formatDuration(Math.max(0, eta.hours.driving || 0))} of driving left before they must stop.`}
+          </p>
+        )
       )}
 
       {eta.hours && !eta.hours.scheduled && (
@@ -159,6 +171,22 @@ export default function EtaPanel({
       </p>
     </div>
   )
+}
+
+// Out of hours, and which clock did it. A driver can be stopped by the
+// eleven-hour driving limit, the fourteen-hour window, or the seventy-hour
+// cycle, and they mean different things to whoever has to cover the load:
+// the first two clear overnight and the last one does not.
+function exhausted(hours) {
+  if (!hours) return false
+  return [hours.driving, hours.duty, hours.cycle]
+    .some((v) => v !== null && v !== undefined && Number(v) <= 0)
+}
+
+function cycleName(hours) {
+  if (hours.cycle !== null && hours.cycle !== undefined && Number(hours.cycle) <= 0) return '70-hour cycle'
+  if (hours.duty !== null && hours.duty !== undefined && Number(hours.duty) <= 0) return '14-hour window'
+  return '11-hour driving clock'
 }
 
 // Late is the one a dispatcher is looking for, so it is the one with a

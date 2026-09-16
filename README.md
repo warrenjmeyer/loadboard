@@ -673,6 +673,24 @@ are a compliance record, and on a real fleet writing them would be
 falsifying one. The script refuses any database whose name does not
 contain "demo".
 
+**And on THIS database the clocks can never be realistic, which is worth
+knowing before anyone tries to fix them again.** `-ListLogs` on 2026-09-16
+showed each tracked driver holding about **1,200** duty status logs with the
+most recent one *minutes* old, including `EnginePowerup` and
+`EngineShutdown` entries. This script wrote about 48 per driver. The rest
+are GeoTab's own: the demo vehicles drive their simulated Las Vegas loops
+around the clock, and with a driver assigned by `DriverChange` the platform
+generates duty status from that movement continuously.
+
+So those drivers are permanently on duty, the 70-hour cycle is permanently
+spent, and no amount of seeding changes it -- the tap is running. The
+restart below is correct for a clean database and cannot repair this one.
+The app's answer is to say so: when a clock is at zero the ETA names which
+one ran out and explains that the arrival is later than the driving because
+of the reset it requires. The four owner/operators have 0 logs for the
+opposite reason -- Demo - 21..24 are untracked assets with no device, so
+nothing generates logs for them, and nothing reports their position either.
+
 **A duty status log cannot be deleted, and that is not a permissions
 problem.** Geotab answers `DutyStatusLog entities cannot be removed`, from
 any account. A driver's record of duty status is evidence, and evidence the
