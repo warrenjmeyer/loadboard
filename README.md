@@ -153,6 +153,45 @@ If the pause ever becomes genuinely annoying, it can be disabled on the
 database — but a serverless database that never sleeps bills continuously, so
 that is a cost decision, not a code one.
 
+**And the pause is the budget, which is the thing that actually bit.** The
+database runs on Azure SQL's free monthly allowance (`useFreeLimit`), which
+is about **100,000 vCore-seconds** — at its 0.5 vCore minimum, roughly
+**55 hours of being awake per month**. Awake, not busy: a database serving
+one query an hour costs the same as one serving thousands. It sleeps only
+after a full hour with no query at all, and `freeLimitExhaustionBehavior` is
+`AutoPause`, so when the allowance runs out the database **stops for the
+rest of the calendar month** and every route in the app answers 500 while
+the static site carries on looking fine.
+
+That happened on 2026-09-15. The cause was this app's own polling: a page
+with live positions asks `/api/telematics/*` every 60 seconds, each ask hit
+SQL for the truck and driver roster, and one browser tab left open
+overnight therefore kept the database awake around the clock — a month of
+allowance in about two and a half days, with nobody watching the screen.
+
+Two changes, both in that commit, so it does not repeat:
+
+* **A hidden tab polls nothing.** `useTelematics` drops its timer on
+  `visibilitychange` and asks once, immediately, when the tab comes back.
+  A forgotten tab now costs nothing at all.
+* **The poll no longer wakes SQL every minute.** The roster queries behind
+  `/api/telematics/positions` and `/hours` are memoised for 15 minutes in
+  the Function, because trucks and drivers change a few times a day and not
+  sixty times an hour. A watched page now makes four SQL queries an hour
+  instead of sixty; an unwatched one makes none, and the database can reach
+  its idle hour and sleep.
+
+To resume a paused database before the month rolls over, either use
+*Compute + storage → Continue using database with additional charges* in the
+portal, or:
+
+    az sql db update -g app-millstream -s millstream-wjm -n Millstream       --free-limit-exhaustion-behavior BillOverUsage
+
+That bills the overage for the remainder of the month at the serverless
+rate, which is charged per second the database is awake — so it is worth
+doing only with the polling fixed, or the same tab that emptied the
+allowance starts spending money instead.
+
 **The database firewall must allow Azure services.** The Function's outbound
 IP is dynamic on the Free tier, so there is no address to allowlist; the
 server carries the standard `AllowAllWindowsAzureIps` (`0.0.0.0`) rule

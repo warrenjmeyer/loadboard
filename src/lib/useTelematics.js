@@ -10,6 +10,11 @@ import { fetchJson } from './api.js'
 // truck every so often, and the server remembers an answer for twenty
 // seconds anyway, so polling faster would show the same numbers sooner.
 //
+// IT STOPS WHEN THE TAB IS HIDDEN. See the long note in the effect: the
+// database this app runs on is billed for being awake rather than for being
+// queried, and a forgotten tab polling all night is what exhausted a month
+// of it.
+//
 // Three outcomes, kept apart because the page says different things:
 //
 //   data           the answer
@@ -44,7 +49,31 @@ export function useTelematics(path, { enabled = true, every = POLL_MS } = {}) {
     let cancelled = false
     let timer = null
 
+    // A HIDDEN TAB ASKS NOTHING. This is not a nicety, it is the bill.
+    //
+    // The database is Azure SQL serverless on the free monthly allowance --
+    // about a hundred thousand vCore-seconds, which at its minimum size is
+    // roughly fifty-five hours of being AWAKE, not of being used. It only
+    // falls asleep after an hour with no query. So one forgotten tab polling
+    // this every sixty seconds keeps it awake around the clock and spends
+    // the whole month in about two and a half days, whether anybody is
+    // looking at the screen or not. That is exactly what happened in
+    // September 2026: the database paused itself mid-month and every page in
+    // the app started answering 500.
+    //
+    // So: no timer while the tab is hidden, and one immediate ask when it
+    // comes back, because the first thing someone wants on returning is
+    // current numbers rather than a minute-old screen.
+    const isHidden = () => typeof document !== 'undefined' && document.visibilityState === 'hidden'
+
+    function schedule() {
+      if (cancelled || every <= 0 || isHidden()) return
+      timer = setTimeout(ask, every)
+    }
+
     async function ask() {
+      if (timer) { clearTimeout(timer); timer = null }
+      if (cancelled) return
       try {
         const answer = await fetchJson(path)
         if (cancelled) return
@@ -69,14 +98,28 @@ export function useTelematics(path, { enabled = true, every = POLL_MS } = {}) {
       } finally {
         if (!cancelled) setLoading(false)
       }
-      if (!cancelled && every > 0) timer = setTimeout(ask, every)
+      schedule()
+    }
+
+    function onVisibilityChange() {
+      if (isHidden()) {
+        if (timer) { clearTimeout(timer); timer = null }
+      } else {
+        ask()
+      }
     }
 
     setLoading(true)
     ask()
+    if (typeof document !== 'undefined') {
+      document.addEventListener('visibilitychange', onVisibilityChange)
+    }
     return () => {
       cancelled = true
       if (timer) clearTimeout(timer)
+      if (typeof document !== 'undefined') {
+        document.removeEventListener('visibilitychange', onVisibilityChange)
+      }
     }
   }, [path, enabled, every])
 

@@ -47,6 +47,36 @@ async function remember(key, fn) {
   return value
 }
 
+// THE ROSTER IS REMEMBERED MUCH LONGER, AND THE REASON IS THE BILL.
+//
+// These routes are polled once a minute by every open page. The Geotab half
+// of that is a fair cost of showing live positions. The SQL half is not:
+// the trucks, the drivers and which load each is on change when a dispatcher
+// changes them, which is a few times a day, not sixty times an hour.
+//
+// It matters more than an ordinary cache would, because the database is
+// Azure SQL serverless on the free monthly allowance: it is billed for being
+// AWAKE, not for being queried, and it only sleeps after an hour with no
+// query at all. A query a minute means it never sleeps, and a month's
+// allowance is about fifty-five hours awake. In September 2026 that ran out
+// mid-month and every route in the app started answering 500.
+//
+// Fifteen minutes is the compromise: a truck added in the app shows up on
+// the fleet page within a quarter of an hour, and a page left open makes
+// four SQL queries an hour instead of sixty. Paired with the browser no
+// longer polling a hidden tab at all, an idle evening now lets the database
+// sleep.
+const ROSTER_MEMO_MS = 15 * 60 * 1000
+const roster = new Map()
+
+async function rememberRoster(key, fn) {
+  const hit = roster.get(key)
+  if (hit && hit.until > Date.now()) return hit.value
+  const value = await fn()
+  roster.set(key, { value, until: Date.now() + ROSTER_MEMO_MS })
+  return value
+}
+
 function notConfigured() {
   return {
     status: 503,
@@ -171,8 +201,8 @@ async function positions(request) {
 
   const pool = await getPool()
   const [trucks, drivers, users, fleet] = await Promise.all([
-    appTrucks(pool),
-    appDrivers(pool),
+    rememberRoster('trucks', () => appTrucks(pool)),
+    rememberRoster('drivers', () => appDrivers(pool)),
     geotabDrivers(),
     remember('fleet', async () => {
       const [devices, statuses] = await geotab.multiCall([
@@ -256,7 +286,10 @@ async function hours(request) {
   if (!geotab.configured()) return notConfigured()
 
   const pool = await getPool()
-  const [drivers, users] = await Promise.all([appDrivers(pool, driverCode), geotabDrivers()])
+  const [drivers, users] = await Promise.all([
+    rememberRoster(`drivers:${driverCode || 'all'}`, () => appDrivers(pool, driverCode)),
+    geotabDrivers(),
+  ])
   if (driverCode && drivers.length === 0) return { status: 404, jsonBody: { error: 'No such driver.' } }
 
   const { byCode, unmatched } = rules.matchDrivers(users, drivers)
