@@ -1,4 +1,4 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 # Create geofences for the places this fleet actually goes.
 #
 # Usage:
@@ -118,7 +118,23 @@ $CITY_COORDS = @(
     @{ Name = 'SIOUX FALLS, SD';   Lat = 43.5460; Lon = -96.7313 },
     @{ Name = 'SPRINGFIELD, MO';   Lat = 37.2089; Lon = -93.2923 },
     @{ Name = 'TOLEDO, OH';        Lat = 41.6528; Lon = -83.5379 },
-    @{ Name = 'WICHITA, KS';       Lat = 37.6872; Lon = -97.3301 }
+    @{ Name = 'WICHITA, KS';       Lat = 37.6872; Lon = -97.3301 },
+
+    # Added 2026-09-16, for loads_06_southwest.sql. These are the cities the
+    # freight had to move to, not the fleet: the demo vehicles drive simulated
+    # loops around Las Vegas and that simulation cannot be relocated, so five
+    # loads were written where the trucks already are. Without zones for these
+    # the map has no coordinates for the new stops and the ETA refuses with
+    # "no zone for LAS VEGAS, NV" -- which is the whole point of running this
+    # with -FromLanes after that migration.
+    @{ Name = 'LAS VEGAS, NV';       Lat = 36.1699; Lon = -115.1398 },
+    @{ Name = 'NORTH LAS VEGAS, NV'; Lat = 36.1989; Lon = -115.1175 },
+    @{ Name = 'HENDERSON, NV';       Lat = 36.0395; Lon = -114.9817 },
+    @{ Name = 'PHOENIX, AZ';         Lat = 33.4484; Lon = -112.0740 },
+    @{ Name = 'FLAGSTAFF, AZ';       Lat = 35.1983; Lon = -111.6513 },
+    @{ Name = 'LOS ANGELES, CA';     Lat = 34.0522; Lon = -118.2437 },
+    @{ Name = 'BARSTOW, CA';         Lat = 34.8958; Lon = -117.0173 },
+    @{ Name = 'ST. GEORGE, UT';      Lat = 37.0965; Lon = -113.5684 }
 )
 
 if ([string]::IsNullOrWhiteSpace($Database)) { $Database = Read-Host 'MyGeotab database' }
@@ -193,6 +209,28 @@ if ($FromLanes) {
     $needed = [ordered]@{}
     foreach ($lane in $lanes.Values) {
         foreach ($city in @($lane.Origin, $lane.Destination)) {
+            if (-not $needed.Contains($city)) { $needed[$city] = $true }
+        }
+    }
+
+    # And the MIDDLE stops, which are not lane endpoints and so are invisible
+    # to Get-Lanes. A multi-stop load stops at a town that is neither its
+    # origin nor its destination -- St. George on a Las Vegas to Salt Lake
+    # run -- and that town needs a zone just as much: it is the name the map
+    # joins on for the stop's coordinates, and without it the load cannot be
+    # drawn or given an ETA at all.
+    #
+    # Matched on the stop_type that precedes the place in every LoadStops
+    # insert, which is narrow enough not to catch a customer's city or a
+    # shipper's address.
+    $stopFiles = @()
+    foreach ($glob in 'stops_0*.sql', 'loads_0*.sql') {
+        $stopFiles += Get-ChildItem -Path (Join-Path $PSScriptRoot $glob) -ErrorAction SilentlyContinue
+    }
+    if ($stopFiles) {
+        $stopPattern = "'(?:Pickup|Delivery)',\s*N'([A-Za-z .]+, [A-Za-z]{2})'"
+        foreach ($m in (Select-String -Path $stopFiles.FullName -Pattern $stopPattern -AllMatches).Matches) {
+            $city = $m.Groups[1].Value.ToUpper()
             if (-not $needed.Contains($city)) { $needed[$city] = $true }
         }
     }

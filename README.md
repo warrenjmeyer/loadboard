@@ -762,6 +762,29 @@ bounding box a world wide and would draw as a streak across Iowa -- and
 the Aleutians' genuinely positive longitudes allowed for rather than
 "fixed".
 
+**The fleet and the freight were in different halves of the country**, and
+that is why `loads_06_southwest.sql` exists. Millstream hauls the Midwest;
+GeoTab's demo vehicles drive simulated loops around Las Vegas, and that
+simulation is not ours to move -- positions come from devices, and unlike
+duty status logs there is no "manual" origin the API accepts for them. So
+every live feature correctly answered "that truck is fifteen hundred miles
+from this load" and drew nothing.
+
+The fix was to add freight where the trucks are, not to falsify where the
+trucks are: five current loads on real Southwest lanes (`L-10501`..`L-10505`),
+assigned to Demo - 01..05, with two new customers of their own. Nothing
+existing was rewritten -- a carrier picking up some Southwest work is
+ordinary; a carrier whose delivered history silently moved across the
+country is not. On those five the map draws the truck and the ETA has
+something to measure from.
+
+They need zones, and `geotab-add-zones.ps1 -FromLanes` finds them by reading
+these SQL files, so it needs no list maintained by hand. It gained one thing
+here: it now also collects the **middle** stops of multi-stop loads, which
+are not lane endpoints and were therefore invisible to it -- St. George on a
+Las Vegas to Salt Lake run needs a zone exactly as much as either end,
+because that name is the join that gives the stop its coordinates.
+
 **Not here.** The breadcrumb trail of where a truck actually
 drove (Geotab's `LogRecord` would give it, at the cost of thinning a few
 thousand points per trip), exceptions and speeding events,
