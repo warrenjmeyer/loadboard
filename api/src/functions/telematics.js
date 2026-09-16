@@ -3,6 +3,7 @@ const { getPool, sql } = require('../db')
 const identity = require('../identity')
 const geotab = require('../geotab')
 const rules = require('../telematicsRules')
+const routeShape = require('../routeShape')
 
 // ---------------------------------------------------------------------------
 // What the trucks are doing, read from MyGeotab.
@@ -14,6 +15,8 @@ const rules = require('../telematicsRules')
 //   GET /api/telematics/hours?driver=CODE    one driver's
 //   GET /api/telematics/zones                the named places, with centres,
 //                                            so a stop can go on a map
+//   GET /api/telematics/trail?unit=X         where that truck has actually
+//                                            driven, for the last few hours
 //
 // READS ONLY. Nothing here changes anything in Geotab, and nothing here is
 // stored: every answer is fetched when asked for and handed straight back.
@@ -39,11 +42,11 @@ const rules = require('../telematicsRules')
 const MEMO_MS = 20000
 const memo = new Map()
 
-async function remember(key, fn) {
+async function remember(key, fn, ttl = MEMO_MS) {
   const hit = memo.get(key)
   if (hit && hit.until > Date.now()) return hit.value
   const value = await fn()
-  memo.set(key, { value, until: Date.now() + MEMO_MS })
+  memo.set(key, { value, until: Date.now() + ttl })
   return value
 }
 
@@ -270,6 +273,85 @@ async function zones(request) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/telematics/trail?unit=Demo%20-%2001&hours=8
+//
+// The breadcrumbs: every GPS fix that truck has reported recently, in time
+// order, thinned to something a map can draw.
+//
+// The load map already shows where a truck IS and where its freight is going.
+// This is the third thing a dispatcher asks -- where has it BEEN -- and it is
+// the one question the app could never answer, because it is the only one
+// whose answer is not a single number.
+//
+// KEYED ON THE UNIT, NOT THE LOAD, and that is not an accident. A route
+// keyed on a load has to read the load out of SQL to find its truck, and
+// this is polled. The database is billed for being awake; a trail that woke
+// it every few minutes would be the September bill all over again in a
+// different costume. Geotab knows the unit by name, so nothing here touches
+// SQL at all.
+//
+// A truck reports every few seconds while it moves, so eight hours is
+// thousands of records. resultsLimit caps what Geotab sends, and the same
+// thinner the road route uses drops the rest: what survives is the shape of
+// the journey, and what goes is detail finer than a pixel.
+// ---------------------------------------------------------------------------
+const TRAIL_MAX_HOURS = 24
+const TRAIL_DEFAULT_HOURS = 8
+const TRAIL_RECORD_LIMIT = 5000
+const TRAIL_MEMO_MS = 120000
+
+async function trail(request) {
+  const user = await identity.currentUser(request)
+  if (!user) return identity.unauthorized('Sign in to see where a truck has been.')
+  if (user.role === 'none') return identity.forbidden('Your account is waiting for approval.')
+  if (!geotab.configured()) return notConfigured()
+
+  const unit = (request.query.get('unit') || '').trim()
+  if (!unit) return { status: 400, jsonBody: { error: 'Which truck?' } }
+
+  const asked = Number(request.query.get('hours'))
+  const hours = Number.isFinite(asked) && asked > 0 ? Math.min(asked, TRAIL_MAX_HOURS) : TRAIL_DEFAULT_HOURS
+
+  const now = new Date()
+  const from = new Date(now.getTime() - hours * 3600 * 1000)
+
+  const answer = await remember(`trail:${unit}:${hours}`, async () => {
+    const devices = await remember('devices', () => geotab.get('Device'))
+    const device = (devices || []).find((d) => String(d.name || '').trim() === unit)
+    if (!device) return { found: false }
+
+    const records = await geotab.get('LogRecord', {
+      deviceSearch: { id: device.id },
+      fromDate: from.toISOString(),
+      toDate: now.toISOString(),
+    }, TRAIL_RECORD_LIMIT)
+
+    const raw = rules.trailPoints(records)
+    // A tighter tolerance than the road route uses: a trail is often one
+    // town rather than five states, and at that zoom half a kilometre of
+    // smoothing would straighten out the streets it actually turned down.
+    const points = routeShape.round(routeShape.simplify(raw, 0.0008), 5)
+    return { found: true, raw: raw.length, points }
+  }, TRAIL_MEMO_MS)
+
+  if (!answer.found) return { status: 404, jsonBody: { error: 'No such truck in GeoTab.' } }
+
+  return {
+    jsonBody: {
+      unitNo: unit,
+      fromUtc: from.toISOString(),
+      toUtc: now.toISOString(),
+      hours,
+      reported: answer.raw,
+      points: answer.points,
+    },
+    // Two minutes, matching the server's own memo: a trail is history, and
+    // history does not change while you look at it.
+    headers: { 'Cache-Control': 'private, max-age=120' },
+  }
+}
+
+// ---------------------------------------------------------------------------
 // GET /api/telematics/hours
 // ---------------------------------------------------------------------------
 async function hours(request) {
@@ -381,6 +463,13 @@ app.http('telematics-hours', {
   authLevel: 'anonymous',
   route: 'telematics/hours',
   handler: wrap('/api/telematics/hours', hours),
+})
+
+app.http('telematics-trail', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'telematics/trail',
+  handler: wrap('/api/telematics/trail', trail),
 })
 
 app.http('telematics-zones', {

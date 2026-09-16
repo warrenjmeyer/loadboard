@@ -1024,6 +1024,18 @@ button:disabled { cursor: default; opacity: .6; }
 .lane-ref circle { fill: #c4cbd3; }
 .lane-ref text { font-size: 10px; fill: var(--muted); }
 
+/* Where the truck has been: the quietest line on the map, drawn under
+   everything. It is context for the marker, not a claim about the freight,
+   and it must never compete with the road the load is actually taking. */
+.lane-trail {
+  fill: none;
+  stroke: #8a4b00;
+  stroke-width: 2;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.35;
+}
+
 /* The road, when HERE has told us where it goes. Solid, because it is one.
    Drawn over the basemap and under the pins: a reader follows the line to
    the stop, not the stop to the line. */

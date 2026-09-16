@@ -111,6 +111,17 @@ export default function LoadDetail() {
     { enabled: askZones, every: 0 },
   )
 
+  // Where the truck has actually driven. Only while a load is moving and
+  // only when there is a truck on it -- a delivered load's trail is last
+  // week's and belongs to whatever that truck is hauling now. Asked by UNIT
+  // rather than by load, which is what keeps it off the database: see the
+  // note on the route.
+  const askTrail = askZones && moving && Boolean(load && load.unitNo)
+  const trail = useTelematics(
+    askTrail ? `/api/telematics/trail?unit=${encodeURIComponent(load.unitNo)}&hours=8` : null,
+    { enabled: askTrail, every: ETA_POLL_MS },
+  )
+
   // The ETA, which is a metered call to HERE and so the most carefully
   // rationed thing on this page: only while the load is actually moving,
   // only for someone the server would answer anyway, and every five
@@ -371,6 +382,7 @@ export default function LoadDetail() {
           <LaneMap
             stops={stops}
             road={road.data}
+            trail={trail.data}
             zonesByKey={zones.zonesByKey}
             truck={position.data && position.data.trucks[0] ? position.data.trucks[0] : null}
             notConnected={zones.notConnected}

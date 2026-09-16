@@ -321,7 +321,49 @@ function zoneRows(zones) {
   return rows.sort((a, b) => a.key.localeCompare(b.key))
 }
 
+// ---------------------------------------------------------------------------
+// Where a truck has actually been.
+//
+// A LogRecord is one GPS fix: a device, a time, a position. Geotab keeps
+// them every few seconds while a vehicle moves, so an afternoon is thousands
+// of them and a week is useless to ask for.
+//
+// This turns the raw records into the shape the map draws -- [lat, lon] in
+// time order -- and refuses the ones that cannot be drawn. Geotab reports
+// 0,0 for a device that has not got a fix yet, which is a real place in the
+// Atlantic and would put a line through the ocean from wherever the truck
+// is; it is dropped rather than plotted, the same rule the map, the ETA and
+// the route thinner all apply to a coordinate that is only technically a
+// number.
+// ---------------------------------------------------------------------------
+// A coordinate has to be refused BEFORE it is converted. Number(null) is 0
+// and Number('') is 0 -- both finite, both the equator -- so a record with a
+// missing latitude and a real longitude would otherwise be drawn a thousand
+// miles south of the truck. This is the third place in this codebase to
+// learn it: mapProject.isPlaceable and etaRules.placeable are the other two,
+// and all three exist because a convincing wrong answer is worse than none.
+function drawable(value) {
+  if (value === null || value === undefined || value === '') return false
+  return Number.isFinite(Number(value))
+}
+
+function trailPoints(records) {
+  return (records || [])
+    .filter((r) => (
+      r
+      && drawable(r.latitude)
+      && drawable(r.longitude)
+      // Null island. A fix of exactly zero in both is never a truck; it is a
+      // device that has not found the sky yet.
+      && !(Number(r.latitude) === 0 && Number(r.longitude) === 0)
+      && r.dateTime
+    ))
+    .sort((a, b) => String(a.dateTime).localeCompare(String(b.dateTime)))
+    .map((r) => [Number(Number(r.latitude).toFixed(5)), Number(Number(r.longitude).toFixed(5))])
+}
+
 module.exports = {
+  trailPoints,
   STATES,
   nearFrom,
   placeKey,

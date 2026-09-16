@@ -615,6 +615,14 @@ const cases = [
           ],
         },
       }],
+      // The breadcrumb trail under the truck marker: where it has driven in
+      // the last eight hours, as GET /api/telematics/trail returns it.
+      ['LaneMap with the trail', '/src/components/LaneMap.jsx', {
+        stops, zonesByKey, truck: nearby, trail: {
+          unitNo: 'Demo - 15', hours: 8, reported: 1840,
+          points: [[42.72, -91.9], [42.68, -91.72], [42.63, -91.55], [42.61, -91.35]],
+        },
+      }],
       ['LaneMap truck far away', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: vegas }],
       ['LaneMap unknown place', '/src/components/LaneMap.jsx', {
         stops: [...stops, { stopId: 24, seq: 4, stopType: 'Delivery', place: 'Rockford, IL', departedUtc: null }],

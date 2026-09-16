@@ -785,9 +785,21 @@ are not lane endpoints and were therefore invisible to it -- St. George on a
 Las Vegas to Salt Lake run needs a zone exactly as much as either end,
 because that name is the join that gives the stop its coordinates.
 
-**Not here.** The breadcrumb trail of where a truck actually
-drove (Geotab's `LogRecord` would give it, at the cost of thinning a few
-thousand points per trip), exceptions and speeding events,
+**Where it has been, too.** `GET /api/telematics/trail?unit=X&hours=8`
+reads GeoTab's `LogRecord` -- one row per GPS fix, every few seconds while a
+truck moves -- and hands back a thinned line the map draws faintly under
+everything else. The load map already answered where a truck *is* and where
+its freight is *going*; this is the third thing a dispatcher asks.
+
+Two decisions in it are about cost rather than cartography. It is keyed on
+the **unit**, not the load, because a load-keyed route would have to read
+the load out of SQL to find its truck -- and this one polls, on a database
+billed for being awake. Nothing in it touches SQL at all. And it reuses the
+road route's thinner at a tighter tolerance: a trail is usually one town
+rather than five states, and half a kilometre of smoothing would straighten
+out the streets it actually turned down.
+
+**Not here.** Exceptions and speeding events,
 and anything that would write to
 Geotab from the app -- a dispatched load does not become a Geotab route or
 a zone visit.

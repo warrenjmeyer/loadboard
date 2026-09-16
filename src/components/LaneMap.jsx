@@ -138,6 +138,7 @@ export default function LaneMap({
   borders = null,
   streets: streetsOverride = null,
   road = null,
+  trail = null,
 }) {
   // Before the early returns below, because a hook that is sometimes called
   // is a hook that breaks the next render -- so the decision not to fetch
@@ -242,6 +243,15 @@ export default function LaneMap({
   // arrive as [lat, lng] because that is the order every mapping API on
   // earth uses -- project() takes them the other way round, which is the
   // sort of thing that silently draws Iowa in China.
+  // Where it has been, drawn under where it is going. The trail arrives as
+  // [lat, lng] like the road does, and is deliberately the quietest line on
+  // the map: it is context for the marker, not a claim about the freight.
+  const trailPath = (trail && Array.isArray(trail.points) && trail.points.length > 1 ? trail.points : [])
+    .map(([lat, lng]) => project(lng, lat))
+    .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+    .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+    .join(' ')
+
   const roadLegs = (road && road.available && Array.isArray(road.legs) ? road.legs : [])
     .map((leg) => (leg.points || [])
       .map(([lat, lng]) => project(lng, lat))
@@ -332,6 +342,8 @@ export default function LaneMap({
           </g>
         ))}
 
+        {trailPath && <path d={trailPath} className="lane-trail" />}
+
         {roadLegs.length > 0
           ? roadLegs.map((d, i) => <path key={`road-${i}`} d={d} className="lane-road" />)
           : stopPts.length > 1 && <polyline points={lane} className="lane-line" />}
@@ -373,6 +385,9 @@ export default function LaneMap({
           : crow ? <> The line is {formatMiles(Math.round(crow))} miles as the crow flies, not a route.</> : null}
         {missing.length > 0 && <> No GeoTab zone for {missing.map((s) => s.place).join(', ')}, so {missing.length === 1 ? 'it is' : 'they are'} not shown.</>}
         {truckPt && truck.near && <> {truck.unitNo} last reported near {truck.near}.</>}
+        {trailPath && trail.hours
+          ? <> The faint line is where it has driven in the last {trail.hours} hours.</>
+          : null}
         {truckPlaceable && !nearLane && (
           <> {truck.unitNo} is reported {truck.near ? `near ${truck.near}` : 'far from this lane'}, too far away to draw on the same map.</>
         )}

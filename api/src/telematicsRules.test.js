@@ -219,3 +219,41 @@ test('a zone with no usable points is dropped, not plotted in the Atlantic', () 
   assert.deepEqual(rows.map((r) => r.key), ['CHICAGO, IL', 'WATERLOO, IA'])
   assert.equal(rules.zoneRows(null).length, 0)
 })
+
+// ---------------------------------------------------------------------------
+// The breadcrumb trail.
+// ---------------------------------------------------------------------------
+
+test('a trail comes back in time order, whatever order it arrived in', () => {
+  // Geotab returns LogRecords in no guaranteed order, and a trail drawn in
+  // the order they happen to arrive is a scribble rather than a journey.
+  const trail = rules.trailPoints([
+    { dateTime: '2026-09-16T14:05:00.000Z', latitude: 36.12, longitude: -115.10 },
+    { dateTime: '2026-09-16T14:00:00.000Z', latitude: 36.17, longitude: -115.14 },
+    { dateTime: '2026-09-16T14:10:00.000Z', latitude: 36.05, longitude: -115.02 },
+  ])
+  assert.deepEqual(trail, [[36.17, -115.14], [36.12, -115.1], [36.05, -115.02]])
+})
+
+test('a fix at null island is dropped, not drawn', () => {
+  // Geotab reports 0,0 for a device with no fix yet. It is a real place in
+  // the Atlantic, and one of them puts a line from Nevada across the ocean
+  // and back.
+  const trail = rules.trailPoints([
+    { dateTime: '2026-09-16T14:00:00.000Z', latitude: 36.17, longitude: -115.14 },
+    { dateTime: '2026-09-16T14:01:00.000Z', latitude: 0, longitude: 0 },
+    { dateTime: '2026-09-16T14:02:00.000Z', latitude: 36.12, longitude: -115.10 },
+  ])
+  assert.equal(trail.length, 2)
+  assert.ok(trail.every(([lat, lon]) => lat !== 0 && lon !== 0))
+})
+
+test('a record missing a time or a coordinate is not a breadcrumb', () => {
+  assert.deepEqual(rules.trailPoints([
+    { latitude: 36.17, longitude: -115.14 },                     // no time
+    { dateTime: '2026-09-16T14:00:00.000Z', latitude: 36.17 },   // no longitude
+    { dateTime: '2026-09-16T14:01:00.000Z', latitude: null, longitude: -115.1 },
+  ]), [])
+  assert.deepEqual(rules.trailPoints([]), [])
+  assert.deepEqual(rules.trailPoints(null), [])
+})
