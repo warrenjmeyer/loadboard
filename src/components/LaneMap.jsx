@@ -187,12 +187,23 @@ export default function LaneMap({
 
   // Reference cities: every other zone close enough to the lane to give the
   // eye something to hold on to, at most a dozen, nearest first.
+  //
+  // NONE OF THEM WHEN STREETS ARE ON. The basemap already names every town
+  // in the picture, in a cartographer's positions, and drawing ours over
+  // the top gives Sioux City and Cedar Rapids two labels each in two
+  // colours a few pixels apart -- which reads as a fault rather than as
+  // context. The layer exists to supply what an empty rectangle lacks, so
+  // when the rectangle is a map it has nothing left to do. The stops keep
+  // their own labels either way: they are the subject, not the background.
+  //
+  // The zoom does not shift when these disappear, because it was never
+  // fitted to them -- see fitTo below.
   const laneMid = {
     latitude: placed.reduce((t, p) => t + p.latitude, 0) / placed.length,
     longitude: placed.reduce((t, p) => t + p.longitude, 0) / placed.length,
   }
   const onLane = new Set(placed.map((p) => p.latitude.toFixed(3) + ',' + p.longitude.toFixed(3)))
-  const reference = [...zonesByKey.values()]
+  const reference = streets ? [] : [...zonesByKey.values()]
     .filter((z) => !onLane.has(z.latitude.toFixed(3) + ',' + z.longitude.toFixed(3)))
     // Only zones that are named like towns. The fleet's Geotab also holds
     // zones named by street address -- "4200 Mercy Dr, Dubuque, IA 52001,
