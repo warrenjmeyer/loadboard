@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { layout, milesBetween, isPlaceable, bordersInView, borderPath } from '../lib/mapProject.js'
 import { chooseZoom, tilesFor, tileRect, tileUrl } from '../lib/tiles.js'
+import { looksLikeTown, labelBox, withoutCollisions } from '../lib/mapLabels.js'
 import { formatMiles } from '../lib/format.js'
 
 // ---------------------------------------------------------------------------
@@ -193,6 +194,12 @@ export default function LaneMap({
   const onLane = new Set(placed.map((p) => p.latitude.toFixed(3) + ',' + p.longitude.toFixed(3)))
   const reference = [...zonesByKey.values()]
     .filter((z) => !onLane.has(z.latitude.toFixed(3) + ',' + z.longitude.toFixed(3)))
+    // Only zones that are named like towns. The fleet's Geotab also holds
+    // zones named by street address -- "4200 Mercy Dr, Dubuque, IA 52001,
+    // Usa" -- which are real places and say nothing on a map of four
+    // states. Filtering before the slice means the nearest fourteen TOWNS
+    // get drawn rather than the nearest fourteen zones.
+    .filter((z) => looksLikeTown(z.name))
     .map((z) => ({ ...z, kind: 'ref', away: milesBetween(laneMid, z) }))
     .sort((a, b) => a.away - b.away)
     .slice(0, compact ? COMPACT_REFS : 14)
@@ -219,6 +226,19 @@ export default function LaneMap({
   const stopPts = points.filter((p) => p.kind === 'stop')
   const truckPt = points.find((p) => p.kind === 'truck') || null
   const refPts = points.filter((p) => p.kind === 'ref' && p.x > 4 && p.x < W - 60 && p.y > 12 && p.y < height - 6)
+
+  // What the reader came for goes down first and cannot be written over:
+  // the stop names above their pins, and the truck's unit below its own.
+  // Then the reference towns, nearest the lane first, and any that would
+  // land on something already there is dropped -- dot and all.
+  const reserved = [
+    ...stopPts.map((p) => labelBox(p.x, p.y - 16, p.place, { anchor: 'middle' })),
+    ...(truckPt ? [labelBox(truckPt.x, truckPt.y + 21, truck.unitNo, { anchor: 'middle' })] : []),
+  ]
+  const refLabels = withoutCollisions(
+    refPts.map((p) => ({ ...p, label: titleCase(p.name), box: labelBox(p.x + 6, p.y + 3, titleCase(p.name)) })),
+    { reserved },
+  )
   const lane = stopPts.map((p) => `${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ')
 
   const crow = stopPts.length > 1
@@ -272,10 +292,10 @@ export default function LaneMap({
         ))}
 
         {/* The rest of the fleet's places, for context only. */}
-        {refPts.map((p) => (
+        {refLabels.map((p) => (
           <g key={`ref-${p.key}`} className="lane-ref">
             <circle cx={p.x} cy={p.y} r="2.5" />
-            <text x={p.x + 6} y={p.y + 3}>{titleCase(p.name)}</text>
+            <text x={p.x + 6} y={p.y + 3}>{p.label}</text>
           </g>
         ))}
 
