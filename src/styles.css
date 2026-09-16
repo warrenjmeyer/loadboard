@@ -527,6 +527,14 @@ button.primary {
      on a document going to a customer's accounts payable reads as a mistake.
      The links stay live on screen; only the print loses them. */
   .invoice-doc a { color: inherit; text-decoration: none; }
+
+  /* .page ends in 64px of bottom padding -- breathing room under a scrolling
+     screen, and two thirds of an inch of nothing on paper. When a document
+     happens to end near the foot of a page that tail spills over and prints an
+     ENTIRELY BLANK SHEET after it, which is what the fixed invoice did: two
+     pages of freight and a third with nothing on it. Only the bottom goes, so
+     nothing above it shifts and no other document repaginates. */
+  .page { padding-bottom: 0; }
 }
 
 .stmt-note {

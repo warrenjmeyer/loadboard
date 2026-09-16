@@ -99,3 +99,19 @@ writeFileSync(page, `<!doctype html><html><head><meta charset="utf-8"><title>${i
 
 execFileSync(CHROME, ['--headless', '--disable-gpu', '--no-pdf-header-footer', `--print-to-pdf=${out}`, `file:///${page.split(String.fromCharCode(92)).join('/')}`], { stdio: 'inherit' })
 console.log(`${invoice.invoiceNo} -> ${out}`)
+
+// Count the pages AND what is on each one. Counting pages alone is how a
+// blank trailing sheet got reported as a fix: the document went from four
+// pages to three and nobody opened the third. A page with no characters on it
+// is a bug every time.
+const POPPLER = join(process.env.LOCALAPPDATA || '', 'Microsoft/WinGet/Packages/oschwartz10612.Poppler_Microsoft.Winget.Source_8wekyb3d8bbwe/poppler-25.07.0/Library/bin/pdftotext.exe')
+try {
+  const text = execFileSync(POPPLER, [out, '-'], { encoding: 'utf8' })
+  const pages = text.split('').slice(0, -1)
+  pages.forEach((p, i) => {
+    const n = p.replace(/\s/g, '').length
+    console.log(`  page ${i + 1}: ${n} characters${n === 0 ? '   <-- BLANK, that is the bug' : ''}`)
+  })
+} catch {
+  console.log('  (poppler not found -- open the PDF and count the pages by eye)')
+}
