@@ -1,4 +1,4 @@
-# ---------------------------------------------------------------------------
+﻿# ---------------------------------------------------------------------------
 # Seed hours-of-service logs for every driver in MyGeotab.
 #
 # Usage:
@@ -232,6 +232,22 @@ if ($Clear -or $ClearOnly) {
 # One day's duty cycle, as (status, minutes) pairs, from a per-driver seed.
 # A "heavy" driver drives close to the 11-hour limit every day and ends
 # the window near the 70-hour cycle; an ordinary one drives 7-9 hours.
+#
+# AND ONE DAY OFF, which is the whole reason this script was revised.
+#
+# The first version seeded eight CONSECUTIVE working days. Each is six to
+# eleven hours on duty, so the eight-day total came to somewhere between
+# fifty and ninety hours against a seventy-hour cycle -- and every driver in
+# the fleet ended up with a spent cycle. A spent cycle zeroes the driving
+# clock with it, so /fleet showed 0m DRIVE and 0m CYCLE for the entire
+# roster, which read like a bug in the app and was a bug in the data.
+#
+# Real carriers do not solve this by driving less. They take the 34-hour
+# restart: two nights and a day off, after which the cycle starts again. A
+# full calendar day with no logs gives about thirty-six hours between the
+# previous evening's last OFF and the next morning's first ON, which is a
+# restart, and it is what Get-RestartDay picks below. The day varies by
+# driver so the fleet is not all resting on a Tuesday.
 function Get-DayPlan {
     param([int]$Seed, [int]$DayIndex, [bool]$Heavy)
     $r = [System.Random]::new($Seed * 100 + $DayIndex)
@@ -246,6 +262,24 @@ function Get-DayPlan {
         @{ Status = 'ON';  Minutes = 15 + $r.Next(0, 30) },   # unload, post-trip
         @{ Status = 'OFF'; Minutes = 0 }                       # off until tomorrow
     ), $start
+}
+
+# Which day of the window this driver takes off. Never the first (there
+# would be nothing before it to restart from) and never the last two, so
+# there are working days after the restart and the clocks on screen are the
+# clocks of somebody who has been driving recently.
+function Get-RestartDay {
+    param([int]$Index, [int]$Days)
+    if ($Days -lt 4) { return -1 }
+    # Late in the window on purpose. A restart on day one leaves six working
+    # days after it, and six days of a heavy driver's eleven hours is
+    # seventy-two -- the cycle spent all over again, which is the bug this
+    # exists to fix. Three, four or five of eight leaves at most four working
+    # days: comfortably inside seventy hours even for the heavy pattern, and
+    # recent enough that the clocks on screen belong to somebody who has been
+    # driving this week.
+    $base = [Math]::Max(1, $Days - 5)
+    return $base + ($Index % 3)
 }
 
 # --- write -------------------------------------------------------------------------
@@ -288,8 +322,13 @@ foreach ($d in $drivers) {
     }
 
     $heavy = ($index % 10) -eq 0 -or ($index % 10) -eq 7
+    $restartDay = Get-RestartDay -Index $index -Days $Days
     $entries = @()
     for ($day = 0; $day -lt $Days; $day++) {
+        # The restart: no logs at all for this day. The driver is still OFF
+        # from the evening before, which is what makes the gap thirty-odd
+        # hours rather than a gap in the record.
+        if ($day -eq $restartDay) { continue }
         $dayLocal = $fromLocal.AddDays($day)
         $plan, $startMin = Get-DayPlan -Seed ($index + 1) -DayIndex $day -Heavy $heavy
         $t = $dayLocal.AddMinutes($startMin)
@@ -349,4 +388,5 @@ if ($WhatIf) {
     Write-Host 'Nothing was written (-WhatIf).' -ForegroundColor Yellow
 } else {
     Write-Host "Wrote $totalLogs duty status logs. Availability is computed by Geotab within a minute or so; reload /fleet." -ForegroundColor Green
+    Write-Host "Each driver took a 34-hour restart mid-window, so the 70-hour cycle should show hours left rather than zero." -ForegroundColor Green
 }

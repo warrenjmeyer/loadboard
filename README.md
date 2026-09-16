@@ -673,6 +673,23 @@ are a compliance record, and on a real fleet writing them would be
 falsifying one. The script refuses any database whose name does not
 contain "demo".
 
+**It seeds a 34-hour restart, and the first version's failure to is worth
+keeping.** Eight consecutive working days at six to eleven on-duty hours
+each is fifty to ninety hours against a seventy-hour cycle, so every driver
+in the fleet finished the window with the cycle spent -- and a spent cycle
+zeroes the driving clock with it. `/fleet` showed **0m DRIVE and 0m CYCLE
+for the entire roster**, which reads like a bug in the app and was a bug in
+the data. It went unnoticed until the ETA started consulting those clocks,
+at which point every load's arrival grew a ten-hour reset.
+
+Real carriers do not fix that by driving less; they take the restart. Each
+driver now has one full day with no logs, placed late in the window and
+varying by driver, which gives about thirty-six hours between one evening's
+last OFF and the next morning's first ON. That leaves at most four working
+days after it -- comfortably inside seventy hours even for the heavy
+pattern -- and the clocks on screen belong to somebody who has been driving
+this week.
+
 **Where a truck is, in words.** Beside the coordinates the positions list
 says "Ankeny, IA". That comes from Geotab's own reverse geocoding
 (`GetAddresses`): one API call for every truck at once, and a cache keyed
