@@ -25,3 +25,6 @@ here-probe-*.json
 # listing. No credential in them, but scratch captures, not repo content.
 here-tile-*.png
 here-tile-info.json
+
+# Written by tools/here-hos-probe.mjs -- one route asked three ways.
+here-hos-*.json

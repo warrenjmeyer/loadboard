@@ -663,6 +663,19 @@ const cases = [
     return [
       ['EtaPanel', '/src/components/EtaPanel.jsx', { eta: answer }],
       ['EtaPanel compact', '/src/components/EtaPanel.jsx', { eta: answer, compact: true }],
+      // With the driver's hours in it: a ten-hour reset before the delivery,
+      // which is the difference between a driving time and an arrival time.
+      ['EtaPanel with a rest', '/src/components/EtaPanel.jsx', { eta: {
+        ...answer,
+        totalRestSeconds: 36000,
+        hours: { driverCode: 'JSMITH', driving: 2400, duty: 2400, cycle: 14400, scheduled: true },
+        legs: [
+          { ...legs[0], restSeconds: 36000, rests: 1, eta: '2026-09-16T00:55:02', timing: { state: 'late', minutes: 595 } },
+          { ...legs[1], restSeconds: 0, rests: 0 },
+        ],
+      } }],
+      // And the honest opposite: no clocks, so these are driving times.
+      ['EtaPanel without hours', '/src/components/EtaPanel.jsx', { eta: { ...answer, hours: null } }],
       ['EtaPanel car fallback', '/src/components/EtaPanel.jsx', { eta: { ...answer, mode: 'car', fellBack: true } }],
       ['EtaPanel too far', '/src/components/EtaPanel.jsx', { eta: {
         available: false, reason: 'too-far', unitNo: 'Demo - 15', near: 'Henderson, NV',

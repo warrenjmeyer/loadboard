@@ -903,9 +903,41 @@ right docks rather than the wrong ones, and a blank position refused
 before `Number(null)` can turn it into 0 and put the truck in the Atlantic
 -- a bug the test caught on the way in.
 
-**Not here.** Hours-of-service-aware arrival (HERE has `driver[...]`
-parameters for rest schedules; wiring the GeoTab clocks into them is the
-obvious next step), an ETA history so "it said 3pm this morning" can be
+**The driver's hours are in it.** An arrival time that assumes someone can
+drive eleven hours straight is a driving time wearing an arrival time's
+clothes. `etaRules.driverSchedule` turns GeoTab's clocks into HERE's
+`driver[schedule]` -- pairs of drive,rest seconds -- and the router plans
+the resets itself. On this fleet's own lane a six-and-a-half hour run
+becomes **sixteen hours** once the driver has forty minutes left, and that
+gap is the whole feature.
+
+Three things it had to get right, none of them obvious until a real answer
+was in front of us (`tools/here-hos-probe.mjs`):
+
+* **A rest is not a stop.** Each reset splits the route into another
+  section, so a three-stop load can come back as three sections or five.
+  `readEta` walks them and closes a leg only when one lands on a stop --
+  identified by `arrival.place.waypoint`, which a via carries and a rest does
+  not. Pairing section *i* with stop *i*, as it used to, would have reported
+  the truck reaching St. George at the moment it actually pulled over to
+  sleep a hundred miles short.
+* **`summary.duration` includes the sleep.** A section with 36 minutes of
+  driving and a 10-hour reset reports 10h36. Driving time comes from
+  `travelSummary`; using `summary` for both would show a driver ten and a
+  half hours at the wheel.
+* **The tightest clock binds.** Four hours left on the eleven-hour driving
+  clock means nothing if forty minutes remain of the fourteen-hour window.
+
+The clock is rounded **down** to a quarter hour, which serves two ends at
+once: the schedule is part of the ETA's cache key, and an exact figure would
+miss the cache -- and spend a metered call -- on every page refresh; and
+rounding down gives the driver less time than they have, so the arrival
+moves later, which is the direction to be wrong in. When GeoTab has no
+availability record the request goes without hours and **the page says so**,
+because a driving time presented as an arrival time is the exact error this
+was built to remove.
+
+**Not here.** An ETA history so "it said 3pm this morning" can be
 checked, alerting when a load goes late, per-load truck dimensions (the
 profile is a legal 80,000 lb rig for every load), and anything written back
 to GeoTab.

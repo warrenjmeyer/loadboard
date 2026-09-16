@@ -170,28 +170,78 @@ const METRES_PER_MILE = 1609.344
 
 // The answer HERE gave, lined up with the stops it was asked about.
 //
-// One section per leg, in order, so section i arrives at stop i. If HERE
-// returns fewer sections than there are stops -- it should not, but this
-// file does not get to assume a third party is well behaved -- the legs it
-// did answer are kept and `partial` says so, rather than pairing an arrival
-// time with the wrong dock.
+// NOT one section per stop, which is what this used to assume. When the
+// driver's hours go in with the request the router INSERTS REST STOPS, and
+// each one splits the route into another section -- so a three-stop load can
+// come back as three sections or as five, depending on how tired the driver
+// is. Pairing section i with stop i would then hang an arrival time on the
+// wrong dock: a number that reads as perfectly reasonable and is about
+// somewhere else entirely.
+//
+// The rule, from watching real answers (tools/here-hos-probe.mjs):
+//
+//   * a section that arrives at one of OUR stops carries
+//     arrival.place.waypoint -- the index of that via waypoint;
+//   * the LAST section always arrives at the destination, which carries no
+//     waypoint index because it is not a via;
+//   * anything else is a rest the router invented, and it comes with a
+//     postAction of `wait` for the rest's duration.
+//
+// So: walk the sections, accumulate driving and resting, and close off a leg
+// each time one of them lands on a stop.
+//
+// AND MIND WHICH DURATION. summary.duration INCLUDES the post-arrival wait --
+// a section with thirty-six minutes of driving and a ten-hour reset reports
+// 10h36 -- so driving time comes from travelSummary, which excludes actions.
+// Using summary for both would report a driver spending ten hours at the
+// wheel.
 function readEta(body, stops, { mode = 'truck' } = {}) {
   const route = body && body.routes && body.routes[0]
   const sections = (route && route.sections) || []
-  const pairs = Math.min(sections.length, (stops || []).length)
+  const todo = stops || []
 
   let totalSeconds = 0
   let totalMetres = 0
+  let totalRest = 0
   const legs = []
-  for (let i = 0; i < pairs; i += 1) {
-    const section = sections[i]
-    const stop = stops[i]
+
+  // What has accumulated since the last stop: one leg's worth of driving,
+  // plus any rest taken on the way to it.
+  let driveSeconds = 0
+  let metres = 0
+  let restSeconds = 0
+  let rests = 0
+
+  sections.forEach((section, i) => {
     const summary = section.summary || {}
-    const seconds = Number(summary.duration) || 0
-    const metres = Number(summary.length) || 0
-    totalSeconds += seconds
-    totalMetres += metres
+    const travel = section.travelSummary || {}
+    const driving = Number(travel.duration !== undefined ? travel.duration : summary.duration) || 0
+    const length = Number(travel.length !== undefined ? travel.length : summary.length) || 0
+    driveSeconds += driving
+    metres += length
+
+    const waits = (section.postActions || []).filter((a) => a && a.action === 'wait')
+    const waited = waits.reduce((total, a) => total + (Number(a.duration) || 0), 0)
+
+    const waypoint = section.arrival && section.arrival.place && section.arrival.place.waypoint
+    const endsAtStop = (i === sections.length - 1) || Number.isInteger(waypoint)
+
+    if (!endsAtStop) {
+      // A rest. Its wait belongs to the leg still being built, because the
+      // driver takes it before reaching the next dock.
+      restSeconds += waited
+      rests += waits.length
+      return
+    }
+
+    const stop = todo[legs.length]
+    if (!stop) return
+
     const etaLocal = wallClock(section.arrival && section.arrival.time)
+    totalSeconds += driveSeconds
+    totalMetres += metres
+    totalRest += restSeconds
+
     legs.push({
       stopId: stop.stopId,
       seq: stop.seq,
@@ -202,25 +252,77 @@ function readEta(body, stops, { mode = 'truck' } = {}) {
       windowEnd: stop.windowEnd || null,
       eta: etaLocal,
       etaWithZone: (section.arrival && section.arrival.time) || null,
-      driveSeconds: seconds,
+      driveSeconds,
+      restSeconds,
+      rests,
       miles: Math.round(metres / METRES_PER_MILE),
-      cumulativeSeconds: totalSeconds,
+      cumulativeSeconds: totalSeconds + totalRest,
       timing: against(etaLocal, stop.windowStart, stop.windowEnd),
     })
-  }
+
+    driveSeconds = 0
+    metres = 0
+    restSeconds = 0
+    rests = 0
+  })
 
   return {
     mode,
     legs,
-    partial: pairs < (stops || []).length,
+    partial: legs.length < todo.length,
     totalSeconds,
+    totalRestSeconds: totalRest,
     totalMiles: Math.round(totalMetres / METRES_PER_MILE),
     next: legs[0] || null,
     last: legs[legs.length - 1] || null,
   }
 }
 
+// The driver's remaining hours, as HERE wants them: pairs of
+// driveDuration,restDuration in seconds.
+//
+// The first pair is what THIS driver has left before they must shut down;
+// every pair after it is a fresh day -- eleven hours at the wheel, ten off --
+// which is the US property-carrying rule the seeded logs keep.
+//
+// Which clock binds first decides the first number. A driver can have four
+// hours left on the eleven-hour driving clock and forty minutes left of the
+// fourteen-hour window, and it is the window that stops them.
+//
+// HERE refuses a drive duration under 240 seconds, so a driver with nothing
+// left is expressed as four minutes and a full reset. That is a lie of four
+// minutes, told because the alternative -- a schedule beginning with a rest
+// -- cannot be said in this format at all, and because an ETA that ignores
+// an empty clock is a lie of ten hours.
+const MIN_DRIVE_SECONDS = 240
+const DAILY_DRIVE_SECONDS = 11 * 3600
+const DAILY_REST_SECONDS = 10 * 3600
+
+function driverSchedule(hos, { days = 3 } = {}) {
+  if (!hos || !hos.hasAvailability) return null
+
+  const clocks = [hos.driving, hos.duty, hos.workday]
+    .map((v) => (v === null || v === undefined ? null : Number(v)))
+    .filter((v) => v !== null && Number.isFinite(v))
+  if (clocks.length === 0) return null
+
+  // Rounded DOWN to a quarter of an hour, for two reasons that happen to
+  // agree. A driving clock ticks every second, and the schedule is part of
+  // the ETA's cache key -- so an exact figure would miss the cache on every
+  // single request and spend a metered routing call each time somebody's
+  // page refreshed. And rounding down gives the driver LESS time than they
+  // have, which moves the arrival later: the direction a dispatcher would
+  // rather be wrong in.
+  const bucket = 15 * 60
+  const tightest = Math.min(...clocks)
+  const remaining = Math.max(MIN_DRIVE_SECONDS, Math.floor(tightest / bucket) * bucket)
+  const pairs = [Math.round(remaining) + ',' + DAILY_REST_SECONDS]
+  for (let i = 1; i < days; i += 1) pairs.push(DAILY_DRIVE_SECONDS + ',' + DAILY_REST_SECONDS)
+  return pairs.join(',')
+}
+
 module.exports = {
   NEAR_LANE_DEG, MOVING, STALE_MINUTES,
-  outstanding, nearLane, planEta, wallClock, against, readEta,
+  outstanding, nearLane, planEta, wallClock, against, readEta, driverSchedule,
+  MIN_DRIVE_SECONDS, DAILY_DRIVE_SECONDS, DAILY_REST_SECONDS,
 }

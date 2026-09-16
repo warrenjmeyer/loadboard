@@ -71,7 +71,7 @@ class HereError extends Error {
 // destination: HERE returns ONE SECTION PER LEG, so a single request -- a
 // single transaction -- yields an arrival time for every remaining stop
 // rather than just the last one.
-function routeUrl(points, mode, { geometry = false } = {}) {
+function routeUrl(points, mode, { geometry = false, schedule = null } = {}) {
   const p = new URLSearchParams()
   p.set('transportMode', mode)
   p.set('origin', `${points[0].latitude},${points[0].longitude}`)
@@ -80,12 +80,21 @@ function routeUrl(points, mode, { geometry = false } = {}) {
   // section -- a few thousand points for a day's drive. Asked for only when
   // something is going to draw it: an ETA needs the times and not the shape,
   // and the shape is the larger half of the answer by far.
-  p.set('return', geometry ? 'summary,polyline' : 'summary')
+  // travelSummary as well as summary, always. summary INCLUDES any rest the
+  // router inserts -- a section with 36 minutes of driving and a 10-hour
+  // reset reports 10h36 -- and travelSummary is the driving alone. Without
+  // both, a page cannot say how long a driver is actually at the wheel.
+  p.set('return', geometry ? 'summary,travelSummary,polyline' : 'summary,travelSummary')
   // Every waypoint in between, in order. `append`, not `set`: the parameter
   // legitimately appears more than once and the order is the itinerary.
   for (const via of points.slice(1, -1)) p.append('via', `${via.latitude},${via.longitude}`)
   if (mode === 'truck') {
     for (const [k, v] of Object.entries(TRUCK)) p.set(`truck[${k}]`, String(v))
+    // The driver's remaining hours, as drive,rest pairs in seconds. The
+    // router then plans the rests itself and the arrival times come back
+    // with sleep in them. Truck, bus and privateBus only -- which is why it
+    // is inside this branch and silently absent from a car fallback.
+    if (schedule) p.set('driver[schedule]', schedule)
   }
   // No departureTime: absent means "now at the origin", which is what an ETA
   // for a truck that is already rolling means. Passing `any` would ask for a

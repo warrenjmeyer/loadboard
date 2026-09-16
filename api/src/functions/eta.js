@@ -130,6 +130,51 @@ async function zoneLookup() {
   return (place) => byKey.get(telematics.zoneKey(place)) || null
 }
 
+// This load's driver, and how many hours they have left.
+//
+// The same join the fleet page uses -- Geotab knows a driver by first and
+// last name, this app knows them by code -- and then one DutyStatusAvailability
+// read for that one person. Two Geotab calls, no more than the hours page
+// makes for twenty-four drivers.
+//
+// Returns null when anything in the chain is missing: no driver on the load,
+// no Geotab user of that name, no availability record. Null means the ETA is
+// calculated the way it was yesterday, without hours in it, which is a worse
+// answer but an honest one. It is never a guessed clock.
+async function hoursFor(pool, driverCode) {
+  if (!driverCode) return null
+
+  const result = await pool.request().input('code', sql.VarChar(20), driverCode).query(`
+    SELECT driver_code, first_name, last_name, driver_type, unit_no
+    FROM dbo.Drivers WHERE driver_code = @code;
+  `)
+  const row = result.recordset[0]
+  if (!row) return null
+
+  const driver = {
+    driverCode: row.driver_code,
+    firstName: row.first_name,
+    lastName: row.last_name,
+    driverType: row.driver_type,
+    unitNo: row.unit_no,
+  }
+
+  const users = await geotab.get('User', { isDriver: true })
+  const { byCode } = telematics.matchDrivers(
+    (users || []).map((u) => ({ id: u.id, firstName: u.firstName, lastName: u.lastName })),
+    [driver],
+  )
+  const userId = byCode.get(driver.driverCode)
+  if (!userId) return null
+  driver.geotabUserId = userId
+
+  const availability = await geotab.get('DutyStatusAvailability', { userSearch: { id: userId } })
+  const first = Array.isArray(availability) ? availability[0] : availability
+  if (!first) return null
+
+  return telematics.hosRow(driver, first, [], new Date())
+}
+
 // Where this one truck is. Two calls rather than the whole fleet's worth,
 // and matched by name the way everything else in this app matches Geotab:
 // Trucks.unit_no is Device.name.
@@ -188,7 +233,11 @@ async function eta(request) {
     }
   }
 
-  const [position, zoneFor] = await Promise.all([positionFor(load.unitNo), zoneLookup()])
+  const [position, zoneFor, hos] = await Promise.all([
+    positionFor(load.unitNo),
+    zoneLookup(),
+    hoursFor(pool, load.driverCode),
+  ])
   const plan = rules.planEta({ load, stops, position }, zoneFor, now)
 
   if (!plan.ask) {
@@ -207,17 +256,33 @@ async function eta(request) {
     }
   }
 
-  const key = `${load.id}:${plan.stops.map((s) => s.stopId).join(',')}`
+  // The driver's remaining hours, as a drive/rest schedule HERE can plan
+  // around. Part of the cache key: the same load asked about an hour later,
+  // with an hour less on the clock, is a different question.
+  const schedule = rules.driverSchedule(hos)
+
+  const key = `${load.id}:${plan.stops.map((s) => s.stopId).join(',')}:${schedule || 'no-hours'}`
   const hit = memo.get(key)
   let answer
   if (hit && hit.until > Date.now()) {
     answer = hit.value
   } else {
-    const { mode, body, fellBack } = await here.routeThrough(plan.points)
+    const { mode, body, fellBack } = await here.routeThrough(plan.points, { schedule })
     answer = {
       ...rules.readEta(body, plan.stops, { mode }),
       fellBack: Boolean(fellBack),
       askedAt: new Date().toISOString(),
+      // What the hours contributed, so the page can say whether the arrival
+      // time has sleep in it -- and say when it does not, which matters just
+      // as much: an ETA with no hours behind it is a driving time, not an
+      // arrival time.
+      hours: hos ? {
+        driverCode: hos.driverCode,
+        driving: hos.driving,
+        duty: hos.duty,
+        cycle: hos.cycle,
+        scheduled: Boolean(schedule),
+      } : null,
     }
     memo.set(key, { value: answer, until: Date.now() + MEMO_MS })
     // A cache that only grows is a leak with a long fuse.

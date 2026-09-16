@@ -24,7 +24,11 @@ const HERE_ANSWER = {
         id: 'section-1',
         type: 'vehicle',
         departure: { time: '2026-09-15T13:16:32-05:00', place: { type: 'place', location: { lat: 42.4928, lng: -92.3426 } } },
-        arrival: { time: '2026-09-15T14:55:02-05:00', place: { type: 'place', location: { lat: 42.5006, lng: -90.6646 } } },
+        // waypoint: 0 -- the index of the via this section arrives at. The
+        // real answer carries it (see here-probe-truck.json) and this fixture
+        // was written without it, before anyone knew it mattered. It matters:
+        // it is how a stop is told apart from a rest the router invented.
+        arrival: { time: '2026-09-15T14:55:02-05:00', place: { type: 'place', waypoint: 0, location: { lat: 42.5006, lng: -90.6646 } } },
         summary: { duration: 5910, length: 148228, baseDuration: 5832 },
         transport: { mode: 'truck' },
       },
@@ -214,4 +218,150 @@ test('the wall clock is taken from the front of the string, not computed', () =>
   assert.equal(rules.wallClock('2026-09-15T19:55:08'), '2026-09-15T19:55:08')
   assert.equal(rules.wallClock(null), null)
   assert.equal(rules.wallClock('tomorrow'), null)
+})
+
+// ---------------------------------------------------------------------------
+// The driver's hours, in the route.
+//
+// The fixture is a real HERE answer, trimmed: Las Vegas -> St. George -> Salt
+// Lake City asked with driver[schedule]=2400,36000,... -- a driver with forty
+// minutes left. The router inserted a ten-hour reset, which turned a six and
+// a half hour run into a sixteen hour one and split the route into THREE
+// sections for TWO stops. That split is the thing these tests exist for.
+// ---------------------------------------------------------------------------
+
+const WITH_REST = {
+  routes: [{
+    sections: [
+      {
+        // 36 minutes of driving, then a 10 hour reset. Note the summary says
+        // 10h36 and travelSummary says 36m: that difference is the trap.
+        summary: { duration: 38160, length: 58000 },
+        travelSummary: { duration: 2160, length: 58000 },
+        departure: { time: '2026-09-16T06:57:16-07:00', place: { type: 'place' } },
+        arrival: { time: '2026-09-16T07:33:16-07:00', place: { type: 'place' } },
+        postActions: [{ action: 'wait', duration: 36000 }],
+      },
+      {
+        summary: { duration: 4800, length: 150000 },
+        travelSummary: { duration: 4800, length: 150000 },
+        departure: { time: '2026-09-16T17:33:16-07:00', place: { type: 'place' } },
+        arrival: { time: '2026-09-16T19:53:31-06:00', place: { type: 'place', waypoint: 0 } },
+      },
+      {
+        summary: { duration: 16020, length: 480000 },
+        travelSummary: { duration: 16020, length: 480000 },
+        departure: { time: '2026-09-16T19:53:31-06:00', place: { type: 'place', waypoint: 0 } },
+        arrival: { time: '2026-09-17T00:20:11-06:00', place: { type: 'place' } },
+      },
+    ],
+  }],
+}
+
+const ST_GEORGE = {
+  stopId: 21, seq: 2, stopType: 'Delivery', place: 'ST. GEORGE, UT',
+  windowStart: '2026-09-16T18:00:00', windowEnd: '2026-09-16T22:00:00',
+}
+const SALT_LAKE = {
+  stopId: 22, seq: 3, stopType: 'Delivery', place: 'SALT LAKE CITY, UT',
+  windowStart: '2026-09-16T20:00:00', windowEnd: '2026-09-17T02:00:00',
+}
+
+test('a rest is not a stop, and does not consume one', () => {
+  // THE BUG THIS PREVENTS: three sections, two stops. Pairing them in order
+  // would tell a dispatcher the truck reaches St. George at 07:33 -- the time
+  // it pulled over to sleep, at a truck stop, a hundred miles short.
+  const answer = rules.readEta(WITH_REST, [ST_GEORGE, SALT_LAKE])
+  assert.equal(answer.legs.length, 2)
+  assert.deepEqual(answer.legs.map((l) => l.stopId), [21, 22])
+  assert.equal(answer.legs[0].eta, '2026-09-16T19:53:31')
+  assert.equal(answer.legs[1].eta, '2026-09-17T00:20:11')
+  assert.equal(answer.partial, false)
+})
+
+test('the rest belongs to the leg it happens on', () => {
+  const answer = rules.readEta(WITH_REST, [ST_GEORGE, SALT_LAKE])
+  assert.equal(answer.legs[0].restSeconds, 36000, 'ten hours, before St. George')
+  assert.equal(answer.legs[0].rests, 1)
+  assert.equal(answer.legs[1].restSeconds, 0, 'and none after it')
+  assert.equal(answer.totalRestSeconds, 36000)
+})
+
+test('driving time is driving, not driving plus sleeping', () => {
+  // summary.duration on that first section is 10h36. A driver did not drive
+  // for ten and a half hours; they drove for thirty-six minutes and slept.
+  const answer = rules.readEta(WITH_REST, [ST_GEORGE, SALT_LAKE])
+  assert.equal(answer.legs[0].driveSeconds, 2160 + 4800, 'both driving stretches, no wait')
+  assert.equal(answer.totalSeconds, 2160 + 4800 + 16020)
+  assert.ok(answer.totalSeconds < 7 * 3600, 'six and a half hours at the wheel')
+  // But the clock on the wall moved sixteen hours, and that is what an
+  // arrival time has to be built from.
+  const elapsed = (Date.parse(answer.legs[1].etaWithZone) - Date.parse('2026-09-16T06:57:16-07:00')) / 3600000
+  assert.ok(elapsed > 16 && elapsed < 17, `door to door was ${elapsed} hours`)
+})
+
+test('without a schedule the sections and the stops line up as before', () => {
+  const noRest = { routes: [{ sections: [WITH_REST.routes[0].sections[1], WITH_REST.routes[0].sections[2]] }] }
+  const answer = rules.readEta(noRest, [ST_GEORGE, SALT_LAKE])
+  assert.equal(answer.legs.length, 2)
+  assert.equal(answer.legs[0].restSeconds, 0)
+  assert.equal(answer.totalRestSeconds, 0)
+})
+
+// ---------------------------------------------------------------------------
+// Turning GeoTab's clocks into HERE's schedule.
+// ---------------------------------------------------------------------------
+
+test('the tightest clock decides how long they may drive', () => {
+  // Four hours of driving left but forty minutes of the fourteen-hour
+  // window: it is the window that stops them, and a schedule built from the
+  // driving clock alone would promise four hours that cannot legally happen.
+  const hos = { hasAvailability: true, driving: 4 * 3600, duty: 40 * 60, workday: 40 * 60 }
+  // 40 minutes, rounded down to the quarter hour: 30. See the note on the
+  // function -- it keeps the answer cacheable and errs towards a later
+  // arrival rather than an earlier one.
+  assert.equal(rules.driverSchedule(hos, { days: 2 }), '1800,36000,39600,36000')
+})
+
+test('the clock is bucketed so the same question is not paid for twice', () => {
+  // A driving clock ticks every second and the schedule is part of the ETA's
+  // cache key. Without this, every page refresh would be a fresh billed
+  // routing call for an answer that had not meaningfully changed.
+  const at = (seconds) => rules.driverSchedule(
+    { hasAvailability: true, driving: seconds, duty: seconds, workday: seconds },
+    { days: 1 },
+  )
+  // Two clocks inside the same quarter hour are the same question, so the
+  // second one is answered from the cache rather than from HERE.
+  assert.equal(at(3700), at(3660), 'a minute apart, inside one bucket')
+  assert.equal(at(3700), '3600,36000')
+  // Crossing a boundary is a different question, and should be: the driver
+  // really has a quarter hour less than they did.
+  assert.notEqual(at(3600), at(2600))
+  // And it never rounds UP into time the driver does not have. A second
+  // short of the hour is three quarters of an hour, not an hour.
+  assert.equal(at(3599), '2700,36000')
+})
+
+test('a driver with nothing left gets the smallest drive HERE will accept', () => {
+  // HERE refuses under 240 seconds. Four minutes then a full reset is a lie
+  // of four minutes; ignoring the empty clock would be a lie of ten hours.
+  const hos = { hasAvailability: true, driving: 0, duty: 0, workday: 0 }
+  assert.equal(rules.driverSchedule(hos, { days: 1 }), '240,36000')
+  const over = { hasAvailability: true, driving: -1800, duty: -1800, workday: null }
+  assert.equal(rules.driverSchedule(over, { days: 1 }), '240,36000')
+})
+
+test('no clocks means no schedule, not a guessed one', () => {
+  // A driver GeoTab has no availability record for gets an ETA with no hours
+  // in it at all, which is what the app did yesterday -- rather than an ETA
+  // built on invented hours, which would be worse than none.
+  assert.equal(rules.driverSchedule(null), null)
+  assert.equal(rules.driverSchedule({ hasAvailability: false, driving: 3600 }), null)
+  assert.equal(rules.driverSchedule({ hasAvailability: true, driving: null, duty: null, workday: null }), null)
+})
+
+test('a fresh driver gets eleven and ten, repeating', () => {
+  const hos = { hasAvailability: true, driving: 11 * 3600, duty: 14 * 3600, workday: 14 * 3600 }
+  assert.equal(rules.driverSchedule(hos, { days: 3 }), '39600,36000,39600,36000,39600,36000')
 })

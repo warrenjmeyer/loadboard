@@ -80,6 +80,28 @@ export default function EtaPanel({
         {`: ${formatMiles(eta.totalMiles)} miles, ${formatDuration(eta.totalSeconds)} of driving.`}
       </p>
 
+      {eta.hours && eta.hours.scheduled && eta.totalRestSeconds > 0 && (
+        <p className="muted small eta-from">
+          {`These times include ${formatDuration(eta.totalRestSeconds)} of legally required rest: `}
+          {`the driver has ${formatDuration(Math.max(0, eta.hours.driving || 0))} of driving left before they must stop.`}
+        </p>
+      )}
+
+      {eta.hours && !eta.hours.scheduled && (
+        <p className="warn small">
+          GeoTab has no hours-of-service record for this driver, so these are driving
+          times with no rest in them. A real arrival is later than this whenever the
+          run is longer than the hours they have left.
+        </p>
+      )}
+
+      {!eta.hours && (
+        <p className="warn small">
+          No driver hours were available, so these are driving times with no rest in
+          them — not arrival times for a driver who has to sleep.
+        </p>
+      )}
+
       {eta.mode !== 'truck' && (
         <p className="warn small">
           These are CAR times. This account is not entitled to truck routing, so bridge
@@ -95,6 +117,7 @@ export default function EtaPanel({
             <th>Window</th>
             <th className="num">Miles</th>
             <th className="num">Driving</th>
+            <th>Rest</th>
           </tr>
         </thead>
         <tbody>
@@ -115,6 +138,11 @@ export default function EtaPanel({
               </td>
               <td className="num">{formatMiles(leg.miles)}</td>
               <td className="num">{formatDuration(leg.driveSeconds)}</td>
+              <td className="eta-rest">
+                {leg.restSeconds
+                  ? <>{formatDuration(leg.restSeconds)} off{leg.rests > 1 ? ` (${leg.rests})` : ''}</>
+                  : <span className="muted">—</span>}
+              </td>
             </tr>
           ))}
         </tbody>
@@ -123,8 +151,7 @@ export default function EtaPanel({
       <p className="muted small eta-note">
         To the town, not the dock — the last few minutes across town and the wait at the
         gate are not in these times, and the traffic in them is the traffic at the moment
-        this was worked out. Nor are the driver's hours: this is how long the driving
-        takes, not when a driver with six hours left on the clock can legally do it.
+        this was worked out.
         {/* Deliberately no clock on that moment: askedAt is UTC, every other
             time on this page is local to a dock, and one figure in the wrong
             frame next to the others is worse than no figure. */}
