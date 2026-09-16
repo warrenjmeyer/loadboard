@@ -603,6 +603,18 @@ const cases = [
       ['LaneMap with streets', '/src/components/LaneMap.jsx', {
         stops, zonesByKey, truck: nearby, borders: STATE_BORDERS, streets: true,
       }],
+      // The road drawn instead of the dashed straight line. The points are
+      // shaped like what /api/loads/{id}/route returns: [lat, lng], already
+      // thinned by the server.
+      ['LaneMap with the road', '/src/components/LaneMap.jsx', {
+        stops, zonesByKey, truck: nearby, road: {
+          available: true, mode: 'truck', miles: 308,
+          legs: [
+            { from: 1, to: 2, miles: 92, points: [[42.4928, -92.3426], [42.41, -91.8], [42.38, -91.3], [42.45, -90.9], [42.5006, -90.6646]] },
+            { from: 2, to: 3, miles: 216, points: [[42.5006, -90.6646], [43.1, -91.15], [43.8, -92.0], [44.5, -92.8], [44.9778, -93.265]] },
+          ],
+        },
+      }],
       ['LaneMap truck far away', '/src/components/LaneMap.jsx', { stops, zonesByKey, truck: vegas }],
       ['LaneMap unknown place', '/src/components/LaneMap.jsx', {
         stops: [...stops, { stopId: 24, seq: 4, stopType: 'Delivery', place: 'Rockford, IL', departedUtc: null }],

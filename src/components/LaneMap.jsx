@@ -38,12 +38,20 @@ import { formatMiles } from '../lib/format.js'
 // borders better than a 1 km-simplified file can, and two sets of the same
 // line is just noise.
 //
-// WHAT IT DOES NOT CLAIM. The line between stops is straight, and labelled
-// as the crow flies, because there is no routing engine here -- a road
-// distance needs a service that costs money, and drawing a straight line as
-// though it were a route would be a lie the reader cannot see. The pins are
-// city centres, not docks: a 3 km box is a town. Both are why this is a
-// state-scale picture and not a street map.
+// THE LINE BETWEEN STOPS IS THE ROAD, when the road is known.
+// GET /api/loads/{id}/route asks HERE for the truck-legal route through the
+// stops and hands back its shape, and the map draws that: solid, because it
+// is a real thing.
+//
+// When it is not known -- no routing key, a town Geotab has no zone for, a
+// load with one stop -- the line falls back to straight, DASHED, and
+// labelled as the crow flies. That distinction is the point. A straight line
+// drawn solid would claim to be a route, and a reader cannot see the
+// difference between a road and an assertion unless the picture makes one.
+//
+// WHAT IT STILL DOES NOT CLAIM. The pins are city centres, not docks: a
+// 3 km box is a town. Which is why this is a state-scale picture and not a
+// street map, and why an ETA to one of these pins is to the town.
 // ---------------------------------------------------------------------------
 const W = 640
 const H = 360
@@ -129,6 +137,7 @@ export default function LaneMap({
   caption = null,
   borders = null,
   streets: streetsOverride = null,
+  road = null,
 }) {
   // Before the early returns below, because a hook that is sometimes called
   // is a hook that breaks the next render -- so the decision not to fetch
@@ -228,6 +237,19 @@ export default function LaneMap({
   // than stretched or four times sharper than anyone can see.
   const tiles = streets ? tilesFor(view, chooseZoom(scale)) : []
 
+  // The road, if HERE has been asked for it. Each leg is its own path so a
+  // reader can see where one stop ends and the next begins, and the points
+  // arrive as [lat, lng] because that is the order every mapping API on
+  // earth uses -- project() takes them the other way round, which is the
+  // sort of thing that silently draws Iowa in China.
+  const roadLegs = (road && road.available && Array.isArray(road.legs) ? road.legs : [])
+    .map((leg) => (leg.points || [])
+      .map(([lat, lng]) => project(lng, lat))
+      .filter((p) => Number.isFinite(p.x) && Number.isFinite(p.y))
+      .map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`)
+      .join(' '))
+    .filter((d) => d.length > 0)
+
   // Of four hundred border lines, a Midwest lane can see about twenty. The
   // rest are thrown away before any path data is built for them -- cheaper
   // than handing the browser the whole country and letting it clip.
@@ -310,7 +332,9 @@ export default function LaneMap({
           </g>
         ))}
 
-        {stopPts.length > 1 && <polyline points={lane} className="lane-line" />}
+        {roadLegs.length > 0
+          ? roadLegs.map((d, i) => <path key={`road-${i}`} d={d} className="lane-road" />)
+          : stopPts.length > 1 && <polyline points={lane} className="lane-line" />}
 
         {truckPt && (
           <g className="lane-truck">
@@ -344,7 +368,9 @@ export default function LaneMap({
 
       <p className="muted small lane-map-note">
         {caption || <>Places are GeoTab zones, centred on the town — not the dock.</>}
-        {crow ? <> The line is {formatMiles(Math.round(crow))} miles as the crow flies, not a route.</> : null}
+        {roadLegs.length > 0
+          ? <> The line is the {road.mode === 'truck' ? 'truck' : 'car'} route: {formatMiles(road.miles)} road miles.</>
+          : crow ? <> The line is {formatMiles(Math.round(crow))} miles as the crow flies, not a route.</> : null}
         {missing.length > 0 && <> No GeoTab zone for {missing.map((s) => s.place).join(', ')}, so {missing.length === 1 ? 'it is' : 'they are'} not shown.</>}
         {truckPt && truck.near && <> {truck.unitNo} last reported near {truck.near}.</>}
         {truckPlaceable && !nearLane && (

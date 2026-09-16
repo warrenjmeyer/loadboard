@@ -102,6 +102,15 @@ export default function LoadDetail() {
   const askZones = seesHistory
   const zones = useZones({ enabled: askZones })
 
+  // The road itself, asked for once and never polled: a lane's roads are the
+  // same this afternoon as this morning, the server keeps its answer for six
+  // hours, and every ask is a metered transaction. Without it the map falls
+  // back to a dashed straight line and says so.
+  const road = useTelematics(
+    askZones ? `/api/loads/${encodeURIComponent(id)}/route` : null,
+    { enabled: askZones, every: 0 },
+  )
+
   // The ETA, which is a metered call to HERE and so the most carefully
   // rationed thing on this page: only while the load is actually moving,
   // only for someone the server would answer anyway, and every five
@@ -361,6 +370,7 @@ export default function LoadDetail() {
           <h2 className="section-title">On the map</h2>
           <LaneMap
             stops={stops}
+            road={road.data}
             zonesByKey={zones.zonesByKey}
             truck={position.data && position.data.trucks[0] ? position.data.trucks[0] : null}
             notConnected={zones.notConnected}

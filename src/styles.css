@@ -1024,9 +1024,22 @@ button:disabled { cursor: default; opacity: .6; }
 .lane-ref circle { fill: #c4cbd3; }
 .lane-ref text { font-size: 10px; fill: var(--muted); }
 
-/* Dashed on purpose. There is no routing engine behind this app, so the
-   line is the straight distance between two towns; a solid line would read
-   as a road and claim something untrue. */
+/* The road, when HERE has told us where it goes. Solid, because it is one.
+   Drawn over the basemap and under the pins: a reader follows the line to
+   the stop, not the stop to the line. */
+.lane-road {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: 2.6;
+  stroke-linejoin: round;
+  stroke-linecap: round;
+  opacity: 0.9;
+}
+
+/* Dashed on purpose, and only used when the road is NOT known -- no routing
+   key, a town with no Geotab zone. Then the line is the straight distance
+   between two towns, and a solid one would read as a road and claim
+   something untrue. */
 .lane-line {
   fill: none;
   stroke: var(--accent);

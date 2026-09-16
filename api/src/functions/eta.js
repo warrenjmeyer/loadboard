@@ -5,11 +5,19 @@ const geotab = require('../geotab')
 const here = require('../here')
 const telematics = require('../telematicsRules')
 const rules = require('../etaRules')
+const flexpolyline = require('../flexpolyline')
+const routeShape = require('../routeShape')
 
 // ---------------------------------------------------------------------------
-// When this load gets to each stop it has left.
+// What HERE knows about a load: when it gets there, and which roads it takes.
 //
-//   GET /api/loads/{id}/eta
+//   GET /api/loads/{id}/eta     arrival times for the stops still to come
+//   GET /api/loads/{id}/route   the road itself, for the map to draw
+//
+// Two questions, two routes, because they are asked at different moments and
+// answered from different things. An ETA is about a truck that is moving now
+// and is worthless an hour later. A lane's ROADS do not change between
+// Tuesday and Friday, so that answer is kept for hours and asked for once.
 //
 // Three systems answer this together and none of them could alone. GeoTab
 // says where the truck is now. The app says which stops are left and when
@@ -238,6 +246,115 @@ async function eta(request) {
 }
 
 // ---------------------------------------------------------------------------
+// GET /api/loads/{id}/route
+//
+// The road through this load's stops, so the map can draw what the truck
+// actually drives instead of a straight line between towns. Every stop, in
+// order -- not just the ones still to come, because this draws the whole
+// lane and not the remainder of a journey.
+//
+// Kept for six hours. The geometry of a road between two towns is the same
+// this afternoon as it was this morning, and each ask is a transaction.
+// ---------------------------------------------------------------------------
+const ROUTE_MEMO_MS = 6 * 3600 * 1000
+const routeMemo = new Map()
+
+async function laneRoute(request) {
+  const id = request.params.id
+  if (!LOAD_ID.test(id)) return notFound()
+
+  const user = await identity.currentUser(request)
+  if (!user) return identity.unauthorized('Sign in to see the map.')
+  if (user.role === 'none') return identity.forbidden('Your account is waiting for approval.')
+
+  const pool = await getPool()
+  const load = await loadRow(pool, id)
+  if (!load) return notFound()
+
+  if (!here.configured()) return notConfigured('HERE routing', 'HERE_API_KEY')
+  if (!geotab.configured()) return notConfigured('GeoTab', 'GEOTAB_DATABASE, GEOTAB_USER and GEOTAB_PASSWORD')
+
+  const stops = await stopRows(pool, id)
+  if (stops.length < 2) {
+    return {
+      jsonBody: { available: false, reason: 'one-stop', message: 'A load with one stop has no lane to draw.' },
+      headers: { 'Cache-Control': 'no-store' },
+    }
+  }
+
+  // The same name join the map and the ETA use: a stop's town is a Geotab
+  // zone of that name. A stop nobody has drawn a box around has no
+  // coordinate, and a road drawn through the stops either side of it would
+  // be a different lane wearing this one's name.
+  const zoneFor = await zoneLookup()
+  const points = []
+  const unknown = []
+  for (const stop of stops) {
+    const zone = zoneFor(stop.place)
+    if (zone && Number.isFinite(Number(zone.latitude))) {
+      points.push({ latitude: Number(zone.latitude), longitude: Number(zone.longitude) })
+    } else {
+      unknown.push(stop.place)
+    }
+  }
+  if (unknown.length > 0) {
+    return {
+      jsonBody: {
+        available: false,
+        reason: 'no-places',
+        message: `GeoTab has no zone for ${unknown.join(', ')}, so the road cannot be drawn.`,
+      },
+      headers: { 'Cache-Control': 'no-store' },
+    }
+  }
+
+  const key = `${load.id}:${stops.map((s) => `${s.stopId}@${s.place}`).join('|')}`
+  const hit = routeMemo.get(key)
+  if (hit && hit.until > Date.now()) {
+    return { jsonBody: hit.value, headers: { 'Cache-Control': 'private, max-age=3600' } }
+  }
+
+  const { mode, body, fellBack } = await here.routeThrough(points, { geometry: true })
+  const sections = (body && body.routes && body.routes[0] && body.routes[0].sections) || []
+
+  let miles = 0
+  let seconds = 0
+  const legs = sections.map((section, i) => {
+    const summary = section.summary || {}
+    const legMiles = Math.round((Number(summary.length) || 0) / 1609.344)
+    miles += legMiles
+    seconds += Number(summary.duration) || 0
+    // Decoded here and thinned here, so the browser receives plain numbers
+    // and a few hundred of them rather than a few thousand and a decoder.
+    const shape = routeShape.round(routeShape.simplify(flexpolyline.decode(section.polyline)))
+    return {
+      from: stops[i] ? stops[i].seq : null,
+      to: stops[i + 1] ? stops[i + 1].seq : null,
+      miles: legMiles,
+      seconds: Number(summary.duration) || 0,
+      points: shape,
+    }
+  })
+
+  const answer = {
+    available: true,
+    loadId: load.id,
+    mode,
+    fellBack: Boolean(fellBack),
+    legs,
+    miles,
+    seconds,
+    points: legs.reduce((total, leg) => total + leg.points.length, 0),
+  }
+  routeMemo.set(key, { value: answer, until: Date.now() + ROUTE_MEMO_MS })
+  if (routeMemo.size > 200) {
+    for (const [k, v] of routeMemo) if (v.until <= Date.now()) routeMemo.delete(k)
+  }
+
+  return { jsonBody: answer, headers: { 'Cache-Control': 'private, max-age=3600' } }
+}
+
+// ---------------------------------------------------------------------------
 function wrap(label, handler) {
   return async (request, context) => {
     try {
@@ -282,4 +399,11 @@ app.http('load-eta', {
   authLevel: 'anonymous',
   route: 'loads/{id}/eta',
   handler: wrap('/api/loads/{id}/eta', eta),
+})
+
+app.http('load-route', {
+  methods: ['GET'],
+  authLevel: 'anonymous',
+  route: 'loads/{id}/route',
+  handler: wrap('/api/loads/{id}/route', laneRoute),
 })

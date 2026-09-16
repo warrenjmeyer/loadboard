@@ -725,9 +725,26 @@ the rest are thrown away by their bounding boxes before any path data is
 built, which is cheaper than handing the browser the country and letting
 it clip.
 
-Three things it deliberately does not claim. The line between stops is
-dashed and labelled as the crow flies, because there is no routing engine
-and a solid line would read as a road. The pins are city centres, not
+**The line between stops is the road.** `GET /api/loads/{id}/route` asks
+HERE for the truck-legal route through the load's stops and hands back its
+shape; the map draws that, solid, because it is a real thing. One request
+per load, kept six hours, because the roads between two towns are the same
+this afternoon as this morning. HERE returns the geometry as a *flexible
+polyline* -- a few thousand points squeezed into a few hundred characters --
+which `api/src/flexpolyline.js` decodes on the server (tested against HERE's
+own published example, the only way to know a decoder is right rather than
+plausible) and `api/src/routeShape.js` thins from thousands of points to a
+couple of hundred, since at state scale a whole interchange is a dot.
+
+When the road is *not* known -- no routing key, a town with no GeoTab zone,
+a single-stop load -- the line falls back to straight, **dashed**, and
+labelled as the crow flies. That distinction is the point: a straight line
+drawn solid would claim to be a route, and a reader cannot tell a road from
+an assertion unless the picture makes one. Waterloo to Dubuque is 85 miles
+as the crow flies and 92 by road, which is roughly the size of the lie that
+would otherwise be on the page.
+
+Two things it still does not claim. The pins are city centres, not
 docks -- a 3 km box is a town, which is also why this is drawn at state
 scale and not as a street map. And the truck is only drawn when it is
 within about 550 miles of the lane: the demo fleet circles Las Vegas while
@@ -1346,6 +1363,8 @@ set-here-secrets.ps1    puts HERE_API_KEY in the Function App settings
 tools/here-probe.mjs    one live HERE call from a laptop, for when Azure will not read the key back
 src/lib/mapProject.js   Mercator, fit-to-box, distances and border culling for the load map -- no map library
 src/lib/tiles.js        slippy-map tile arithmetic, placed by the map's own projection
+api/src/flexpolyline.js HERE's route geometry, decoded -- tested against their own published example
+api/src/routeShape.js   thinning a road from thousands of points to a couple of hundred
 api/src/functions/maptile.js  GET /api/maptile/{z}/{x}/{y} -- HERE's tiles, fetched with the key kept on the server
 tools/here-tile-probe.mjs  one tile per style, written out to look at
 src/lib/stateOutlines.js  GENERATED state borders (US Census, public domain); loaded on demand, not bundled

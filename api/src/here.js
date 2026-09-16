@@ -71,12 +71,16 @@ class HereError extends Error {
 // destination: HERE returns ONE SECTION PER LEG, so a single request -- a
 // single transaction -- yields an arrival time for every remaining stop
 // rather than just the last one.
-function routeUrl(points, mode) {
+function routeUrl(points, mode, { geometry = false } = {}) {
   const p = new URLSearchParams()
   p.set('transportMode', mode)
   p.set('origin', `${points[0].latitude},${points[0].longitude}`)
   p.set('destination', `${points[points.length - 1].latitude},${points[points.length - 1].longitude}`)
-  p.set('return', 'summary')
+  // `polyline` adds the road itself, as a flexible-polyline string per
+  // section -- a few thousand points for a day's drive. Asked for only when
+  // something is going to draw it: an ETA needs the times and not the shape,
+  // and the shape is the larger half of the answer by far.
+  p.set('return', geometry ? 'summary,polyline' : 'summary')
   // Every waypoint in between, in order. `append`, not `set`: the parameter
   // legitimately appears more than once and the order is the itinerary.
   for (const via of points.slice(1, -1)) p.append('via', `${via.latitude},${via.longitude}`)
@@ -90,10 +94,10 @@ function routeUrl(points, mode) {
   return `${BASE}?${p.toString()}`
 }
 
-async function ask(points, mode) {
+async function ask(points, mode, options) {
   let res
   try {
-    res = await fetch(routeUrl(points, mode), { signal: AbortSignal.timeout(CALL_TIMEOUT_MS) })
+    res = await fetch(routeUrl(points, mode, options), { signal: AbortSignal.timeout(CALL_TIMEOUT_MS) })
   } catch (err) {
     if (err.name === 'TimeoutError' || err.name === 'AbortError') throw err
     throw new HereError(0, err.message)
@@ -119,12 +123,12 @@ async function ask(points, mode) {
 //
 // 403 is the entitlement answer. 401 is a bad key, which retrying as a car
 // will not fix, so it is not retried.
-async function routeThrough(points) {
+async function routeThrough(points, options = {}) {
   try {
-    return { mode: 'truck', body: await ask(points, 'truck') }
+    return { mode: 'truck', body: await ask(points, 'truck', options) }
   } catch (err) {
     if (err instanceof HereError && err.status === 403) {
-      return { mode: 'car', body: await ask(points, 'car'), fellBack: true }
+      return { mode: 'car', body: await ask(points, 'car', options), fellBack: true }
     }
     throw err
   }
