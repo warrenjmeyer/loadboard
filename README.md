@@ -673,6 +673,20 @@ are a compliance record, and on a real fleet writing them would be
 falsifying one. The script refuses any database whose name does not
 contain "demo".
 
+**A duty status log cannot be deleted, and that is not a permissions
+problem.** Geotab answers `DutyStatusLog entities cannot be removed`, from
+any account. A driver's record of duty status is evidence, and evidence the
+fleet can delete is not evidence. The API will let you *add* one -- this
+script does, with origin `Manual`, which is how a driver's own correction is
+recorded -- and never let you take one away.
+
+So `-Clear` never worked and now refuses up front with that explanation.
+What it leaves: a bad seed stops mattering when it ages out of the window
+being read (eight days, for the cycle), a driver who already has logs is
+skipped rather than duplicated, and a genuine reseed needs a database whose
+drivers are clean. Which is worth knowing before writing compliance records
+for twenty-four people.
+
 **It seeds a 34-hour restart, and the first version's failure to is worth
 keeping.** Eight consecutive working days at six to eleven on-duty hours
 each is fifty to ninety hours against a seventy-hour cycle, so every driver

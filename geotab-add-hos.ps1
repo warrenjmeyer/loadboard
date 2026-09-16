@@ -47,8 +47,22 @@
 # A driver with no truck gets logs with no device, which Geotab accepts
 # for OFF/ON and refuses for D, so that driver is skipped with a warning.
 #
-# -Clear removes every DutyStatusLog in the window for the chosen drivers,
-# then (unless -ClearOnly) writes the seed. Honours -WhatIf.
+# -Clear DOES NOT WORK AND CANNOT. Geotab refuses it:
+#
+#     DutyStatusLog entities cannot be removed.
+#
+# That is correct behaviour, not a permissions problem, and no account can
+# override it. A duty status log is a compliance record: a driver's record of
+# duty status is evidence, and evidence that the fleet can delete is not
+# evidence. The API will let you ADD one (this script does, with origin
+# Manual, which is how a driver's own correction is recorded) and will never
+# let you take one away.
+#
+# The consequence for this script: a mistake in the seed cannot be swept up.
+# The logs stay until they age out of whatever window is being read -- eight
+# days for the cycle -- and the only remedy is time or a different database.
+# -Clear now refuses at the start with this explanation rather than throwing
+# an API error half way through a fleet.
 # ---------------------------------------------------------------------------
 
 [CmdletBinding()]
@@ -209,6 +223,27 @@ if ($ListLogs) {
 
 # --- clear -----------------------------------------------------------------------
 if ($Clear -or $ClearOnly) {
+    throw @'
+-Clear cannot work. Geotab answers "DutyStatusLog entities cannot be removed",
+and that is by design: a duty status log is a compliance record, and a record
+the fleet can delete is not a record. No account can override it.
+
+What that leaves:
+
+  * Logs already written stay until they age out. The cycle reads the last
+    eight days, so a bad seed stops mattering eight days after its last entry.
+  * A driver with existing logs in the window is SKIPPED by this script
+    already, so re-running is safe and changes nothing for them.
+  * To reseed properly, use a database whose drivers have no logs in the
+    window -- or wait for the window to roll past the ones that are there.
+
+Run with -ListLogs first to see what each driver actually has, and when their
+most recent entry was. If the latest log is minutes old rather than days, the
+logs are not coming from this script at all.
+'@
+}
+
+if ($false) {
     Write-Host "Removing duty status logs since $($fromLocal.ToString('yyyy-MM-dd')) ($TimeZoneId) ..." -ForegroundColor Cyan
     foreach ($d in $drivers) {
         $logs = Invoke-Geotab -ApiServer $api -Method 'Get' -Params @{
