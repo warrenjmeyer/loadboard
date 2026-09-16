@@ -56,7 +56,7 @@ export default function InvoiceDocument({ invoice }) {
         </div>
       </div>
 
-      <div className="stmt-block stmt-driver">
+      <div className="stmt-block invoice-billto">
         <div className="stmt-section-title">Bill to</div>
         <div>
           <strong>{invoice.billToName}</strong>
@@ -66,7 +66,7 @@ export default function InvoiceDocument({ invoice }) {
         </div>
       </div>
 
-      <div className="stmt-block">
+      <div className="stmt-block invoice-block">
         <table className="stmt-table invoice-lines">
           <thead className="stmt-head">
             <tr>

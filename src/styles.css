@@ -506,6 +506,27 @@ button.primary {
 
   /* A heading alone at the bottom of a page is the same bug one level down. */
   .stmt-block h2, .stmt-section-title, .stmt-head { break-after: avoid; }
+
+  /* ...but the invoice's lines table IS taller than a page -- fourteen loads
+     with their docks ran to three -- and the browser did NOT ignore the rule
+     the way the note above assumes. It pushed the whole block to page 2 and
+     left page 1 empty below the masthead. Printing INV-260824-0003 is how we
+     found that out. break-inside: avoid is right for a settlement's small
+     blocks and wrong for this one, so this block opts out by name. */
+  .invoice-block { break-inside: auto; }
+
+  /* A tfoot REPEATS on every printed page, by design, because a long table
+     wants its column totals carried forward. An invoice does not: that put
+     Total / Paid / Balance due at the foot of all three freight pages, the
+     same $14,846.65 three times, which is how a customer pays twice.
+     table-row-group makes it an ordinary row group -- printed once, in DOM
+     order, which is last. */
+  .invoice-lines tfoot { display: table-row-group; }
+
+  /* On paper a link to /loads/L-30001 leads nowhere, and blue underlined text
+     on a document going to a customer's accounts payable reads as a mistake.
+     The links stay live on screen; only the print loses them. */
+  .invoice-doc a { color: inherit; text-decoration: none; }
 }
 
 .stmt-note {
@@ -884,6 +905,21 @@ button:disabled { cursor: default; opacity: .6; }
 .aging-late .aging-value { color: #b3261e; }
 
 .invoice-lines th, .invoice-lines td { padding: 6px 8px; }
+
+/* The numbers accounts payable searches for must not break at their hyphens.
+   These columns are auto-sized, so without this "L-30001" sets as "L-" over
+   "30001" and the consignee's "PO-LK-48802" splits across two lines -- on the
+   one document whose whole job is to be matched against that number. The
+   description column has the room to give. */
+.invoice-lines td.mono { white-space: nowrap; }
+
+/* Bill to reads DOWN THE LEFT under the masthead, the way an invoice does.
+   It used to borrow the settlement's stmt-driver grid, which is auto-fit for
+   that page's many label/value pairs; with only two children it threw the
+   customer's name to the far right of the page and left the section rule
+   underlining nothing. */
+.invoice-billto { font-size: 14px; }
+.invoice-billto .stmt-section-title { max-width: 300px; }
 .invoice-charge td { padding-top: 2px; padding-bottom: 6px; }
 .invoice-doc .stmt-netpay { font-size: 18px; }
 
