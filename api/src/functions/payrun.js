@@ -50,12 +50,12 @@ async function gather(req, { periodEnd, checkDate }) {
     .input('periodEnd', sql.VarChar(10), periodEnd)
     .input('checkDate', sql.VarChar(10), checkDate)
     .query(`
-      SELECT l.id, l.origin, l.destination, l.miles, l.empty_miles, l.rate, l.unit_no, l.driver_code, l.delivered_date
+      SELECT l.load_number AS id, l.origin, l.destination, l.miles, l.empty_miles, l.rate, l.unit_no, l.driver_code, l.delivered_date
       FROM dbo.Loads AS l
       WHERE l.status = N'Delivered'
         AND l.delivered_date <= CAST(@periodEnd AS DATE)
-        AND NOT EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.load_id = l.id)
-      ORDER BY l.driver_code, l.delivered_date, l.id;
+        AND NOT EXISTS (SELECT 1 FROM dbo.SettlementRoutes AS r WHERE r.load_id = l.load_number)
+      ORDER BY l.driver_code, l.delivered_date, l.load_number;
 
       SELECT d.driver_code, d.first_name, d.last_name, d.driver_type, d.pay_basis, d.pay_rate, d.unit_no
       FROM dbo.Drivers AS d;
@@ -70,7 +70,7 @@ async function gather(req, { periodEnd, checkDate }) {
       -- driver is the load's driver; a charge on a load nobody ran waits.
       SELECT c.charge_id, c.load_id, c.line_type, c.code, c.description, c.amount, l.driver_code
       FROM dbo.LoadCharges AS c
-      JOIN dbo.Loads AS l ON l.id = c.load_id
+      JOIN dbo.Loads AS l ON l.load_number = c.load_id
       WHERE c.settlement_line_id IS NULL
         AND l.status = N'Delivered'
         AND l.driver_code IS NOT NULL

@@ -81,8 +81,8 @@ function notFound() {
 
 async function loadRow(pool, id) {
   const r = await pool.request().input('id', sql.VarChar(20), id).query(`
-    SELECT id, status, unit_no, driver_code, origin, destination
-    FROM dbo.Loads WHERE id = @id;
+    SELECT load_number AS id, status, unit_no, driver_code, origin, destination
+    FROM dbo.Loads WHERE load_number = @id;
   `)
   const row = r.recordset[0]
   return row ? {

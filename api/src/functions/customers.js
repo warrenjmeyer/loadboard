@@ -126,11 +126,11 @@ async function getCustomer(request) {
   const pool = await getPool()
   const result = await pool.request().input('id', sql.Int, id).query(`
     ${SELECT} WHERE c.customer_id = @id;
-    SELECT id, origin, destination, miles, rate, equipment, status, driver_code, unit_no, trailer_no,
+    SELECT load_number AS id, origin, destination, miles, rate, equipment, status, driver_code, unit_no, trailer_no,
            pickup_start, delivery_end, delivered_date, reference_no
     FROM dbo.Loads WHERE customer_id = @id
     ORDER BY CASE status WHEN N'In Transit' THEN 0 WHEN N'Covered' THEN 1 WHEN N'Available' THEN 2 WHEN N'Delivered' THEN 3 ELSE 4 END,
-             COALESCE(delivered_date, CAST(pickup_start AS DATE)) DESC, id DESC;
+             COALESCE(delivered_date, CAST(pickup_start AS DATE)) DESC, load_number DESC;
   `)
   const row = result.recordsets[0][0]
   if (!row) return { status: 404, jsonBody: { error: 'No such customer.' } }

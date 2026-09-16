@@ -105,16 +105,16 @@ const SELECT = `
 // ---------------------------------------------------------------------------
 async function gather(req, { through }) {
   const result = await req.input('through', sql.VarChar(10), through).query(`
-    SELECT l.id, l.customer_id, l.status, l.invoice_id, l.delivered_date, l.origin, l.destination, l.miles, l.rate, l.reference_no
+    SELECT l.load_number AS id, l.customer_id, l.status, l.invoice_id, l.delivered_date, l.origin, l.destination, l.miles, l.rate, l.reference_no
     FROM dbo.Loads AS l
     WHERE l.status = N'Delivered' AND l.customer_id IS NOT NULL AND l.invoice_id IS NULL
       AND l.delivered_date <= CAST(@through AS DATE)
-    ORDER BY l.customer_id, l.delivered_date, l.id;
+    ORDER BY l.customer_id, l.delivered_date, l.load_number;
 
     SELECT ch.charge_id, ch.load_id, l.customer_id, l.delivered_date, ch.bill_customer, ch.invoice_line_id,
            ch.code, ch.description, ch.amount, ch.bill_amount
     FROM dbo.LoadCharges AS ch
-    JOIN dbo.Loads AS l ON l.id = ch.load_id
+    JOIN dbo.Loads AS l ON l.load_number = ch.load_id
     WHERE ch.bill_customer = 1 AND ch.invoice_line_id IS NULL
       AND l.status = N'Delivered' AND l.customer_id IS NOT NULL
       AND l.delivered_date <= CAST(@through AS DATE)
@@ -241,7 +241,7 @@ async function generate(request, context) {
             VALUES (@inv, @loadId, 'LINEHAUL', @description, @amount);
             -- The marker, guarded: a load billed by a racing run stays with
             -- the run that got there first, and the count says so.
-            UPDATE dbo.Loads SET invoice_id = @inv WHERE id = @loadId AND invoice_id IS NULL;
+            UPDATE dbo.Loads SET invoice_id = @inv WHERE load_number = @loadId AND invoice_id IS NULL;
             IF @@ROWCOUNT = 0 THROW 50409, 'already billed', 1;
             INSERT INTO dbo.LoadEvents (load_id, actor, event_type, detail) VALUES (@loadId, @actor, 'Edited', @detail);
           `)
@@ -323,7 +323,7 @@ async function getOne(request) {
            l.delivered_date, l.reference_no, l.miles, l.driver_code
     FROM dbo.InvoiceLines AS x
     JOIN dbo.Invoices AS i ON i.invoice_id = x.invoice_id
-    LEFT JOIN dbo.Loads AS l ON l.id = x.load_id
+    LEFT JOIN dbo.Loads AS l ON l.load_number = x.load_id
     WHERE i.invoice_no = @no
     ORDER BY l.delivered_date, x.load_id, CASE x.line_type WHEN 'LINEHAUL' THEN 0 ELSE 1 END, x.line_id;
     SELECT c.customer_id, c.name, c.contact_name, c.email, c.phone, c.mc_number, c.customer_type
@@ -411,7 +411,7 @@ async function patch(request, context) {
                  notes = CASE WHEN @reason IS NULL THEN notes ELSE CONCAT_WS(N' ', notes, N'Voided:', @reason) END
            WHERE invoice_id = @id;
           INSERT INTO dbo.LoadEvents (load_id, actor, event_type, detail)
-          SELECT id, @by, 'Edited', @detail FROM dbo.Loads WHERE invoice_id = @id;
+          SELECT load_number, @by, 'Edited', @detail FROM dbo.Loads WHERE invoice_id = @id;
           UPDATE dbo.Loads SET invoice_id = NULL WHERE invoice_id = @id;
           UPDATE dbo.LoadCharges SET invoice_line_id = NULL
            WHERE invoice_line_id IN (SELECT line_id FROM dbo.InvoiceLines WHERE invoice_id = @id);

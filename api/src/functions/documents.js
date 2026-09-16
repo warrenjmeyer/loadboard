@@ -79,9 +79,9 @@ const SELECT = `
 
 async function loadFor(pool, id) {
   const r = await pool.request().input('id', sql.VarChar(20), id).query(`
-    SELECT l.id, l.status, l.driver_code, inv.invoice_no
+    SELECT l.load_number AS id, l.status, l.driver_code, inv.invoice_no
     FROM dbo.Loads AS l LEFT JOIN dbo.Invoices AS inv ON inv.invoice_id = l.invoice_id
-    WHERE l.id = @id;
+    WHERE l.load_number = @id;
   `)
   const l = r.recordset[0]
   return l ? { id: l.id, status: l.status, driverCode: l.driver_code, invoiceNo: l.invoice_no || null } : null

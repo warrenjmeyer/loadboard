@@ -57,7 +57,7 @@ function stopRow(r) {
 
 async function loadFor(req, id, lock = '') {
   const r = await req.input('id', sql.VarChar(20), id).query(`
-    SELECT id, status, driver_code, origin, destination FROM dbo.Loads ${lock} WHERE id = @id;
+    SELECT load_number AS id, status, driver_code, origin, destination FROM dbo.Loads ${lock} WHERE load_number = @id;
   `)
   const row = r.recordset[0]
   return row ? { id: row.id, status: row.status, driverCode: row.driver_code, origin: row.origin, destination: row.destination } : null
@@ -220,7 +220,7 @@ async function replace(request, context) {
                pickup_start = CAST(@ps AS DATETIME2(0)), pickup_end = CAST(@pe AS DATETIME2(0)),
                delivery_start = CAST(@ds AS DATETIME2(0)), delivery_end = CAST(@de AS DATETIME2(0)),
                updated_utc = SYSUTCDATETIME(), updated_by = @by
-         WHERE id = @id;
+         WHERE load_number = @id;
         INSERT INTO dbo.LoadEvents (load_id, actor, event_type, detail) VALUES (@id, @by, 'Edited', @detail);
       `)
 
@@ -279,7 +279,7 @@ async function checkIn(request, context) {
       .query('UPDATE dbo.LoadStops SET arrived_utc = CAST(@arrived AS DATETIME2(0)), departed_utc = CAST(@departed AS DATETIME2(0)) WHERE stop_id = @sid;')
     if (plan.loadStatus !== load.status) {
       await new sql.Request(tx).input('id', sql.VarChar(20), loadId).input('status', sql.NVarChar(20), plan.loadStatus).input('by', sql.NVarChar(256), user.email)
-        .query('UPDATE dbo.Loads SET status = @status, updated_utc = SYSUTCDATETIME(), updated_by = @by WHERE id = @id;')
+        .query('UPDATE dbo.Loads SET status = @status, updated_utc = SYSUTCDATETIME(), updated_by = @by WHERE load_number = @id;')
     }
     for (const ev of plan.events) {
       await new sql.Request(tx)

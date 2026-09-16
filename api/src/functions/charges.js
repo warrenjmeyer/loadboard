@@ -56,7 +56,7 @@ function badRequest(errors) {
 
 async function loadFor(pool, id) {
   const r = await pool.request().input('id', sql.VarChar(20), id)
-    .query('SELECT id, status, driver_code FROM dbo.Loads WHERE id = @id;')
+    .query('SELECT load_number AS id, status, driver_code FROM dbo.Loads WHERE load_number = @id;')
   return r.recordset[0] ? { id: r.recordset[0].id, status: r.recordset[0].status, driverCode: r.recordset[0].driver_code } : null
 }
 

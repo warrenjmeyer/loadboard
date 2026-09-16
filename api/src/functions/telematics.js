@@ -102,10 +102,10 @@ async function appTrucks(pool) {
     FROM dbo.Trucks AS t
     LEFT JOIN dbo.Drivers AS d ON d.unit_no = t.unit_no
     OUTER APPLY (
-      SELECT TOP 1 l.id, l.status, l.destination
+      SELECT TOP 1 l.load_number AS id, l.status, l.destination
       FROM dbo.Loads AS l
       WHERE l.unit_no = t.unit_no AND l.status IN (N'Covered', N'In Transit')
-      ORDER BY CASE l.status WHEN N'In Transit' THEN 0 ELSE 1 END, l.pickup_start, l.id
+      ORDER BY CASE l.status WHEN N'In Transit' THEN 0 ELSE 1 END, l.pickup_start, l.load_number
     ) AS cur
     WHERE t.status <> N'Retired';
   `)

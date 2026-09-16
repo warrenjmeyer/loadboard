@@ -31,8 +31,15 @@ const LOAD_ID = /^[A-Za-z0-9._-]{1,20}$/
 
 // Explicit column list: it keeps the shape stable if someone adds a column
 // to the table later, and it is the one place the SQL names them.
+//
+// The load number is the one column whose SQL name is not its JSON name. The
+// table calls it `load_number` (loads_07_rename.sql, so it agrees with the
+// TMS.Loads it is copied into); every caller of this API, and every test and
+// fixture behind them, calls it `id`. The alias is where those two facts meet,
+// and it belongs here rather than in thirty query strings.
+const LOAD_ID_COLUMN = 'load_number'
 const LOAD_COLUMNS = [
-  'id', 'origin', 'destination', 'miles', 'empty_miles', 'rate', 'equipment', 'status',
+  'origin', 'destination', 'miles', 'empty_miles', 'rate', 'equipment', 'status',
   'driver_code', 'unit_no', 'trailer_no', 'delivered_date',
   'pickup_start', 'pickup_end', 'delivery_start', 'delivery_end',
   'customer_id', 'customer_name', 'reference_no',
@@ -46,8 +53,8 @@ const LOAD_COLUMNS = [
 // may be covered depends on it (see loadRules.planChange). A LEFT JOIN, so a
 // load with no customer record is still a load.
 const FROM_LOADS = (hint = '') => `
-  SELECT ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status, inv.invoice_no,
-         (SELECT COUNT(*) FROM dbo.LoadStops AS st WHERE st.load_id = l.id) AS stop_count
+  SELECT l.${LOAD_ID_COLUMN} AS id, ${LOAD_COLUMNS.map((c) => `l.${c}`).join(', ')}, c.status AS customer_status, inv.invoice_no,
+         (SELECT COUNT(*) FROM dbo.LoadStops AS st WHERE st.load_id = l.${LOAD_ID_COLUMN}) AS stop_count
   FROM dbo.Loads AS l ${hint}
   LEFT JOIN dbo.Customers AS c ON c.customer_id = l.customer_id
   LEFT JOIN dbo.Invoices AS inv ON inv.invoice_id = l.invoice_id`
@@ -195,7 +202,7 @@ function bindFields(req, fields) {
 
 async function selectLoad(req, id) {
   const result = await req.input('id', sql.VarChar(20), id).query(`
-    ${FROM_LOADS()} WHERE l.id = @id;
+    ${FROM_LOADS()} WHERE l.${LOAD_ID_COLUMN} = @id;
   `)
   return result.recordset[0] ? rowToLoad(result.recordset[0]) : null
 }
@@ -239,7 +246,7 @@ async function listLoads(request) {
 
   const pool = await getPool()
   const result = await pool.request().query(`
-    ${FROM_LOADS()} ORDER BY l.id;
+    ${FROM_LOADS()} ORDER BY l.${LOAD_ID_COLUMN};
   `)
 
   const rows = all
@@ -321,10 +328,10 @@ async function createLoad(request, context) {
       .input('id', sql.VarChar(20), id)
       .input('createdBy', sql.NVarChar(256), user.email)
       .query(`
-        IF EXISTS (SELECT 1 FROM dbo.Loads WHERE id = @id)
+        IF EXISTS (SELECT 1 FROM dbo.Loads WHERE ${LOAD_ID_COLUMN} = @id)
           THROW 50409, 'duplicate', 1;
 
-        INSERT INTO dbo.Loads (id, status, created_by, ${columns.join(', ')})
+        INSERT INTO dbo.Loads (${LOAD_ID_COLUMN}, status, created_by, ${columns.join(', ')})
         VALUES (@id, N'Available', @createdBy, ${values.join(', ')});
       `)
 
@@ -344,7 +351,7 @@ async function createLoad(request, context) {
       const sum = stopRules.summaryFrom(stops)
       const sreq = new sql.Request(tx)
       const { assignments } = bindFields(sreq, sum)
-      await sreq.input('id', sql.VarChar(20), id).query(`UPDATE dbo.Loads SET ${assignments.join(', ')} WHERE id = @id;`)
+      await sreq.input('id', sql.VarChar(20), id).query(`UPDATE dbo.Loads SET ${assignments.join(', ')} WHERE ${LOAD_ID_COLUMN} = @id;`)
     } else {
       stops = stopRules.stopsFromSummary(await selectLoad(new sql.Request(tx), id))
     }
@@ -442,7 +449,7 @@ async function patchLoad(request, context) {
     // that, instead of both planning from Available and both succeeding.
     const current = await new sql.Request(tx)
       .input('id', sql.VarChar(20), id)
-      .query(`${FROM_LOADS('WITH (UPDLOCK, HOLDLOCK)')} WHERE l.id = @id;`)
+      .query(`${FROM_LOADS('WITH (UPDLOCK, HOLDLOCK)')} WHERE l.${LOAD_ID_COLUMN} = @id;`)
 
     if (!current.recordset[0]) {
       await tx.rollback()
@@ -498,7 +505,7 @@ async function patchLoad(request, context) {
           delivered_date = CAST(@deliveredDate AS DATE),
           updated_utc = SYSUTCDATETIME(),
           updated_by = @updatedBy
-        WHERE id = @id;
+        WHERE ${LOAD_ID_COLUMN} = @id;
       `)
 
     for (const event of events) {
@@ -582,10 +589,10 @@ async function roster(request) {
     FROM dbo.Drivers AS d
     LEFT JOIN dbo.Trucks AS t ON t.unit_no = d.unit_no
     OUTER APPLY (
-      SELECT TOP 1 l.id, l.status, l.destination, l.delivery_end
+      SELECT TOP 1 l.${LOAD_ID_COLUMN} AS id, l.status, l.destination, l.delivery_end
       FROM dbo.Loads AS l
       WHERE l.driver_code = d.driver_code AND l.status IN (N'Covered', N'In Transit')
-      ORDER BY CASE l.status WHEN N'In Transit' THEN 0 ELSE 1 END, l.pickup_start, l.id
+      ORDER BY CASE l.status WHEN N'In Transit' THEN 0 ELSE 1 END, l.pickup_start, l.${LOAD_ID_COLUMN}
     ) AS cur
     ORDER BY d.last_name, d.first_name;
   `)
