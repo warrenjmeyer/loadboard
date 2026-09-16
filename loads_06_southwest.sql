@@ -43,8 +43,12 @@ GO
 ------------------------------------------------------------------------------
 IF NOT EXISTS (SELECT 1 FROM dbo.Customers WHERE name = N'Mojave Cold Chain')
 BEGIN
+    -- address1, not address. The seed insert in customers_01_ddl.sql lists no
+    -- column names, so this file guessed one from the shape of its VALUES and
+    -- guessed wrong; the customers failed and the loads below went in with a
+    -- customer NAME and no customer_id. Hence the repair step that follows.
     INSERT INTO dbo.Customers
-        (name, customer_type, mc_number, address, city, state, postal_code, phone, email, contact_name, payment_terms_days, credit_limit, status)
+        (name, customer_type, mc_number, address1, city, state, postal_code, phone, email, contact_name, payment_terms_days, credit_limit, status)
     VALUES
         (N'Mojave Cold Chain', 'Shipper', NULL, N'4600 W Sunset Rd', N'Las Vegas', N'NV', '89118',
          '702-555-0132', N'dispatch@mojavecold.example', N'Ruth Alvarado', 30, NULL, 'Active'),
@@ -54,6 +58,28 @@ BEGIN
 END
 ELSE
     PRINT 'Southwest customers already present';
+GO
+
+------------------------------------------------------------------------------
+-- Link any Southwest load that has a customer's NAME but not their id.
+--
+-- Only does anything when the customers failed to insert on an earlier run
+-- and the loads went in anyway -- which is exactly what happened the first
+-- time this file was run. Matching on the name is safe here because these
+-- five rows wrote both, from the same literal, in the same statement.
+--
+-- Without this, the loads carry a customer nobody can click through to, the
+-- hold rule in loadRules.planChange has no customer to check, and an invoice
+-- run has nobody to bill.
+------------------------------------------------------------------------------
+UPDATE l
+   SET l.customer_id = c.customer_id
+  FROM dbo.Loads AS l
+  JOIN dbo.Customers AS c ON c.name = l.customer_name
+ WHERE l.id LIKE 'L-105%'
+   AND l.customer_id IS NULL;
+
+IF @@ROWCOUNT > 0 PRINT 'LINKED Southwest loads to their customers';
 GO
 
 ------------------------------------------------------------------------------
@@ -178,6 +204,7 @@ GO
 -- What went in, and what still has to happen outside this file.
 ------------------------------------------------------------------------------
 SELECT l.id, l.status, l.origin, l.destination, l.driver_code, l.unit_no,
+       l.customer_id, l.customer_name,
        (SELECT COUNT(*) FROM dbo.LoadStops s WHERE s.load_id = l.id) AS stops
 FROM dbo.Loads AS l
 WHERE l.id LIKE 'L-105%'
