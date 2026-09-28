@@ -1,0 +1,149 @@
+{
+  "about": "Sample roster for the Get Me Home Planner. Every driver is one case the planner has to handle -- see the table in ../README.md. Shaped exactly as contract.js describes, so a host adapter's output can be compared against it field for field.",
+  "asOf": "2026-09-28T15:00:00Z",
+  "policy": {
+    "maxDaysOut": { "OTR": 21, "Regional": 7, "Dedicated": 7, "Local": 1 }
+  },
+  "drivers": [
+    {
+      "driverCode": "TBOONE",
+      "name": "Terrell Boone",
+      "jobType": "OTR",
+      "unitNo": "Demo - 02",
+      "home": { "place": "Waterloo, IA", "latitude": 42.4928, "longitude": -92.3426 },
+      "position": { "near": "Laredo, TX", "latitude": 27.5306, "longitude": -99.4803, "reportedAt": "2026-09-28T14:48:00Z" },
+      "hours": { "driving": 21600, "duty": 25200, "cycle": 136800, "rest": 10800, "statusLabel": "Driving" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-12T13:00:00Z",
+        "requestedBy": "2026-09-29T18:00:00-05:00",
+        "note": "Son's homecoming game Tuesday night"
+      }
+    },
+    {
+      "driverCode": "HBARNETT",
+      "name": "Hollis Barnett",
+      "jobType": "Regional",
+      "unitNo": "Demo - 01",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": { "near": "Kansas City, MO", "latitude": 39.0997, "longitude": -94.5786, "reportedAt": "2026-09-28T14:51:00Z" },
+      "hours": { "driving": 5400, "duty": 7200, "cycle": 147600, "rest": 3600, "statusLabel": "Driving" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-22T12:00:00Z",
+        "requestedBy": "2026-09-29T12:00:00-05:00",
+        "note": "Doctor's appointment Tuesday afternoon"
+      }
+    },
+    {
+      "driverCode": "DFOSTER",
+      "name": "Dale Foster",
+      "jobType": "OTR",
+      "unitNo": "Demo - 05",
+      "home": { "place": "Council Bluffs, IA", "latitude": 41.2619, "longitude": -95.8608 },
+      "position": { "near": "Salt Lake City, UT", "latitude": 40.7608, "longitude": -111.891, "reportedAt": "2026-09-28T14:40:00Z" },
+      "hours": { "driving": 0, "duty": 0, "cycle": 0, "rest": 0, "statusLabel": "Off duty" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-16T14:00:00Z",
+        "requestedBy": "2026-10-01T12:00:00-05:00",
+        "note": null
+      }
+    },
+    {
+      "driverCode": "ACORTEZ",
+      "name": "Alma Cortez",
+      "jobType": "OTR",
+      "unitNo": "Demo - 03",
+      "home": { "place": "Dubuque, IA", "latitude": 42.5006, "longitude": -90.6646 },
+      "position": { "near": "Denver, CO", "latitude": 39.7392, "longitude": -104.9903, "reportedAt": "2026-09-28T14:55:00Z" },
+      "hours": { "driving": 10800, "duty": 18000, "cycle": 72000, "rest": 7200, "statusLabel": "On duty" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-10T15:00:00Z",
+        "requestedBy": "2026-10-01T18:00:00-05:00",
+        "note": null
+      }
+    },
+    {
+      "driverCode": "RDELGADO",
+      "name": "Rosa Delgado",
+      "jobType": "Dedicated",
+      "unitNo": "Demo - 04",
+      "home": { "place": "Davenport, IA", "latitude": 41.5236, "longitude": -90.5776 },
+      "position": { "near": "Peru, IL", "latitude": 41.3275, "longitude": -89.129, "reportedAt": "2026-09-28T14:55:00Z" },
+      "hours": { "driving": 14400, "duty": 18000, "cycle": 180000, "rest": 14400, "statusLabel": "Driving" },
+      "currentLoad": {
+        "id": "L-30412",
+        "finalStop": { "place": "Joliet, IL", "latitude": 41.525, "longitude": -88.0817 },
+        "emptyAt": "2026-09-28T16:00:00-05:00"
+      },
+      "homeTime": {
+        "lastHomeAt": "2026-09-19T20:00:00Z",
+        "requestedBy": null,
+        "note": null
+      }
+    },
+    {
+      "driverCode": "RVASQUEZ",
+      "name": "Rey Vasquez",
+      "jobType": "OTR",
+      "unitNo": "Demo - 21",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": null,
+      "hours": null,
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-14T12:00:00Z",
+        "requestedBy": null,
+        "note": null
+      }
+    },
+    {
+      "driverCode": "LHARTMAN",
+      "name": "Lena Hartman",
+      "jobType": "Regional",
+      "unitNo": "Demo - 07",
+      "home": { "place": "Des Moines, IA", "latitude": 41.5868, "longitude": -93.625 },
+      "position": { "near": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345, "reportedAt": "2026-09-28T10:30:00Z" },
+      "hours": null,
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-23T12:00:00Z",
+        "requestedBy": null,
+        "note": null
+      }
+    },
+    {
+      "driverCode": "PRAMAN",
+      "name": "Priya Raman",
+      "jobType": "Dedicated",
+      "unitNo": "Demo - 13",
+      "home": { "place": "Dubuque, IA", "latitude": 42.5006, "longitude": -90.6646 },
+      "position": { "near": "Minneapolis, MN", "latitude": 44.9778, "longitude": -93.265, "reportedAt": "2026-09-28T14:57:00Z" },
+      "hours": { "driving": 32400, "duty": 36000, "cycle": 160000, "rest": 21600, "statusLabel": "On duty" },
+      "routeHome": { "miles": 244, "driveSeconds": 15900, "source": "here-truck" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-25T22:00:00Z",
+        "requestedBy": null,
+        "note": null
+      }
+    },
+    {
+      "driverCode": "SOAKS",
+      "name": "Sherman Oaks",
+      "jobType": "Local",
+      "unitNo": "Demo - 10",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": { "near": "Cedar Rapids, IA", "latitude": 41.985, "longitude": -91.65, "reportedAt": "2026-09-28T14:52:00Z" },
+      "hours": { "driving": 39600, "duty": 50400, "cycle": 200000, "rest": 28800, "statusLabel": "Off duty" },
+      "currentLoad": null,
+      "homeTime": {
+        "lastHomeAt": "2026-09-28T11:00:00Z",
+        "requestedBy": null,
+        "note": null
+      }
+    }
+  ]
+}

@@ -24,6 +24,10 @@ import { MemoryRouter } from 'react-router-dom'
 // render state draws the real state borders and not a hand-written stand-in.
 // In the browser these arrive through import() the first time a map draws.
 import { STATE_BORDERS } from './lib/stateOutlines.js'
+// Same reasoning for the Get Me Home planner: the planning is plain JS, and
+// its sample roster is plain JSON -- the very file the design preview serves.
+import { readFileSync } from 'node:fs'
+import { planRoster as planGetMeHome } from './features/get-me-home/planHome.js'
 
 const vite = await createServer({
   server: { middlewareMode: true },
@@ -160,6 +164,13 @@ function blankLoad(overrides = {}) {
     ...overrides,
   }
 }
+
+// The Get Me Home roster, and single plans out of it by driver.
+const getMeHomeRoster = JSON.parse(
+  readFileSync(new URL('./features/get-me-home/fixtures/roster.json', import.meta.url), 'utf8')
+)
+const getMeHomePlans = planGetMeHome(getMeHomeRoster).plans
+const getMeHomePlan = (code) => getMeHomePlans.find((p) => p.driverCode === code)
 
 // Each entry is a state the component can actually be in. Rendering only the
 // happy path would miss the branches that exist precisely because something
@@ -838,6 +849,18 @@ const cases = [
       emptyNote: 'No deductions were attributed to a specific load.',
     }
   })()],
+
+  // The Get Me Home planner: the whole screen from the sample roster, the
+  // three states it has before a roster exists, and single plans picked for
+  // what is hard to draw -- a 34-hour restart, a trip home that starts after
+  // a delivery, and a truck nobody can place.
+  ['GetMeHome roster', '/src/features/get-me-home/PlannerView.jsx', { roster: getMeHomeRoster }],
+  ['GetMeHome loading', '/src/features/get-me-home/PlannerView.jsx', { roster: null, loading: true }],
+  ['GetMeHome error', '/src/features/get-me-home/PlannerView.jsx', { roster: null, error: 'HTTP 502' }],
+  ['GetMeHome empty', '/src/features/get-me-home/PlannerView.jsx', { roster: { drivers: [] } }],
+  ['GetMeHome restart', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('DFOSTER') }],
+  ['GetMeHome after a load', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('RDELGADO') }],
+  ['GetMeHome unplaced', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('RVASQUEZ') }],
 ]
 
 let failed = 0
@@ -860,7 +883,13 @@ for (const [label, path, props, exportName] of cases) {
     // Strip tags so the log shows what a person would actually read. A
     // component that renders 400 bytes of empty divs is not obviously broken
     // from a byte count, but it is obvious from a blank string.
-    const text = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
+    //
+    // <style> blocks go first, contents and all. MUI's styling engine writes
+    // its CSS inline when rendered on a server, and stripping only the tags
+    // would leave that CSS behind as the "readable text" of every MUI case.
+    const text = html
+      .replace(/<style[^>]*>[\s\S]*?<\/style>/g, ' ')
+      .replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim()
 
     if (label.endsWith('unknown')) {
       // The one case that SHOULD render nothing: /api/me has not answered yet,

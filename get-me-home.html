@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Get Me Home Planner — preview</title>
+  </head>
+  <body>
+    <!-- A second page, beside index.html rather than a route inside it, for
+         two reasons.
+
+         It does not load src/styles.css. That stylesheet styles bare label,
+         input, select and button elements, and MUI draws with exactly those
+         -- so inside the load board the planner would look like neither app.
+         Out here it looks the way it will on the host.
+
+         And it is not built. `vite build` compiles index.html and nothing
+         else, so this page and its sample drivers exist on `npm run dev`
+         and never reach the deployed site. Open it at
+         http://localhost:5173/get-me-home.html -->
+    <div id="root"></div>
+    <script type="module" src="/src/features/get-me-home/preview/main.jsx"></script>
+  </body>
+</html>
