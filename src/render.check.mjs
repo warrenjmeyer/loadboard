@@ -24,10 +24,11 @@ import { MemoryRouter } from 'react-router-dom'
 // render state draws the real state borders and not a hand-written stand-in.
 // In the browser these arrive through import() the first time a map draws.
 import { STATE_BORDERS } from './lib/stateOutlines.js'
-// Same reasoning for the Get Me Home planner: the planning is plain JS, and
-// its sample roster is plain JSON -- the very file the design preview serves.
+// Same reasoning for the Get Me Home planner: the planning is TypeScript that
+// Node runs directly by stripping the types, and its sample roster is plain
+// JSON -- the very file the design preview serves.
 import { readFileSync } from 'node:fs'
-import { planRoster as planGetMeHome } from './features/get-me-home/planHome.js'
+import { planRoster as planGetMeHome } from './features/get-me-home/planHome.ts'
 
 const vite = await createServer({
   server: { middlewareMode: true },
@@ -854,13 +855,13 @@ const cases = [
   // three states it has before a roster exists, and single plans picked for
   // what is hard to draw -- a 34-hour restart, a trip home that starts after
   // a delivery, and a truck nobody can place.
-  ['GetMeHome roster', '/src/features/get-me-home/PlannerView.jsx', { roster: getMeHomeRoster }],
-  ['GetMeHome loading', '/src/features/get-me-home/PlannerView.jsx', { roster: null, loading: true }],
-  ['GetMeHome error', '/src/features/get-me-home/PlannerView.jsx', { roster: null, error: 'HTTP 502' }],
-  ['GetMeHome empty', '/src/features/get-me-home/PlannerView.jsx', { roster: { drivers: [] } }],
-  ['GetMeHome restart', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('DFOSTER') }],
-  ['GetMeHome after a load', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('RDELGADO') }],
-  ['GetMeHome unplaced', '/src/features/get-me-home/DriverPlan.jsx', { plan: getMeHomePlan('RVASQUEZ') }],
+  ['GetMeHome roster', '/src/features/get-me-home/PlannerView.tsx', { roster: getMeHomeRoster }],
+  ['GetMeHome loading', '/src/features/get-me-home/PlannerView.tsx', { roster: null, loading: true }],
+  ['GetMeHome error', '/src/features/get-me-home/PlannerView.tsx', { roster: null, error: 'HTTP 502' }],
+  ['GetMeHome empty', '/src/features/get-me-home/PlannerView.tsx', { roster: { drivers: [] } }],
+  ['GetMeHome restart', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('DFOSTER') }],
+  ['GetMeHome after a load', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('RDELGADO') }],
+  ['GetMeHome unplaced', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('RVASQUEZ') }],
 ]
 
 let failed = 0

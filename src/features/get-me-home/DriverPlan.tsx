@@ -1,7 +1,9 @@
 import { Alert, Box, Card, CardContent, Divider, Stack, Typography } from '@mui/material'
-import StatusChip from './StatusChip.jsx'
-import { BLOCK } from './status.js'
-import { formatDuration, formatMiles, formatTime, formatWhen, sameDay } from './format.js'
+import StatusChip from './StatusChip.tsx'
+import { BLOCK } from './status.ts'
+import { formatDuration, formatMiles, formatTime, formatWhen, sameDay } from './format.ts'
+import type { Block, Plan } from './planHome.ts'
+import type { Place } from './contract.ts'
 
 // ---------------------------------------------------------------------------
 // One driver's trip home, laid out: where it starts, how far, every drive
@@ -11,7 +13,7 @@ import { formatDuration, formatMiles, formatTime, formatWhen, sameDay } from './
 // ten-hour rests and a restart" is Thursday, and the difference is exactly
 // what a dispatcher has to tell the driver on the phone.
 // ---------------------------------------------------------------------------
-export default function DriverPlan({ plan }) {
+export default function DriverPlan({ plan }: { plan: Plan | null }) {
   if (!plan) {
     return (
       <Card variant="outlined">
@@ -32,7 +34,7 @@ export default function DriverPlan({ plan }) {
           <Box sx={{ minWidth: 0 }}>
             <Typography variant="h6" component="h3">{plan.name}</Typography>
             <Typography variant="body2" sx={{ color: 'text.secondary' }}>
-              {[plan.unitNo, plan.jobType, plan.home && plan.home.place && `home ${plan.home.place}`].filter(Boolean).join(' · ')}
+              {[plan.unitNo, plan.jobType, plan.home?.place && `home ${plan.home.place}`].filter(Boolean).join(' · ')}
             </Typography>
           </Box>
           <StatusChip status={plan.status} />
@@ -58,7 +60,7 @@ export default function DriverPlan({ plan }) {
         {plan.warnings.length > 0 && (
           <Stack spacing={1} sx={{ mt: 2 }}>
             {plan.warnings.map((w) => (
-              <Alert key={w.code} severity={w.level === 'info' ? 'info' : 'warning'} variant="outlined">
+              <Alert key={w.code} severity={w.level} variant="outlined">
                 {w.text}
               </Alert>
             ))}
@@ -71,9 +73,9 @@ export default function DriverPlan({ plan }) {
 
 // The numbers, as label and value. A grid rather than a table: two columns
 // of prose, not data anybody sorts.
-function Facts({ plan }) {
+function Facts({ plan }: { plan: Plan }) {
   const { start, route, schedule } = plan
-  const rows = []
+  const rows: [label: string, value: string][] = []
 
   if (start) {
     rows.push(['Starts from', start.from === 'final-stop'
@@ -86,8 +88,8 @@ function Facts({ plan }) {
   }
   if (schedule && schedule.offSeconds > 0) {
     const parts = [
-      schedule.rests && `${schedule.rests} rest${schedule.rests === 1 ? '' : 's'}`,
-      schedule.restarts && `${schedule.restarts} restart`,
+      schedule.rests > 0 && `${schedule.rests} rest${schedule.rests === 1 ? '' : 's'}`,
+      schedule.restarts > 0 && `${schedule.restarts} restart`,
     ].filter(Boolean).join(', ')
     rows.push(['Off duty on the way', `${formatDuration(schedule.offSeconds)}${parts ? ` (${parts})` : ''}`])
   }
@@ -118,7 +120,7 @@ function Facts({ plan }) {
 // The whole trip as one bar, each block as wide as it is long. It is a
 // picture of the list beneath it, so it is hidden from screen readers --
 // the list says everything the bar does.
-function TripBar({ blocks }) {
+function TripBar({ blocks }: { blocks: Block[] }) {
   return (
     <Box
       aria-hidden="true"
@@ -142,7 +144,7 @@ function TripBar({ blocks }) {
   )
 }
 
-function Timeline({ blocks, arriveAt, home }) {
+function Timeline({ blocks, arriveAt, home }: { blocks: Block[]; arriveAt: string; home: Place | null }) {
   return (
     <Box component="ol" sx={{ listStyle: 'none', p: 0, m: 0 }}>
       {blocks.map((b, i) => (
@@ -151,12 +153,18 @@ function Timeline({ blocks, arriveAt, home }) {
           when={`${formatWhen(b.start)} – ${sameDay(b.start, b.end) ? formatTime(b.end) : formatWhen(b.end)}`}
         />
       ))}
-      <Step color="success.main" label={`Home${home && home.place ? `, ${home.place}` : ''}`} when={formatWhen(arriveAt)} strong />
+      <Step color="success.main" label={`Home${home?.place ? `, ${home.place}` : ''}`} when={formatWhen(arriveAt)} strong />
     </Box>
   )
 }
 
-function Step({ color, label, when, faded = false, strong = false }) {
+function Step({ color, label, when, faded = false, strong = false }: {
+  color: string
+  label: string
+  when: string
+  faded?: boolean
+  strong?: boolean
+}) {
   return (
     <Box component="li" sx={{ display: 'flex', alignItems: 'center', gap: 1.5, py: 0.5 }}>
       <Box sx={{ width: 10, height: 10, borderRadius: '50%', bgcolor: color, opacity: faded ? 0.5 : 1, flexShrink: 0 }} />
@@ -166,7 +174,7 @@ function Step({ color, label, when, faded = false, strong = false }) {
   )
 }
 
-function blockLabel(b) {
+function blockLabel(b: Block): string {
   if (b.kind === 'drive') return `Drive ${formatDuration(b.seconds)}`
   if (b.kind === 'rest' && b.assumed) return '10-hour rest (assumed: hours not known)'
   if (b.kind === 'restart') return '34-hour restart (cycle spent)'

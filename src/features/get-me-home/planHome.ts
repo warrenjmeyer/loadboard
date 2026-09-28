@@ -1,15 +1,23 @@
+import type { Driver, Hours, IsoMoment, JobType, Place, PolicyInput, Roster, Route, Seconds } from './contract.ts'
+
 // ---------------------------------------------------------------------------
 // Get Me Home: can this driver get home by when they asked, and when does
 // dispatch have to start routing them there?
 //
-// Pure functions. No React, no network, no imports. That is the point of the
-// file: it is the part of the planner that has to mean exactly the same thing
-// after the port, so it is written to be copied verbatim and to prove itself
-// on the other side -- planHome.test.js needs nothing but `node --test`.
+// Pure functions. No React, no network, no runtime imports -- the one import
+// above is types only and vanishes when this runs. That is the point of the
+// file: it is the part of the planner that has to mean exactly the same
+// thing after the port, so it is written to be copied verbatim and to prove
+// itself on the other side. planHome.test.ts needs nothing but `node --test`
+// on a Node that strips types (22.18 or later).
+//
+// It is also why the syntax stays ERASABLE: no enums, no namespaces, no
+// parameter properties -- nothing that needs compiling rather than deleting.
+// tsconfig's erasableSyntaxOnly holds the line.
 //
 // UNITS. Durations are SECONDS. Moments are ISO 8601 WITH A ZONE --
 // "2026-09-29T17:00:00Z" or "2026-09-29T12:00:00-05:00". A home-by time with
-// no zone is refused by checkRoster in contract.js, because "Tuesday 5 PM"
+// no zone is refused by checkRoster in contract.ts, because "Tuesday 5 PM"
 // is a different instant in Dubuque than on a dispatcher's screen in Denver.
 // Everything this file hands back is in UTC ("...Z"); the screen decides how
 // to show it.
@@ -32,6 +40,103 @@
 // with an empty trailer, and it is named here so nobody thinks it was missed.
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// What the planner hands back. The screen reads these and nothing else.
+// ---------------------------------------------------------------------------
+export type Status = 'late' | 'tight' | 'overdue' | 'unknown' | 'due-soon' | 'on-track' | 'ok' | 'home'
+
+export type BlockKind = 'drive' | 'break' | 'rest' | 'restart'
+
+/** One stretch of the trip home: at the wheel, or off it. */
+export interface Block {
+  kind: BlockKind
+  start: IsoMoment
+  end: IsoMoment
+  seconds: Seconds
+  /** A rest put in because the hours were unknown, not because they ran out. */
+  assumed?: boolean
+}
+
+export interface Schedule {
+  blocks: Block[]
+  arriveAt: IsoMoment
+  driveSeconds: Seconds
+  offSeconds: Seconds
+  rests: number
+  restarts: number
+  /** True when the schedule opens with a rest because the hours were unknown. */
+  assumedRest: boolean
+}
+
+export interface PlannedRoute {
+  miles: number
+  driveSeconds: Seconds
+  /** "estimate" when the planner worked it out; otherwise the host's source. */
+  source: string
+}
+
+/** Where, when, and with what clocks the trip home begins. */
+export interface Start {
+  from: 'position' | 'final-stop'
+  loadId: string | null
+  place: string | null
+  latitude: number
+  longitude: number
+  at: IsoMoment
+  hours: Hours | null
+  /** How old the position is, in minutes; null when starting from a stop. */
+  ageMinutes: number | null
+}
+
+export type WarningCode =
+  | 'no-empty-time' | 'hours-after-load-unknown' | 'final-stop-unplaced'
+  | 'position-undated' | 'stale-position' | 'no-hours' | 'cycle-unknown'
+  | 'no-last-home' | 'home-unplaced' | 'unplaced'
+
+/** Something the planner could not know, said out loud. The code is for a
+ * host that wants to filter or reword; the text is ready to show. */
+export interface PlanWarning {
+  code: WarningCode
+  level: 'info' | 'warning'
+  text: string
+}
+
+export interface Plan {
+  driverCode: string
+  name: string
+  jobType: JobType | null
+  unitNo: string | null
+  home: Place | null
+  note: string | null
+  start: Start | null
+  route: PlannedRoute | null
+  schedule: Schedule | null
+  daysOut: number | null
+  maxDaysOut: number
+  requestedBy: IsoMoment | null
+  /** Time to spare against the request: negative is late, null is no request. */
+  slackSeconds: Seconds | null
+  /** The latest the trip home can begin and still make the request. */
+  leaveBy: IsoMoment | null
+  status: Status
+  warnings: PlanWarning[]
+}
+
+/** A policy with every field filled in. */
+export interface Policy {
+  maxDaysOut: Record<JobType, number>
+  defaultMaxDaysOut: number
+  dueSoonDays: number
+}
+
+export interface RosterPlan {
+  asOf: IsoMoment
+  policy: Policy
+  /** Most urgent first. */
+  plans: Plan[]
+  counts: Partial<Record<Status, number>>
+}
+
 const MINUTE = 60
 const HOUR = 60 * MINUTE
 const DAY_MS = 24 * HOUR * 1000
@@ -44,13 +149,13 @@ export const HOS = {
   dailyRest: 10 * HOUR,
   cycle: 70 * HOUR,
   restart: 34 * HOUR,
-}
+} as const
 
 // When nobody has given us a road route, a straight line stretched by a
 // fifth, at 50 mph. Crude on purpose and labelled as such everywhere it
 // shows: the host is expected to send a real truck route (routeHome in the
 // contract) once it can.
-export const ESTIMATE = { roadFactor: 1.2, mph: 50 }
+export const ESTIMATE = { roadFactor: 1.2, mph: 50 } as const
 
 // Inside this, the truck is home already -- a town, not a driveway.
 export const AT_HOME_MILES = 25
@@ -63,13 +168,11 @@ export const TIGHT_SECONDS = 12 * HOUR
 // hours covers a lunch stop with the key off.
 export const STALE_MINUTES = 120
 
-export const JOB_TYPES = ['OTR', 'Regional', 'Dedicated', 'Local']
-
 // How long each kind of driver can be out before they are overdue home.
 // Nothing federal says this -- home time is company policy, full stop -- so
 // these are only the typical figures from the CDL Hometime Guide, and a
 // roster can carry its own (roster.policy) to replace any of them.
-export const DEFAULT_POLICY = {
+export const DEFAULT_POLICY: Policy = {
   maxDaysOut: { OTR: 21, Regional: 7, Dedicated: 7, Local: 1 },
   defaultMaxDaysOut: 14,
   dueSoonDays: 2,
@@ -78,32 +181,40 @@ export const DEFAULT_POLICY = {
 // Most urgent first. "late" and "tight" are the ones that need a dispatcher
 // today; "unknown" sits above the routine ones because a driver nobody can
 // place is a question somebody should be asking.
-export const STATUS_ORDER = ['late', 'tight', 'overdue', 'unknown', 'due-soon', 'on-track', 'ok', 'home']
+export const STATUS_ORDER: readonly Status[] = ['late', 'tight', 'overdue', 'unknown', 'due-soon', 'on-track', 'ok', 'home']
 
 // ---------------------------------------------------------------------------
-// Small readers. A value from the wire is refused BEFORE it is converted:
-// Number(null) is 0 and Number('') is 0, both finite, and a clock of zero is
-// a driver who cannot move -- a convincing wrong answer.
+// Small readers. They take `unknown` because they are the guard at the door:
+// the types say a clock is a number, but the data came over a wire, and a
+// value is refused BEFORE it is converted. Number(null) is 0 and Number('')
+// is 0, both finite, and a clock of zero is a driver who cannot move -- a
+// convincing wrong answer.
 // ---------------------------------------------------------------------------
-function seconds(v) {
+function seconds(v: unknown): number | null {
   if (v === null || v === undefined || v === '') return null
   const n = Number(v)
   return Number.isFinite(n) ? n : null
 }
 
-function moment(v) {
+function moment(v: unknown): number | null {
   if (typeof v !== 'string' || v === '') return null
   const ms = Date.parse(v)
   return Number.isFinite(ms) ? ms : null
 }
 
-function iso(ms) {
+function iso(ms: number): IsoMoment {
   return new Date(ms).toISOString()
+}
+
+/** Anything with a latitude and a longitude, however it arrived. */
+export interface LatLon {
+  latitude?: unknown
+  longitude?: unknown
 }
 
 // Same rule for coordinates, plus null island: exactly 0,0 is a device that
 // has not found the sky yet, not a truck in the Atlantic.
-export function placeable(p) {
+export function placeable(p: LatLon | null | undefined): boolean {
   if (!p) return false
   for (const v of [p.latitude, p.longitude]) {
     if (v === null || v === undefined || v === '') return false
@@ -113,9 +224,9 @@ export function placeable(p) {
 }
 
 // Great-circle miles, or null when either end cannot be placed.
-export function milesBetween(a, b) {
-  if (!placeable(a) || !placeable(b)) return null
-  const rad = (d) => (Number(d) * Math.PI) / 180
+export function milesBetween(a: LatLon | null | undefined, b: LatLon | null | undefined): number | null {
+  if (!a || !b || !placeable(a) || !placeable(b)) return null
+  const rad = (d: unknown) => (Number(d) * Math.PI) / 180
   const dLat = rad(b.latitude) - rad(a.latitude)
   const dLon = rad(b.longitude) - rad(a.longitude)
   const h = Math.sin(dLat / 2) ** 2
@@ -123,7 +234,7 @@ export function milesBetween(a, b) {
   return 2 * 3958.8 * Math.asin(Math.sqrt(h))
 }
 
-export function estimateRoute(from, to) {
+export function estimateRoute(from: LatLon | null | undefined, to: LatLon | null | undefined): PlannedRoute | null {
   const straight = milesBetween(from, to)
   if (straight === null) return null
   const miles = Math.round(straight * ESTIMATE.roadFactor)
@@ -131,7 +242,7 @@ export function estimateRoute(from, to) {
 }
 
 // A route the host worked out itself, if it sent a usable one.
-function givenRoute(route) {
+function givenRoute(route: Route | null | undefined): PlannedRoute | null {
   if (!route) return null
   const driveSeconds = seconds(route.driveSeconds)
   const miles = seconds(route.miles)
@@ -141,11 +252,18 @@ function givenRoute(route) {
 
 // Hours are "known" when both clocks that bind on a normal day are there.
 // The cycle can be missing on its own; see scheduleDrive.
-export function hoursKnown(hours) {
-  return Boolean(hours) && seconds(hours.driving) !== null && seconds(hours.duty) !== null
+export function hoursKnown(hours: Hours | null | undefined): hours is Hours {
+  return Boolean(hours) && seconds(hours?.driving) !== null && seconds(hours?.duty) !== null
 }
 
-function freshDay(cycleLeft) {
+interface Clock {
+  drive: Seconds
+  window: Seconds
+  cycle: Seconds
+  untilBreak: Seconds
+}
+
+function freshDay(cycleLeft: Seconds): Clock {
   return { drive: HOS.driveLimit, window: HOS.window, cycle: cycleLeft, untilBreak: HOS.breakAfter }
 }
 
@@ -158,21 +276,25 @@ function freshDay(cycleLeft) {
 // with a 10-hour rest: not knowing is not the same as having eleven hours,
 // and pretending it is would promise a family the wrong evening.
 // ---------------------------------------------------------------------------
-export function scheduleDrive({ driveSeconds, hours = null, startAt }) {
+export function scheduleDrive({ driveSeconds, hours = null, startAt }: {
+  driveSeconds: Seconds
+  hours?: Hours | null
+  startAt: IsoMoment
+}): Schedule | null {
   const startMs = moment(startAt)
   if (startMs === null) return null
 
-  const blocks = []
+  const blocks: Block[] = []
   let t = startMs
-  const add = (kind, secs, extra) => {
+  const add = (kind: BlockKind, secs: Seconds, extra?: Pick<Block, 'assumed'>) => {
     blocks.push({ kind, start: iso(t), end: iso(t + secs * 1000), seconds: secs, ...extra })
     t += secs * 1000
   }
 
-  let clock
+  let clock: Clock
   const known = hoursKnown(hours)
   if (known) {
-    const left = (v, full) => {
+    const left = (v: unknown, full: Seconds) => {
       const s = seconds(v)
       return s === null ? full : Math.max(0, s)
     }
@@ -237,20 +359,20 @@ export function scheduleDrive({ driveSeconds, hours = null, startAt }) {
 
 // Whole days between two moments, never negative; null when either is
 // missing. "Out 6 days" means six full days, the way a driver counts them.
-export function daysBetween(fromIso, toIso) {
+export function daysBetween(fromIso: unknown, toIso: unknown): number | null {
   const a = moment(fromIso)
   const b = moment(toIso)
   if (a === null || b === null) return null
   return Math.max(0, Math.floor((b - a) / DAY_MS))
 }
 
-function minutesSince(fromIso, nowMs) {
+function minutesSince(fromIso: unknown, nowMs: number): number | null {
   const a = moment(fromIso)
   if (a === null) return null
   return Math.max(0, Math.round((nowMs - a) / 60000))
 }
 
-function ago(minutes) {
+function ago(minutes: number): string {
   if (minutes < 60) return `${minutes} min`
   if (minutes < 48 * 60) return `${Math.round(minutes / 60)} h`
   return `${Math.round(minutes / 1440)} days`
@@ -265,7 +387,7 @@ function ago(minutes) {
 // know (the host can send them as currentLoad.hoursAtEmpty), so without them
 // the trip home opens with a rest, for the same reason as above.
 // ---------------------------------------------------------------------------
-function startingPoint(driver, nowMs, warnings) {
+function startingPoint(driver: Driver, nowMs: number, warnings: PlanWarning[]): Start | null {
   const load = driver.currentLoad
   const loadName = (load && load.id) || 'the current load'
 
@@ -306,7 +428,7 @@ function startingPoint(driver, nowMs, warnings) {
   }
 
   const pos = driver.position
-  if (!placeable(pos)) return null
+  if (!pos || !placeable(pos)) return null
 
   const age = minutesSince(pos.reportedAt, nowMs)
   if (age === null) {
@@ -347,8 +469,16 @@ function startingPoint(driver, nowMs, warnings) {
   }
 }
 
-function decideStatus({ start, route, schedule, slackSeconds, daysOut, maxDaysOut, dueSoonDays }) {
-  if (!schedule) return 'unknown'
+function decideStatus({ start, route, schedule, slackSeconds, daysOut, maxDaysOut, dueSoonDays }: {
+  start: Start | null
+  route: PlannedRoute | null
+  schedule: Schedule | null
+  slackSeconds: Seconds | null
+  daysOut: number | null
+  maxDaysOut: number
+  dueSoonDays: number
+}): Status {
+  if (!start || !route || !schedule) return 'unknown'
   // Only a truck that is empty and sitting in its home town is "home". One
   // delivering there is still working.
   if (start.from === 'position' && route.miles <= AT_HOME_MILES) return 'home'
@@ -365,11 +495,11 @@ function decideStatus({ start, route, schedule, slackSeconds, daysOut, maxDaysOu
   return 'ok'
 }
 
-export function mergePolicy(policy) {
+export function mergePolicy(policy?: PolicyInput | null): Policy {
   return {
-    ...DEFAULT_POLICY,
-    ...(policy || {}),
-    maxDaysOut: { ...DEFAULT_POLICY.maxDaysOut, ...((policy && policy.maxDaysOut) || {}) },
+    maxDaysOut: { ...DEFAULT_POLICY.maxDaysOut, ...(policy?.maxDaysOut || {}) },
+    defaultMaxDaysOut: policy?.defaultMaxDaysOut ?? DEFAULT_POLICY.defaultMaxDaysOut,
+    dueSoonDays: policy?.dueSoonDays ?? DEFAULT_POLICY.dueSoonDays,
   }
 }
 
@@ -378,12 +508,16 @@ export function mergePolicy(policy) {
 // here, so a wrong number on screen is a wrong number in this function or in
 // the data -- never something a component worked out on its own.
 // ---------------------------------------------------------------------------
-export function planDriver(driver, { now, policy = DEFAULT_POLICY } = {}) {
+export function planDriver(driver: Driver, { now, policy = DEFAULT_POLICY }: { now?: IsoMoment; policy?: Policy } = {}): Plan {
   const nowMs = moment(now) ?? Date.now()
-  const warnings = []
-  const homeTime = driver.homeTime || {}
+  const warnings: PlanWarning[] = []
+  const homeTime = driver.homeTime || { lastHomeAt: null, requestedBy: null }
 
-  const maxDaysOut = policy.maxDaysOut[driver.jobType] ?? policy.defaultMaxDaysOut
+  // A jobType the policy does not know -- or none -- takes the default. The
+  // type says JobType, but the data came from somebody else's database.
+  // (A ternary, not `&&`: an empty-string jobType would survive `&&` and then
+  // `??`, and become the limit.)
+  const maxDaysOut = (driver.jobType ? policy.maxDaysOut[driver.jobType] : undefined) ?? policy.defaultMaxDaysOut
   const daysOut = daysBetween(homeTime.lastHomeAt, iso(nowMs))
   if (daysOut === null) {
     warnings.push({
@@ -413,11 +547,11 @@ export function planDriver(driver, { now, policy = DEFAULT_POLICY } = {}) {
     })
   }
 
-  let route = null
-  let schedule = null
+  let route: PlannedRoute | null = null
+  let schedule: Schedule | null = null
   if (start && homePlaced) {
     route = givenRoute(driver.routeHome) || estimateRoute(start, driver.home)
-    schedule = scheduleDrive({ driveSeconds: route.driveSeconds, hours: start.hours, startAt: start.at })
+    if (route) schedule = scheduleDrive({ driveSeconds: route.driveSeconds, hours: start.hours, startAt: start.at })
   }
 
   const slackSeconds = schedule && requestedMs !== null
@@ -427,7 +561,7 @@ export function planDriver(driver, { now, policy = DEFAULT_POLICY } = {}) {
   // The latest the trip home can begin and still make it. It assumes the
   // clocks as they are now; a driver who waits only gets hours BACK, so the
   // real latest moment is never earlier than this.
-  const leaveBy = slackSeconds !== null && slackSeconds >= 0
+  const leaveBy = start && slackSeconds !== null && slackSeconds >= 0
     ? iso(Date.parse(start.at) + slackSeconds * 1000)
     : null
 
@@ -453,7 +587,7 @@ export function planDriver(driver, { now, policy = DEFAULT_POLICY } = {}) {
   }
 }
 
-function byUrgency(a, b) {
+function byUrgency(a: Plan, b: Plan): number {
   const rank = STATUS_ORDER.indexOf(a.status) - STATUS_ORDER.indexOf(b.status)
   if (rank !== 0) return rank
   // Within a status: least spare time first, then longest out, then by name
@@ -474,13 +608,13 @@ function byUrgency(a, b) {
 // `now` wins if given; otherwise the roster's own asOf (the sample data pins
 // one so the preview never drifts); otherwise the clock on the wall.
 // ---------------------------------------------------------------------------
-export function planRoster(roster, { now } = {}) {
-  const asOfMs = moment(now) ?? moment(roster && roster.asOf) ?? Date.now()
-  const policy = mergePolicy(roster && roster.policy)
-  const plans = ((roster && roster.drivers) || [])
+export function planRoster(roster: Roster | null | undefined, { now }: { now?: IsoMoment } = {}): RosterPlan {
+  const asOfMs = moment(now) ?? moment(roster?.asOf) ?? Date.now()
+  const policy = mergePolicy(roster?.policy)
+  const plans = (roster?.drivers || [])
     .map((driver) => planDriver(driver, { now: iso(asOfMs), policy }))
     .sort(byUrgency)
-  const counts = {}
+  const counts: Partial<Record<Status, number>> = {}
   for (const p of plans) counts[p.status] = (counts[p.status] || 0) + 1
   return { asOf: iso(asOfMs), policy, plans, counts }
 }

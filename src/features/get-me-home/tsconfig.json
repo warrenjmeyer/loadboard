@@ -1,0 +1,34 @@
+{
+  // Type-checks this folder, and only this folder: the rest of the load board
+  // is JavaScript and stays that way. `npm run typecheck` runs it.
+  //
+  // The settings are Vite's own react-ts template -- the most likely shape of
+  // the host's tsconfig -- so code that passes here should pass there.
+  // allowImportingTsExtensions is the one that matters for the port: imports
+  // spell out ".ts" and ".tsx" because plain Node needs them to run the tests.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "jsx": "react-jsx",
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "verbatimModuleSyntax": true,
+    "erasableSyntaxOnly": true,
+    "resolveJsonModule": true,
+    "moduleDetection": "force",
+    "skipLibCheck": true,
+
+    "strict": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": true,
+    "noFallthroughCasesInSwitch": true,
+    "noUncheckedSideEffectImports": true,
+
+    // node for the test file's node:test and node:fs; React's types arrive
+    // through its imports.
+    "types": ["node"]
+  },
+  "include": ["**/*.ts", "**/*.tsx"]
+}

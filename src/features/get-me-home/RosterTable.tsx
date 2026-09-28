@@ -1,7 +1,8 @@
 import { Box, Table, TableBody, TableCell, TableContainer, TableHead, TableRow } from '@mui/material'
-import StatusChip from './StatusChip.jsx'
-import { formatAge, formatDuration, formatMiles, formatShort, formatWhen } from './format.js'
-import { STALE_MINUTES } from './planHome.js'
+import StatusChip from './StatusChip.tsx'
+import { formatAge, formatDuration, formatMiles, formatShort, formatWhen } from './format.ts'
+import { STALE_MINUTES } from './planHome.ts'
+import type { Plan } from './planHome.ts'
 
 // ---------------------------------------------------------------------------
 // Every driver, one row each, most urgent first -- the order comes from
@@ -19,8 +20,15 @@ import { STALE_MINUTES } from './planHome.js'
 // A row is a button in all but tag: click it, or Tab to it and press Enter,
 // and the plan beside the table follows.
 // ---------------------------------------------------------------------------
-export default function RosterTable({ plans, asOf, selectedCode = null, onSelect = () => {} }) {
-  const short = (iso) => formatShort(iso, asOf)
+type Short = (iso: string | null | undefined) => string
+
+export default function RosterTable({ plans, asOf, selectedCode = null, onSelect = () => {} }: {
+  plans: Plan[]
+  asOf: string
+  selectedCode?: string | null
+  onSelect?: (driverCode: string) => void
+}) {
+  const short: Short = (iso) => formatShort(iso, asOf)
 
   return (
     <TableContainer>
@@ -61,7 +69,7 @@ export default function RosterTable({ plans, asOf, selectedCode = null, onSelect
                 <TableCell><NowCell plan={plan} short={short} /></TableCell>
                 <TableCell>
                   <Two
-                    main={plan.home ? plan.home.place : '—'}
+                    main={plan.home?.place || '—'}
                     sub={plan.route ? `${formatMiles(plan.route.miles)} mi${plan.route.source === 'estimate' ? ' (est.)' : ''}` : null}
                   />
                 </TableCell>
@@ -82,7 +90,7 @@ export default function RosterTable({ plans, asOf, selectedCode = null, onSelect
   )
 }
 
-function NowCell({ plan, short }) {
+function NowCell({ plan, short }: { plan: Plan; short: Short }) {
   const s = plan.start
   if (!s) return <Two main="Not reporting" sub={plan.unitNo} />
   if (s.from === 'final-stop') {
@@ -100,7 +108,7 @@ function NowCell({ plan, short }) {
 
 // The request on top, and underneath what the plan says about it: how late,
 // when to start, or -- with no request -- simply when they could be home.
-function HomeByCell({ plan, short }) {
+function HomeByCell({ plan, short }: { plan: Plan; short: Short }) {
   const { schedule, slackSeconds, leaveBy, status, requestedBy } = plan
   if (status === 'home') return <Two main="Home now" />
 
@@ -124,7 +132,15 @@ function HomeByCell({ plan, short }) {
 
 // Two lines in a cell. Styled through sx and theme tokens only -- no class
 // names, no stylesheet -- so it looks the same in any app that has MUI.
-function Two({ main, sub = null, strong = false, mainColor, subColor, title }) {
+function Two({ main, sub = null, strong = false, mainColor, subColor, title }: {
+  main: string
+  sub?: string | null
+  strong?: boolean
+  /** A palette path such as 'error.main'. */
+  mainColor?: string
+  subColor?: string
+  title?: string
+}) {
   return (
     <Box title={title}>
       <Box sx={{ typography: 'body2', fontWeight: strong ? 500 : undefined, color: mainColor, whiteSpace: 'nowrap' }}>

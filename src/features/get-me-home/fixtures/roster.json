@@ -1,5 +1,5 @@
 {
-  "about": "Sample roster for the Get Me Home Planner. Every driver is one case the planner has to handle -- see the table in ../README.md. Shaped exactly as contract.js describes, so a host adapter's output can be compared against it field for field.",
+  "about": "Sample roster for the Get Me Home Planner. Every driver is one case the planner has to handle -- see the table in ../README.md. Shaped exactly as contract.ts describes, so a host adapter's output can be compared against it field for field.",
   "asOf": "2026-09-28T15:00:00Z",
   "policy": {
     "maxDaysOut": { "OTR": 21, "Regional": 7, "Dedicated": 7, "Local": 1 }

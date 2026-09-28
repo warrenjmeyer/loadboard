@@ -11,6 +11,11 @@ is built to make that move by copying files. Nothing in it imports from the
 rest of the load board, and the only thing the host has to write is an
 *adapter* that supplies the data.
 
+It is **TypeScript**, like the host. (The rest of the load board is
+JavaScript; this folder has its own `tsconfig.json`.) The settings are
+Vite's standard React + TypeScript template with strict mode on, and it
+type-checks cleanly under both TypeScript 5.9 and 7.
+
 The look is not final. It uses MUI because the host does, so the components
 move over unchanged. Colours and type come from whatever theme the host
 wraps it in.
@@ -24,58 +29,78 @@ That page shows sample drivers. It exists only on the dev server: `vite
 build` compiles `index.html` and nothing else, so neither this page nor the
 sample roster ever reaches the deployed site.
 
-    node --test src/features/get-me-home/planHome.test.js   # the rules
+    node --test src/features/get-me-home/planHome.test.ts   # the rules
+    npm run typecheck                                       # the types
     node src/render.check.mjs                               # every screen state renders
 
 ## What is here
 
 | File | What it is | Ports? |
 |---|---|---|
-| `index.js` | The public names. Import from here. | yes |
-| `GetMeHomePlanner.jsx` | The component a host mounts: asks the adapter, shows the result. | yes |
-| `PlannerView.jsx` | The screen, drawn from a roster. Fetches nothing. | yes |
-| `RosterTable.jsx`, `DriverPlan.jsx`, `StatusChip.jsx` | The parts of the screen. | yes |
-| `planHome.js` | **All the rules.** Plain JS, no imports, no React. | yes, unchanged |
-| `contract.js` | The data shape the planner needs, plus `checkRoster()` to test an adapter against it. | yes |
-| `status.js`, `format.js` | Labels, colours (palette names), date and duration formatting. | yes |
-| `planHome.test.js` | 23 tests. Run them after the port to prove it. | yes |
+| `index.ts` | The public names, components and types. Import from here. | yes |
+| `GetMeHomePlanner.tsx` | The component a host mounts: asks the adapter, shows the result. | yes |
+| `PlannerView.tsx` | The screen, drawn from a roster. Fetches nothing. | yes |
+| `RosterTable.tsx`, `DriverPlan.tsx`, `StatusChip.tsx` | The parts of the screen. | yes |
+| `planHome.ts` | **All the rules**, and the types of what they produce (`Plan`, `Schedule`, `Status`). No React, no runtime imports. | yes, unchanged |
+| `contract.ts` | The types of the data the planner needs (`Roster`, `Driver`, `Adapter`), plus `checkRoster()` to test real data against them. | yes |
+| `status.ts`, `format.ts` | Labels, colours (palette names), date and duration formatting. | yes |
+| `planHome.test.ts` | 24 tests. Run them after the port to prove it. | yes |
 | `fixtures/roster.json` | A complete, valid sample roster. The tests use it. | yes |
-| `adapters/fixtureAdapter.js` | Serves the sample roster. Also the template for a real adapter. | no |
+| `tsconfig.json` | Type-checks this folder in the load board. | no; the host has its own |
+| `adapters/fixtureAdapter.ts` | Serves the sample roster. Also the template for a real adapter. | no |
 | `preview/` | The dev-only preview page. | no |
 
 ## Porting it
 
-1. **Copy the folder**, leaving out `preview/` and `adapters/fixtureAdapter.js`.
+1. **Copy the folder**, leaving out `preview/`, `adapters/fixtureAdapter.ts`
+   and `tsconfig.json`.
 2. **Dependencies:** React 18 or later, and `@mui/material` 5 or later with
    emotion. It uses only core components (Box, Stack, Table, Card, Chip,
    Alert, Tooltip, LinearProgress, Button, Typography). Everything is styled
    through `sx` with palette names. There is no Grid, no icon package and no
    stylesheet.
-3. **Run the tests** with `node --test planHome.test.js` (Node 18+). If they
-   pass on your side, the rules came across intact.
-4. **Write the adapter.** It is one object with one method:
+3. **TypeScript settings.** Imports spell out their extensions
+   (`'./planHome.ts'`), because plain Node needs them to run the tests. That
+   needs `allowImportingTsExtensions`, which Vite's React + TypeScript
+   template already turns on. If yours doesn't, turn it on, or find and
+   replace `.ts'` and `.tsx'` in the imports. The code uses no enums or
+   namespaces, so it also passes `erasableSyntaxOnly`.
+4. **Run the tests** with `node --test planHome.test.ts`. That needs Node
+   22.18 or later, which runs TypeScript directly; on older Node, run them
+   under Vitest. If they pass on your side, the rules came across intact.
+5. **Write the adapter.** It is one object with one method, and the
+   `Adapter` type says exactly what that method takes and returns:
 
-   ```js
-   export const adapter = {
+   ```ts
+   import type { Adapter, Roster } from './get-me-home'
+
+   export const adapter: Adapter = {
      async loadRoster({ organizationId, signal }) {
-       const { data } = await api.get('/get-me-home/roster', { params: { organizationId }, signal })
-       return data // shaped as contract.js says, or mapped into that shape here
+       const { data } = await api.get<Roster>('/get-me-home/roster', { params: { organizationId }, signal })
+       return data // shaped as contract.ts says, or mapped into that shape here
      },
    }
    ```
 
-   Then check it: `checkRoster(await adapter.loadRoster({ organizationId }))`
-   returns a list of problems in plain sentences. An empty list means the
-   planner will understand every field.
-5. **Mount it in the tab**, inside your ThemeProvider:
+   The types only describe what the server *should* send, and
+   `api.get<Roster>` believes it without looking. `checkRoster` looks at what
+   it actually sent:
 
-   ```jsx
+   ```ts
+   const problems = checkRoster(await adapter.loadRoster({ organizationId, signal: new AbortController().signal }))
+   ```
+
+   It returns a list of problems in plain sentences. An empty list means the
+   planner will understand every field.
+6. **Mount it in the tab**, inside your ThemeProvider:
+
+   ```tsx
    <GetMeHomePlanner adapter={adapter} organizationId={activeOrganizationUuid} />
    ```
 
    Define the adapter at module scope or in `useMemo`. A new adapter object on
    every render means a new request on every render.
-6. **Access control is yours.** This is a dispatch page. The planner shows
+7. **Access control is yours.** This is a dispatch page. The planner shows
    whatever roster it is handed and checks no roles itself.
 
 Already loading the data some other way (react-query, a parent component)?
@@ -83,8 +108,9 @@ Skip the adapter and render `<PlannerView roster={roster} loading={...} error={.
 
 ## The data
 
-`contract.js` has the full definitions. In short, a roster is
-`{ asOf?, policy?, drivers: [...] }`, and each driver is:
+`contract.ts` has the full definitions as TypeScript types, each field
+documented. In short, a `Roster` is `{ asOf?, policy?, drivers: Driver[] }`,
+and each `Driver` is:
 
 | Field | What | Notes |
 |---|---|---|
@@ -165,7 +191,8 @@ from the CDL Hometime Guide. A roster's `policy` overrides any of them.
 
 ## Questions for the MyTechgacity team
 
-1. Which versions of React and MUI, and is the codebase JavaScript or TypeScript?
+1. Which versions of React, MUI and TypeScript? (It is TypeScript, according to
+   the source map the live site serves.)
 2. Which ELD or telematics source provides positions and hours of service?
 3. Where will home-time records live, and are they shared with the Driver Home Time Schedule tab?
 4. Is there a truck-routing service available on the server (HERE, PC*MILER, Trimble)?

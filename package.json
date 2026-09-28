@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "node --test"
+    "test": "node --test",
+    "typecheck": "tsc -p src/features/get-me-home"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",
@@ -19,7 +20,11 @@
   },
   "devDependencies": {
     "@azure/static-web-apps-cli": "^2.0.10",
+    "@types/node": "^24.19.0",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "~5.9",
     "vite": "^8.2.2"
   }
 }

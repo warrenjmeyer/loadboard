@@ -1,3 +1,6 @@
+import type { ChipProps } from '@mui/material'
+import type { BlockKind, Status } from './planHome.ts'
+
 // ---------------------------------------------------------------------------
 // What each status is called on screen, and how loud it is.
 //
@@ -8,8 +11,19 @@
 // Filled is for "act today", outlined for "worth knowing". Only late and
 // tight are filled red and amber; overdue is outlined, because with no
 // request open it is a conversation to start, not a deadline being missed.
+//
+// Typed as a Record over Status, so a status added to planHome.ts and
+// forgotten here is a compile error rather than a chip with no label.
 // ---------------------------------------------------------------------------
-export const STATUS = {
+export interface StatusMeta {
+  label: string
+  count: (n: number) => string
+  color: ChipProps['color']
+  variant: ChipProps['variant']
+  hint: string
+}
+
+export const STATUS: Record<Status, StatusMeta> = {
   late: {
     label: "Won't make it",
     count: (n) => `${n} won't make it`,
@@ -69,11 +83,11 @@ export const STATUS = {
 }
 
 // The statuses worth a chip in the header. The rest are the quiet majority.
-export const ATTENTION = ['late', 'tight', 'overdue', 'unknown', 'due-soon']
+export const ATTENTION: readonly Status[] = ['late', 'tight', 'overdue', 'unknown', 'due-soon']
 
 // How each kind of block in a trip is named and coloured. Palette paths
 // again, resolved by the theme.
-export const BLOCK = {
+export const BLOCK: Record<BlockKind, { label: string; color: string }> = {
   drive: { label: 'Drive', color: 'primary.main' },
   break: { label: '30-minute break', color: 'warning.main' },
   rest: { label: '10-hour rest', color: 'grey.500' },

@@ -1,11 +1,12 @@
 import { useMemo, useState } from 'react'
 import { Alert, Box, Button, LinearProgress, Paper, Stack, Typography } from '@mui/material'
-import RosterTable from './RosterTable.jsx'
-import DriverPlan from './DriverPlan.jsx'
-import StatusChip from './StatusChip.jsx'
-import { planRoster, ESTIMATE } from './planHome.js'
-import { ATTENTION } from './status.js'
-import { formatWhen } from './format.js'
+import RosterTable from './RosterTable.tsx'
+import DriverPlan from './DriverPlan.tsx'
+import StatusChip from './StatusChip.tsx'
+import { planRoster, ESTIMATE } from './planHome.ts'
+import { ATTENTION } from './status.ts'
+import { formatWhen } from './format.ts'
+import type { Roster } from './contract.ts'
 
 // ---------------------------------------------------------------------------
 // The planner's screen, given a roster. It fetches nothing.
@@ -31,7 +32,17 @@ import { formatWhen } from './format.js'
 // and the plan about four hundred. Below the sum of the two, they stack.
 const SIDE_BY_SIDE = '@container (min-width: 1440px)'
 const PLAN_WIDTH = 420
-export default function PlannerView({ roster = null, loading = false, error = null, now = null, onRefresh = null }) {
+
+export interface PlannerViewProps {
+  roster?: Roster | null
+  loading?: boolean
+  error?: string | null
+  /** Pin the clock (previews, tests). Leave it out in production. */
+  now?: string | null
+  onRefresh?: (() => void) | null
+}
+
+export default function PlannerView({ roster = null, loading = false, error = null, now = null, onRefresh = null }: PlannerViewProps) {
   // Derived, not stored: the plans are a function of the roster and the
   // moment, and are recomputed whenever either changes.
   const result = useMemo(() => (roster ? planRoster(roster, { now: now || undefined }) : null), [roster, now])
@@ -39,10 +50,10 @@ export default function PlannerView({ roster = null, loading = false, error = nu
 
   // Held by driver code, not by index, so a refresh that reorders the roster
   // keeps the same driver open. Nothing picked means the most urgent one.
-  const [picked, setPicked] = useState(null)
+  const [picked, setPicked] = useState<string | null>(null)
   const selected = plans.find((p) => p.driverCode === picked) || plans[0] || null
 
-  const estimated = plans.some((p) => p.route && p.route.source === 'estimate')
+  const estimated = plans.some((p) => p.route?.source === 'estimate')
 
   return (
     <Box sx={{ containerType: 'inline-size' }}>
@@ -82,10 +93,10 @@ export default function PlannerView({ roster = null, loading = false, error = nu
         <Alert severity="info">There are no drivers to plan for.</Alert>
       )}
 
-      {plans.length > 0 && (
+      {result && plans.length > 0 && (
         <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, [SIDE_BY_SIDE]: { flexDirection: 'row', alignItems: 'flex-start' } }}>
           <Paper variant="outlined" sx={{ flex: '1 1 auto', minWidth: 0 }}>
-            <RosterTable plans={plans} asOf={result.asOf} selectedCode={selected && selected.driverCode} onSelect={setPicked} />
+            <RosterTable plans={plans} asOf={result.asOf} selectedCode={selected?.driverCode} onSelect={setPicked} />
           </Paper>
           <Box sx={{ flex: '0 0 auto', minWidth: 0, [SIDE_BY_SIDE]: { width: PLAN_WIDTH } }}>
             <DriverPlan plan={selected} />

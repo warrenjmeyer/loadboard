@@ -12,7 +12,7 @@
 
 // "10h 30m", "45m", and past a day "2d 4h": nobody plans a trip home to the
 // minute once it is measured in days.
-export function formatDuration(seconds) {
+export function formatDuration(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) return '—'
   const total = Math.round(Math.abs(seconds) / 60)
   const d = Math.floor(total / 1440)
@@ -28,9 +28,14 @@ const WHEN = new Intl.DateTimeFormat(undefined, {
 })
 const TIME = new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
 
+// Date.parse of a missing value, as NaN rather than a type error.
+function parse(iso: string | null | undefined): number {
+  return iso ? Date.parse(iso) : NaN
+}
+
 // "Tue, Sep 29, 12:00 PM"
-export function formatWhen(iso) {
-  const ms = Date.parse(iso)
+export function formatWhen(iso: string | null | undefined): string {
+  const ms = parse(iso)
   return Number.isFinite(ms) ? WHEN.format(ms) : '—'
 }
 
@@ -42,8 +47,8 @@ const WEEKDAY_TIME = new Intl.DateTimeFormat(undefined, { weekday: 'short', hour
 const DATE_TIME = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' })
 const SIX_DAYS_MS = 6 * 24 * 3600 * 1000
 
-export function formatShort(iso, asOfIso) {
-  const ms = Date.parse(iso)
+export function formatShort(iso: string | null | undefined, asOfIso: string): string {
+  const ms = parse(iso)
   if (!Number.isFinite(ms)) return '—'
   const asOf = Date.parse(asOfIso)
   const near = Number.isFinite(asOf) && Math.abs(ms - asOf) < SIX_DAYS_MS
@@ -51,24 +56,22 @@ export function formatShort(iso, asOfIso) {
 }
 
 // "12:00 PM" -- for the end of a block that ends the day it started.
-export function formatTime(iso) {
-  const ms = Date.parse(iso)
+export function formatTime(iso: string | null | undefined): string {
+  const ms = parse(iso)
   return Number.isFinite(ms) ? TIME.format(ms) : '—'
 }
 
-export function sameDay(a, b) {
-  const x = new Date(a)
-  const y = new Date(b)
-  return x.toDateString() === y.toDateString()
+export function sameDay(a: string, b: string): boolean {
+  return new Date(a).toDateString() === new Date(b).toDateString()
 }
 
-export function formatMiles(miles) {
+export function formatMiles(miles: number | null | undefined): string {
   if (miles === null || miles === undefined || !Number.isFinite(miles)) return '—'
   return Math.round(miles).toLocaleString()
 }
 
 // "12 min", "3 h", "2 d". Callers add "ago" where it belongs.
-export function formatAge(minutes) {
+export function formatAge(minutes: number | null | undefined): string | null {
   if (minutes === null || minutes === undefined) return null
   if (minutes < 1) return 'just now'
   if (minutes < 60) return `${minutes} min`

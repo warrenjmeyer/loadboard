@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import PlannerView from './PlannerView.jsx'
+import PlannerView from './PlannerView.tsx'
+import type { Adapter, Roster } from './contract.ts'
 
 // ---------------------------------------------------------------------------
 // THE ENTRY POINT. The one component a host app mounts:
@@ -8,20 +9,39 @@ import PlannerView from './PlannerView.jsx'
 //
 // It asks the adapter for a roster and hands it to PlannerView. That is all
 // it does, and all it should do: everything about WHERE the data comes from
-// is the adapter's business (see contract.js), and everything about what it
-// MEANS is planHome.js's.
+// is the adapter's business (see contract.ts), and everything about what it
+// MEANS is planHome.ts's.
 //
 // `now` is for previews and tests -- pin the clock so the screen does not
 // drift. Leave it out in production.
 // ---------------------------------------------------------------------------
-export default function GetMeHomePlanner({ adapter, organizationId = null, now = null }) {
-  const [state, setState] = useState({ roster: null, loading: true, error: null })
+export interface GetMeHomePlannerProps {
+  adapter: Adapter
+  organizationId?: string | null
+  now?: string | null
+}
+
+interface LoadState {
+  roster: Roster | null
+  loading: boolean
+  error: string | null
+}
+
+function messageOf(err: unknown): string {
+  return err instanceof Error ? err.message : String(err)
+}
+
+export default function GetMeHomePlanner({ adapter, organizationId = null, now = null }: GetMeHomePlannerProps) {
+  const [state, setState] = useState<LoadState>({ roster: null, loading: true, error: null })
 
   // Bumped by the Refresh button. Part of the effect's dependencies, so a
   // new number is a new request -- the React way to say "do that again".
   const [asked, setAsked] = useState(0)
 
   useEffect(() => {
+    // The types say there is always an adapter. This is for the day they are
+    // bypassed -- a JavaScript caller, an `as any` -- which should read as a
+    // sentence on screen, not a TypeError in the console.
     if (!adapter || typeof adapter.loadRoster !== 'function') {
       setState({ roster: null, loading: false, error: 'the planner was given no adapter with a loadRoster() function.' })
       return undefined
@@ -39,11 +59,11 @@ export default function GetMeHomePlanner({ adapter, organizationId = null, now =
       .then((roster) => {
         if (!controller.signal.aborted) setState({ roster, loading: false, error: null })
       })
-      .catch((err) => {
+      .catch((err: unknown) => {
         if (controller.signal.aborted) return
         // The previous roster stays on screen under the error: a refresh that
         // failed has not made the last good answer wrong.
-        setState((s) => ({ ...s, loading: false, error: (err && err.message) || String(err) }))
+        setState((s) => ({ ...s, loading: false, error: messageOf(err) }))
       })
 
     return () => controller.abort()

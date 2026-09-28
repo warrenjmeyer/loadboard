@@ -1,13 +1,12 @@
 import { useState } from 'react'
 import { Alert, Box, Tab, Tabs, Typography } from '@mui/material'
-import GetMeHomePlanner from '../GetMeHomePlanner.jsx'
-import { fixtureAdapter } from '../adapters/fixtureAdapter.js'
+import GetMeHomePlanner from '../GetMeHomePlanner.tsx'
+import { fixtureAdapter } from '../adapters/fixtureAdapter.ts'
 
 // ---------------------------------------------------------------------------
-// A stand-in for the host's component page, so the planner is designed in
-// the frame it will live in: the same three tabs, in the same order, with
-// the planner as the first. The other two are the host's, not ours, and
-// only say so.
+// A stand-in for the host's component page: the same three tabs, in the same
+// order, with the planner as the first. The other two are the host's, not
+// ours, and only say so.
 //
 // This file is the one part of the folder that does NOT get ported. It is
 // also the worked example of mounting the planner -- a theme around it, an
@@ -24,7 +23,7 @@ export default function PreviewHost() {
         Design preview with sample drivers. This page runs on the dev server only and is never deployed.
       </Alert>
 
-      <Tabs value={tab} onChange={(_, next) => setTab(next)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
+      <Tabs value={tab} onChange={(_, next: number) => setTab(next)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         {TABS.map((label) => <Tab key={label} label={label} />)}
       </Tabs>
 
