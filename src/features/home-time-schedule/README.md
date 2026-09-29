@@ -64,6 +64,10 @@ the foreign key the table exists for.
 - **`requestedBy`**: the earliest home-by among REQUESTED and APPROVED stays.
 - **`note`**: that request's reason.
 
+The Driver Load Plans take the `APPROVED` and `HOME` stays as the home time
+a load must not run into (see `../driver-load-plans/README.md`). Approving a
+request here changes which drivers are suggested there.
+
 ## The modules
 
 Each is a loading wrapper (reads its slice, handles loading and errors)

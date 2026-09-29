@@ -179,6 +179,13 @@ const homeTimeSample = JSON.parse(
 )
 const homeTimeAnswered = { ...homeTimeSample, stays: homeTimeSample.stays.filter((s) => s.status !== 'REQUESTED') }
 
+// The load plans' sample, and the same with the one driver who can take the
+// Kansas City load gone -- so the candidate list has nobody to offer.
+const loadPlansSample = JSON.parse(
+  readFileSync(new URL('./features/driver-load-plans/fixtures/plans.json', import.meta.url), 'utf8')
+)
+const loadPlansNobody = { ...loadPlansSample, drivers: loadPlansSample.drivers.filter((d) => d.driverCode !== 'LHARTMAN') }
+
 // Each entry is a state the component can actually be in. Rendering only the
 // happy path would miss the branches that exist precisely because something
 // went wrong -- which are the ones nobody looks at until they matter.
@@ -888,6 +895,31 @@ const cases = [
     stays: homeTimeSample.stays.filter((s) => s.status === 'REQUESTED'), drivers: homeTimeSample.drivers,
     now: homeTimeSample.asOf, busyId: null, onApprove() {}, onDecline() {},
   }],
+
+  // The load plans, dispatch side: the whole tab from the sample, the two
+  // states before data, and the pieces on their own -- a plan with a load
+  // under way, one that runs into home time, drivers ranked for an open
+  // load, a load taken meanwhile, a load nobody can take, and no open loads.
+  ['LoadPlans tab', '/src/features/driver-load-plans/LoadPlansView.tsx', { data: loadPlansSample }],
+  ['LoadPlans loading', '/src/features/driver-load-plans/LoadPlansView.tsx', { data: null, loading: true }],
+  ['LoadPlans error', '/src/features/driver-load-plans/LoadPlansView.tsx', { data: null, error: 'HTTP 502' }],
+  ['LoadPlans under way', '/src/features/driver-load-plans/PlanList.tsx', {
+    data: loadPlansSample, driverCode: 'RDELGADO', now: loadPlansSample.asOf, onTakeBack() {},
+  }],
+  ['LoadPlans home clash', '/src/features/driver-load-plans/PlanList.tsx', {
+    data: loadPlansSample, driverCode: 'ACORTEZ', now: loadPlansSample.asOf, highlightId: 'L-30425',
+  }],
+  ['LoadPlans candidates', '/src/features/driver-load-plans/CandidateList.tsx', {
+    data: loadPlansSample, loadId: 'L-30450', now: loadPlansSample.asOf, onAssign() {},
+  }],
+  ['LoadPlans taken', '/src/features/driver-load-plans/CandidateList.tsx', {
+    data: loadPlansSample, loadId: 'L-30418', now: loadPlansSample.asOf, onAssign() {},
+  }],
+  ['LoadPlans nobody', '/src/features/driver-load-plans/CandidateList.tsx', {
+    data: loadPlansNobody, loadId: 'L-30452', now: loadPlansSample.asOf, onAssign() {},
+  }],
+  ['LoadPlans timeline', '/src/features/driver-load-plans/PlanTimeline.tsx', { data: loadPlansSample, now: loadPlansSample.asOf }],
+  ['LoadPlans no open', '/src/features/driver-load-plans/OpenLoadList.tsx', { loads: [], now: loadPlansSample.asOf }],
 
   // The modules page, whole: every demo mounted at once. Under a server
   // renderer the wrappers show their loading state -- effects do not run --

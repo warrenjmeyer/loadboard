@@ -7,7 +7,8 @@ import HomeTimeSchedule from '../home-time-schedule/HomeTimeSchedule.tsx'
 import DriverHomeTime from '../home-time-schedule/DriverHomeTime.tsx'
 import { sampleScheduleAdapter } from '../home-time-schedule/adapters/sampleAdapter.ts'
 import scheduleSample from '../home-time-schedule/fixtures/schedule.json'
-import { plannerOnSchedule, verdictFor } from './wiring.ts'
+import DriverLoadPlans from '../driver-load-plans/DriverLoadPlans.tsx'
+import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
 import ModulesPage from './ModulesPage.tsx'
 import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
@@ -18,11 +19,14 @@ import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 //
 //   Get Me Home Planner        sample drivers, or live (?source=live)
 //   Driver Home Time Schedule  sample stays, as dispatch or as a driver
-//   Driver Load Plans          the host's; not built here
+//   Driver Load Plans          sample loads, timed with or without the
+//                              planner's hours model (?hours=off)
 //
-// The planner's sample drivers take their home time from the schedule's
-// stays (see wiring.ts), so the two tabs are one system: a decision in one
-// shows in the other. Changes last until the page is reloaded.
+// The tabs are joined the way a host joins them (see wiring.ts): the
+// planner's home time and the load plans' home time both come from the
+// schedule's stays, and the load plans are timed by the planner's hours
+// model. A decision in one tab shows in the others. Changes last until the
+// page is reloaded.
 //
 // Which tab, which data and which view are kept in the address, so a reload
 // or a pasted link lands in the same place.
@@ -36,6 +40,7 @@ const TABS = [
 type Source = 'sample' | 'live'
 type View = 'dispatch' | 'driver'
 type Page = 'host' | 'modules'
+type HoursModel = 'planner' | 'off'
 
 function param(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name)
@@ -57,12 +62,14 @@ export default function PreviewHost() {
   const [view, setView] = useState<View>(() => (param('view') === 'driver' ? 'driver' : 'dispatch'))
   const [driverCode, setDriverCode] = useState(() => param('driver') || 'TBOONE')
   const [page, setPage] = useState<Page>(() => (param('page') === 'modules' ? 'modules' : 'host'))
+  const [hours, setHours] = useState<HoursModel>(() => (param('hours') === 'off' ? 'off' : 'planner'))
 
   const chooseTab = (i: number) => { setTab(i); setParam('tab', i === 0 ? null : TABS[i]!.key) }
   const chooseSource = (next: Source | null) => { if (next) { setSource(next); setParam('source', next === 'live' ? 'live' : null) } }
   const chooseView = (next: View | null) => { if (next) { setView(next); setParam('view', next === 'driver' ? 'driver' : null) } }
   const chooseDriver = (code: string) => { setDriverCode(code); setParam('driver', code) }
   const choosePage = (next: Page | null) => { if (next) { setPage(next); setParam('page', next === 'modules' ? 'modules' : null) } }
+  const chooseHours = (next: HoursModel | null) => { if (next) { setHours(next); setParam('hours', next === 'off' ? 'off' : null) } }
 
   // Which page: the stand-in for the host's tabs, or the catalogue of modules.
   const header = (
@@ -142,9 +149,21 @@ export default function PreviewHost() {
       )}
 
       {tab === 2 && (
-        <Typography variant="body2" sx={{ color: 'text.secondary', p: 2 }}>
-          Driver Load Plans is another tab on the host page. It is not built here.
-        </Typography>
+        <>
+          <Bar>
+            <ToggleButtonGroup size="small" exclusive value={hours} onChange={(_, next: HoursModel | null) => chooseHours(next)} aria-label="How legs are timed">
+              <ToggleButton value="planner">Planner's hours model</ToggleButton>
+              <ToggleButton value="off">Driving time only</ToggleButton>
+            </ToggleButtonGroup>
+          </Bar>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Sample loads on the planner's clock, with the planner's drivers. Home time is the schedule tab's:
+            approve a request there and a load here that runs into it says so. Assigning and taking back really
+            change the loads until the page is reloaded. There are no live load plans yet.
+          </Alert>
+          <DriverLoadPlans key={hours} adapter={loadPlansOnSchedule} organizationId="preview" now={SAMPLE_NOW}
+            drive={hours === 'planner' ? driveFor : null} />
+        </>
       )}
     </Box>
   )

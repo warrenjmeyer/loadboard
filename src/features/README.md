@@ -9,10 +9,11 @@ JavaScript.
 |---|---|
 | `get-me-home/` | The Get Me Home Planner |
 | `home-time-schedule/` | The Driver Home Time Schedule |
+| `driver-load-plans/` | The Driver Load Plans |
 | `preview/` | The dev-only preview page: a stand-in for the host's tabs, and the modules page. Not ported. |
 | `tsconfig.json` | Type-checks all of the above (`npm run typecheck`). Not ported; the host has its own. |
 | `modules.test.ts` | Enforces the module rule below. |
-| `sampleData.test.ts` | Checks the two tabs' sample data tell one story. |
+| `sampleData.test.ts` | Checks the three tabs' sample data tell one story, and the hours join between the planner and the load plans. |
 
     npm run dev
     http://localhost:5173/get-me-home.html                 the host's tabs
@@ -39,7 +40,9 @@ Adapters have one read per screen, never one "load everything". The
 schedule's adapter has `loadQueue`, `loadBoard` (a date window),
 `loadDriverStays` (one driver) and `loadStay` (one stay). `scope.ts` says
 exactly what each returns, as pure functions. The planner's adapter has
-`loadRoster` and `loadDriver`.
+`loadRoster` and `loadDriver`. The load plans' has `loadPlanBoard` (a
+week), `loadDriverPlan` (one driver), `loadOpenLoads` (a week of open loads)
+and `loadCandidates` (one load, and what ranking drivers for it takes).
 
 Scoping keeps a queue of three from shipping a year of history, and it keeps
 a driver's screen from receiving other drivers' stays. A scoped answer carries

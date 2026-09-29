@@ -1,0 +1,200 @@
+{
+  "about": "Sample load plans for the Driver Load Plans tab, on the planner's clock. The drivers are the planner's drivers (same positions, same hours) plus Marcus Webb, who is home; the stays are the schedule's approved and current ones. Every load is one case the tab has to handle -- see the table in ../README.md.",
+  "asOf": "2026-09-28T15:00:00Z",
+  "drivers": [
+    {
+      "driverCode": "TBOONE", "name": "Terrell Boone", "unitNo": "Demo - 02",
+      "home": { "place": "Waterloo, IA", "latitude": 42.4928, "longitude": -92.3426 },
+      "position": { "place": "Laredo, TX", "latitude": 27.5306, "longitude": -99.4803, "reportedAt": "2026-09-28T14:48:00Z" },
+      "hours": { "driving": 21600, "duty": 25200, "cycle": 136800, "rest": 10800 }
+    },
+    {
+      "driverCode": "HBARNETT", "name": "Hollis Barnett", "unitNo": "Demo - 01",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": { "place": "Kansas City, MO", "latitude": 39.0997, "longitude": -94.5786, "reportedAt": "2026-09-28T14:51:00Z" },
+      "hours": { "driving": 5400, "duty": 7200, "cycle": 147600, "rest": 3600 }
+    },
+    {
+      "driverCode": "DFOSTER", "name": "Dale Foster", "unitNo": "Demo - 05",
+      "home": { "place": "Council Bluffs, IA", "latitude": 41.2619, "longitude": -95.8608 },
+      "position": { "place": "Salt Lake City, UT", "latitude": 40.7608, "longitude": -111.891, "reportedAt": "2026-09-28T14:40:00Z" },
+      "hours": { "driving": 0, "duty": 0, "cycle": 0, "rest": 0 }
+    },
+    {
+      "driverCode": "ACORTEZ", "name": "Alma Cortez", "unitNo": "Demo - 03",
+      "home": { "place": "Dubuque, IA", "latitude": 42.5006, "longitude": -90.6646 },
+      "position": { "place": "Denver, CO", "latitude": 39.7392, "longitude": -104.9903, "reportedAt": "2026-09-28T14:55:00Z" },
+      "hours": { "driving": 10800, "duty": 18000, "cycle": 72000, "rest": 7200 }
+    },
+    {
+      "driverCode": "RDELGADO", "name": "Rosa Delgado", "unitNo": "Demo - 04",
+      "home": { "place": "Davenport, IA", "latitude": 41.5236, "longitude": -90.5776 },
+      "position": { "place": "Peru, IL", "latitude": 41.3275, "longitude": -89.129, "reportedAt": "2026-09-28T14:55:00Z" },
+      "hours": { "driving": 14400, "duty": 18000, "cycle": 180000, "rest": 14400 }
+    },
+    {
+      "driverCode": "RVASQUEZ", "name": "Rey Vasquez", "unitNo": "Demo - 21",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": null,
+      "hours": null
+    },
+    {
+      "driverCode": "LHARTMAN", "name": "Lena Hartman", "unitNo": "Demo - 07",
+      "home": { "place": "Des Moines, IA", "latitude": 41.5868, "longitude": -93.625 },
+      "position": { "place": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345, "reportedAt": "2026-09-28T10:30:00Z" },
+      "hours": null
+    },
+    {
+      "driverCode": "PRAMAN", "name": "Priya Raman", "unitNo": "Demo - 13",
+      "home": { "place": "Dubuque, IA", "latitude": 42.5006, "longitude": -90.6646 },
+      "position": { "place": "Minneapolis, MN", "latitude": 44.9778, "longitude": -93.265, "reportedAt": "2026-09-28T14:57:00Z" },
+      "hours": { "driving": 32400, "duty": 36000, "cycle": 160000, "rest": 21600 }
+    },
+    {
+      "driverCode": "SOAKS", "name": "Sherman Oaks", "unitNo": "Demo - 10",
+      "home": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "position": { "place": "Cedar Rapids, IA", "latitude": 41.985, "longitude": -91.65, "reportedAt": "2026-09-28T14:52:00Z" },
+      "hours": { "driving": 39600, "duty": 50400, "cycle": 200000, "rest": 28800 }
+    },
+    {
+      "driverCode": "MWEBB", "name": "Marcus Webb", "unitNo": "Demo - 18",
+      "home": { "place": "Ames, IA", "latitude": 42.0308, "longitude": -93.6319 },
+      "position": { "place": "Ames, IA", "latitude": 42.0347, "longitude": -93.62, "reportedAt": "2026-09-28T14:50:00Z" },
+      "hours": { "driving": 39600, "duty": 50400, "cycle": 252000, "rest": 28800 }
+    }
+  ],
+  "loads": [
+    {
+      "id": "L-30412", "status": "In Transit", "driverCode": "RDELGADO",
+      "origin": { "place": "Peru, IL", "latitude": 41.3275, "longitude": -89.129 },
+      "destination": { "place": "Joliet, IL", "latitude": 41.525, "longitude": -88.0817 },
+      "pickupStart": "2026-09-28T06:00:00-05:00", "pickupEnd": "2026-09-28T07:00:00-05:00",
+      "deliveryStart": "2026-09-28T14:00:00-05:00", "deliveryEnd": "2026-09-28T16:00:00-05:00",
+      "miles": 72, "rate": 650, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30418", "status": "Covered", "driverCode": "RDELGADO",
+      "origin": { "place": "Joliet, IL", "latitude": 41.525, "longitude": -88.0817 },
+      "destination": { "place": "Davenport, IA", "latitude": 41.5236, "longitude": -90.5776 },
+      "pickupStart": "2026-09-28T17:00:00-05:00", "pickupEnd": "2026-09-28T19:00:00-05:00",
+      "deliveryStart": "2026-09-29T07:00:00-05:00", "deliveryEnd": "2026-09-29T09:00:00-05:00",
+      "miles": 160, "rate": 900, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30421", "status": "Covered", "driverCode": "HBARNETT",
+      "origin": { "place": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345 },
+      "destination": { "place": "Lincoln, NE", "latitude": 40.8136, "longitude": -96.7026 },
+      "pickupStart": "2026-09-28T14:00:00-05:00", "pickupEnd": "2026-09-28T15:00:00-05:00",
+      "deliveryStart": "2026-09-28T18:00:00-05:00", "deliveryEnd": "2026-09-28T20:00:00-05:00",
+      "miles": 58, "rate": 475, "equipment": "Reefer"
+    },
+    {
+      "id": "L-30425", "status": "Covered", "driverCode": "ACORTEZ",
+      "origin": { "place": "Des Moines, IA", "latitude": 41.5868, "longitude": -93.625 },
+      "destination": { "place": "Chicago, IL", "latitude": 41.8781, "longitude": -87.6298 },
+      "pickupStart": "2026-10-02T08:00:00-05:00", "pickupEnd": "2026-10-02T10:00:00-05:00",
+      "deliveryStart": "2026-10-02T17:00:00-05:00", "deliveryEnd": "2026-10-02T19:00:00-05:00",
+      "miles": 332, "rate": 1450, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30430", "status": "Covered", "driverCode": "PRAMAN",
+      "origin": { "place": "Minneapolis, MN", "latitude": 44.9778, "longitude": -93.265 },
+      "destination": { "place": "Dubuque, IA", "latitude": 42.5006, "longitude": -90.6646 },
+      "pickupStart": "2026-09-28T13:00:00-05:00", "pickupEnd": "2026-09-28T15:00:00-05:00",
+      "deliveryStart": "2026-09-28T19:00:00-05:00", "deliveryEnd": "2026-09-28T20:00:00-05:00",
+      "miles": 254, "rate": 1150, "equipment": "Flatbed"
+    },
+    {
+      "id": "L-30433", "status": "Covered", "driverCode": "PRAMAN",
+      "origin": { "place": "Rockford, IL", "latitude": 42.2711, "longitude": -89.094 },
+      "destination": { "place": "Chicago, IL", "latitude": 41.8781, "longitude": -87.6298 },
+      "pickupStart": "2026-09-28T21:00:00-05:00", "pickupEnd": "2026-09-28T23:00:00-05:00",
+      "deliveryStart": "2026-09-29T05:00:00-05:00", "deliveryEnd": "2026-09-29T07:00:00-05:00",
+      "miles": 90, "rate": 600, "equipment": "Flatbed"
+    },
+    {
+      "id": "L-30440", "status": "Covered", "driverCode": "SOAKS",
+      "origin": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "destination": { "place": "Iowa City, IA", "latitude": 41.6611, "longitude": -91.5302 },
+      "pickupStart": "2026-09-28T13:00:00-05:00", "pickupEnd": "2026-09-28T14:00:00-05:00",
+      "deliveryStart": "2026-09-28T15:00:00-05:00", "deliveryEnd": "2026-09-28T16:00:00-05:00",
+      "miles": 28, "rate": 300, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30445", "status": "Covered", "driverCode": "DFOSTER",
+      "origin": { "place": "Ogden, UT", "latitude": 41.223, "longitude": -111.9738 },
+      "destination": { "place": "Denver, CO", "latitude": 39.7392, "longitude": -104.9903 },
+      "pickupStart": "2026-09-29T08:00:00-06:00", "pickupEnd": "2026-09-29T10:00:00-06:00",
+      "deliveryStart": "2026-09-30T08:00:00-06:00", "deliveryEnd": "2026-09-30T12:00:00-06:00",
+      "miles": 525, "rate": 1900, "equipment": "Reefer"
+    },
+    {
+      "id": "L-30450", "status": "Available", "driverCode": null,
+      "origin": { "place": "Cedar Rapids, IA", "latitude": 41.9779, "longitude": -91.6656 },
+      "destination": { "place": "Chicago, IL", "latitude": 41.8781, "longitude": -87.6298 },
+      "pickupStart": "2026-09-29T07:00:00-05:00", "pickupEnd": "2026-09-29T09:00:00-05:00",
+      "deliveryStart": "2026-09-29T13:00:00-05:00", "deliveryEnd": "2026-09-29T15:00:00-05:00",
+      "miles": 220, "rate": 1100, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30451", "status": "Available", "driverCode": null,
+      "origin": { "place": "Denver, CO", "latitude": 39.7392, "longitude": -104.9903 },
+      "destination": { "place": "Des Moines, IA", "latitude": 41.5868, "longitude": -93.625 },
+      "pickupStart": "2026-09-30T08:00:00-06:00", "pickupEnd": "2026-09-30T12:00:00-06:00",
+      "deliveryStart": "2026-10-01T10:00:00-05:00", "deliveryEnd": "2026-10-01T14:00:00-05:00",
+      "miles": 676, "rate": 2300, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30452", "status": "Available", "driverCode": null,
+      "origin": { "place": "Kansas City, MO", "latitude": 39.0997, "longitude": -94.5786 },
+      "destination": { "place": "Des Moines, IA", "latitude": 41.5868, "longitude": -93.625 },
+      "pickupStart": "2026-09-28T13:00:00-05:00", "pickupEnd": "2026-09-28T16:00:00-05:00",
+      "deliveryStart": "2026-09-28T19:00:00-05:00", "deliveryEnd": "2026-09-28T21:00:00-05:00",
+      "miles": 195, "rate": 850, "equipment": "Reefer"
+    },
+    {
+      "id": "L-30453", "status": "Available", "driverCode": null,
+      "origin": { "place": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345 },
+      "destination": { "place": "Waterloo, IA", "latitude": 42.4928, "longitude": -92.3426 },
+      "pickupStart": "2026-10-01T08:00:00-05:00", "pickupEnd": "2026-10-01T10:00:00-05:00",
+      "deliveryStart": "2026-10-01T14:00:00-05:00", "deliveryEnd": "2026-10-01T16:00:00-05:00",
+      "miles": 243, "rate": 980, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30454", "status": "Available", "driverCode": null,
+      "origin": { "place": "Laredo, TX", "latitude": 27.5306, "longitude": -99.4803 },
+      "destination": { "place": "Dallas, TX", "latitude": 32.7767, "longitude": -96.797 },
+      "pickupStart": "2026-09-30T07:00:00-05:00", "pickupEnd": "2026-09-30T10:00:00-05:00",
+      "deliveryStart": "2026-09-30T17:00:00-05:00", "deliveryEnd": "2026-09-30T19:00:00-05:00",
+      "miles": 430, "rate": 1600, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30460", "status": "Available", "driverCode": null,
+      "origin": { "place": "Sioux City, IA", "latitude": 42.4963, "longitude": -96.4049 },
+      "destination": { "place": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345 },
+      "pickupStart": "2026-10-08T08:00:00-05:00", "pickupEnd": "2026-10-08T10:00:00-05:00",
+      "deliveryStart": "2026-10-08T12:00:00-05:00", "deliveryEnd": "2026-10-08T14:00:00-05:00",
+      "miles": 101, "rate": 550, "equipment": "Dry van"
+    },
+    {
+      "id": "L-30401", "status": "Delivered", "driverCode": "LHARTMAN",
+      "origin": { "place": "Lincoln, NE", "latitude": 40.8136, "longitude": -96.7026 },
+      "destination": { "place": "Omaha, NE", "latitude": 41.2565, "longitude": -95.9345 },
+      "pickupStart": "2026-09-27T08:00:00-05:00", "pickupEnd": "2026-09-27T10:00:00-05:00",
+      "deliveryStart": "2026-09-27T12:00:00-05:00", "deliveryEnd": "2026-09-27T14:00:00-05:00",
+      "miles": 58, "rate": 450, "equipment": "Reefer"
+    },
+    {
+      "id": "L-30455", "status": "Cancelled", "driverCode": null,
+      "origin": { "place": "Davenport, IA", "latitude": 41.5236, "longitude": -90.5776 },
+      "destination": { "place": "Peoria, IL", "latitude": 40.6936, "longitude": -89.589 },
+      "pickupStart": "2026-09-29T08:00:00-05:00", "pickupEnd": "2026-09-29T10:00:00-05:00",
+      "deliveryStart": "2026-09-29T12:00:00-05:00", "deliveryEnd": "2026-09-29T14:00:00-05:00",
+      "miles": 98, "rate": 500, "equipment": "Dry van"
+    }
+  ],
+  "stays": [
+    { "driverCode": "ACORTEZ", "homeBy": "2026-10-01T18:00:00-05:00", "backOut": "2026-10-05T18:00:00-05:00", "status": "APPROVED" },
+    { "driverCode": "MWEBB", "homeBy": "2026-09-26T22:00:00Z", "backOut": "2026-09-29T11:00:00Z", "status": "HOME" }
+  ]
+}

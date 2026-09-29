@@ -9,7 +9,7 @@ cannot see this repo.
 ## Standing requirement: every addition is a reusable module
 
 Applies to everything under `src/features/`: the Get Me Home Planner, the
-Driver Home Time Schedule, the Driver Load Plans tab still to come, and
+Driver Home Time Schedule, the Driver Load Plans, and
 anything after. Set by Warren on 2026-09-29. Follow it from the first commit
 of new work -- do not build a screen and modularise it later.
 

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict'
 import { existsSync, readdirSync, readFileSync } from 'node:fs'
 import { MODULES as PLANNER, SUPPORT_FILES as PLANNER_SUPPORT } from './get-me-home/modules.ts'
 import { MODULES as SCHEDULE, SUPPORT_FILES as SCHEDULE_SUPPORT } from './home-time-schedule/modules.ts'
+import { MODULES as LOAD_PLANS, SUPPORT_FILES as LOAD_PLANS_SUPPORT } from './driver-load-plans/modules.ts'
 import type { ModuleInfo } from './get-me-home/modules.ts'
 
 // ---------------------------------------------------------------------------
@@ -26,6 +27,7 @@ import type { ModuleInfo } from './get-me-home/modules.ts'
 const FEATURES: { folder: string; modules: readonly ModuleInfo[]; support: readonly string[]; adapter: string }[] = [
   { folder: 'get-me-home', modules: PLANNER, support: PLANNER_SUPPORT, adapter: 'Adapter' },
   { folder: 'home-time-schedule', modules: SCHEDULE, support: SCHEDULE_SUPPORT, adapter: 'ScheduleAdapter' },
+  { folder: 'driver-load-plans', modules: LOAD_PLANS, support: LOAD_PLANS_SUPPORT, adapter: 'LoadPlanAdapter' },
 ]
 
 const here = (path: string) => new URL(path, import.meta.url)

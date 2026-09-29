@@ -36,7 +36,27 @@ import { scopeDriver, scopeQueue } from '../home-time-schedule/scope.ts'
 import scheduleJson from '../home-time-schedule/fixtures/schedule.json'
 import type { ScheduleData } from '../home-time-schedule/contract.ts'
 
-import { plannerOnSchedule, verdictFor } from './wiring.ts'
+import { MODULES as LOAD_PLAN_MODULES } from '../driver-load-plans/modules.ts'
+import DriverLoadPlans from '../driver-load-plans/DriverLoadPlans.tsx'
+import OpenLoads from '../driver-load-plans/OpenLoads.tsx'
+import SuggestDriver from '../driver-load-plans/SuggestDriver.tsx'
+import LoadPlanBoard from '../driver-load-plans/LoadPlanBoard.tsx'
+import DriverLoadPlan from '../driver-load-plans/DriverLoadPlan.tsx'
+import LegChip from '../driver-load-plans/LegChip.tsx'
+import { PlanSync } from '../driver-load-plans/sync.tsx'
+import { SAMPLE_NOW as LOADS_NOW } from '../driver-load-plans/adapters/sampleAdapter.ts'
+
+import LoadPlansView from '../driver-load-plans/LoadPlansView.tsx'
+import OpenLoadList from '../driver-load-plans/OpenLoadList.tsx'
+import CandidateList from '../driver-load-plans/CandidateList.tsx'
+import PlanTimeline from '../driver-load-plans/PlanTimeline.tsx'
+import PlanList from '../driver-load-plans/PlanList.tsx'
+import { boardWindow as loadWeek, planWithLegs, suggestDrivers } from '../driver-load-plans/rules.ts'
+import { scopeCandidates, scopeDriverPlan, scopeOpenLoads } from '../driver-load-plans/scope.ts'
+import plansJson from '../driver-load-plans/fixtures/plans.json'
+import type { LoadPlanData } from '../driver-load-plans/contract.ts'
+
+import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
 
 // ---------------------------------------------------------------------------
 // THE MODULES PAGE: every reusable module built here for MyTechgacity, what
@@ -50,7 +70,8 @@ import { plannerOnSchedule, verdictFor } from './wiring.ts'
 // The schedule's demos share one ScheduleSync, the way a host page would:
 // approve a request in the DecisionQueue demo and the ScheduleBoard demo
 // under it reads again. (HomeTimeSchedule brings its own, as it does on a
-// host.) Changes last until the page is reloaded.
+// host.) The load plans' demos share one PlanSync the same way. Changes last
+// until the page is reloaded.
 // ---------------------------------------------------------------------------
 const DEMOS: Record<string, () => ReactNode> = {
   GetMeHomePlanner: () => <GetMeHomePlanner adapter={plannerOnSchedule} organizationId="preview" />,
@@ -68,6 +89,12 @@ const DEMOS: Record<string, () => ReactNode> = {
   StayDetails: () => <StayDetailsDemo />,
   DriverHomeTime: () => <DriverHomeTime adapter={sampleScheduleAdapter} driverCode="TBOONE" now={SAMPLE_NOW} />,
   RequestHomeTime: () => <RequestHomeTime adapter={sampleScheduleAdapter} driverCode="HBARNETT" now={SAMPLE_NOW} />,
+  DriverLoadPlans: () => <DriverLoadPlans adapter={loadPlansOnSchedule} now={LOADS_NOW} drive={driveFor} />,
+  OpenLoads: () => <OpenLoads adapter={loadPlansOnSchedule} now={LOADS_NOW} drive={driveFor} />,
+  SuggestDriver: () => <SuggestDriverDemo />,
+  LoadPlanBoard: () => <LoadPlanBoard adapter={loadPlansOnSchedule} now={LOADS_NOW} drive={driveFor} />,
+  DriverLoadPlan: () => <Box sx={{ maxWidth: 560 }}><DriverLoadPlan adapter={loadPlansOnSchedule} driverCode="PRAMAN" now={LOADS_NOW} drive={driveFor} /></Box>,
+  LegChip: () => <LegChipDemo />,
 }
 
 // ---------------------------------------------------------------------------
@@ -83,6 +110,8 @@ const ROSTER = rosterJson as Roster
 const PLANNED = planRoster(ROSTER)
 const SCHEDULE = scheduleJson as ScheduleData
 const SCHEDULE_NOW = SCHEDULE.asOf || SAMPLE_NOW
+const PLANS = plansJson as LoadPlanData
+const PLANS_NOW = PLANS.asOf || LOADS_NOW
 
 const PIECE_DEMOS: Record<string, () => ReactNode> = {
   PlannerView: () => <PlannerView roster={ROSTER} />,
@@ -94,12 +123,19 @@ const PIECE_DEMOS: Record<string, () => ReactNode> = {
   StayDialog: () => <StayDialogPiece />,
   DriverStays: () => <DriverStaysPiece />,
   RequestForm: () => <RequestFormPiece />,
+  LoadPlansView: () => <LoadPlansViewPiece />,
+  OpenLoadList: () => <OpenLoadListPiece />,
+  CandidateList: () => <CandidateListPiece />,
+  PlanTimeline: () => <PlanTimelinePiece />,
+  PlanList: () => <PlanListPiece />,
 }
 
-const FEATURES = [
-  { key: 'get-me-home', title: 'Get Me Home Planner', folder: 'src/features/get-me-home', modules: PLANNER_MODULES, sync: false },
-  { key: 'home-time-schedule', title: 'Driver Home Time Schedule', folder: 'src/features/home-time-schedule', modules: SCHEDULE_MODULES, sync: true },
-] as const
+// Each feature's demos, wrapped the way a host page would wrap them.
+const FEATURES: { key: string; title: string; folder: string; modules: typeof PLANNER_MODULES; wrap: (cards: ReactNode) => ReactNode }[] = [
+  { key: 'get-me-home', title: 'Get Me Home Planner', folder: 'src/features/get-me-home', modules: PLANNER_MODULES, wrap: (cards) => cards },
+  { key: 'home-time-schedule', title: 'Driver Home Time Schedule', folder: 'src/features/home-time-schedule', modules: SCHEDULE_MODULES, wrap: (cards) => <ScheduleSync>{cards}</ScheduleSync> },
+  { key: 'driver-load-plans', title: 'Driver Load Plans', folder: 'src/features/driver-load-plans', modules: LOAD_PLAN_MODULES, wrap: (cards) => <PlanSync>{cards}</PlanSync> },
+]
 
 export default function ModulesPage() {
   return (
@@ -128,7 +164,7 @@ export default function ModulesPage() {
           return (
             <Box key={f.key} component="section" sx={{ mb: 5 }}>
               <Typography variant="h6" component="h2" sx={{ mb: 2 }}>{f.title}</Typography>
-              <Stack spacing={3}>{f.sync ? <ScheduleSync>{cards}</ScheduleSync> : cards}</Stack>
+              <Stack spacing={3}>{f.wrap(cards)}</Stack>
             </Box>
           )
         })}
@@ -302,5 +338,94 @@ function StayDetailsDemo() {
       </Stack>
       <StayDetails adapter={sampleScheduleAdapter} stayId={id} verdictFor={verdictFor} onClose={() => setId(null)} />
     </>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Driver Load Plans: the pieces from the fixture on disk, and the demos that
+// need something to open them.
+// ---------------------------------------------------------------------------
+function LoadPlansViewPiece() {
+  const [line, say] = useSaid()
+  return (
+    <>
+      <LoadPlansView data={PLANS} now={PLANS_NOW} drive={driveFor}
+        onAssign={async (loadId, driverCode) => { say(`onAssign("${loadId}", "${driverCode}")`) }}
+        onTakeBack={async (loadId) => { say(`onTakeBack("${loadId}")`) }} />
+      {line}
+    </>
+  )
+}
+
+function OpenLoadListPiece() {
+  const w = loadWeek(PLANS_NOW)
+  const open = scopeOpenLoads(PLANS, { from: new Date(w.start).toISOString(), to: new Date(w.end).toISOString() })
+  const [line, say] = useSaid()
+  return (
+    <>
+      <OpenLoadList loads={open.loads} now={PLANS_NOW} onFindDriver={(l) => say(`onFindDriver("${l.id}")`)} />
+      {line}
+    </>
+  )
+}
+
+function CandidateListPiece() {
+  const [line, say] = useSaid()
+  return (
+    <>
+      <CandidateList data={scopeCandidates(PLANS, 'L-30450')} loadId="L-30450" now={PLANS_NOW} drive={driveFor}
+        onAssign={(code) => say(`onAssign("${code}")`)} />
+      {line}
+    </>
+  )
+}
+
+function PlanTimelinePiece() {
+  const [line, say] = useSaid()
+  return (
+    <>
+      <PlanTimeline data={PLANS} now={PLANS_NOW} drive={driveFor}
+        onOpenDriver={(code) => say(`onOpenDriver("${code}")`)} onOpenLoad={(l) => say(`onOpenLoad("${l.id}")`)} />
+      {line}
+    </>
+  )
+}
+
+function PlanListPiece() {
+  const [line, say] = useSaid()
+  return (
+    <Box sx={{ maxWidth: 560 }}>
+      <PlanList data={scopeDriverPlan(PLANS, 'HBARNETT')} driverCode="HBARNETT" now={PLANS_NOW} drive={driveFor}
+        onTakeBack={(l) => say(`onTakeBack("${l.id}")`)} />
+      {line}
+    </Box>
+  )
+}
+
+// A dialog module needs something to open it.
+function SuggestDriverDemo() {
+  const [id, setId] = useState<string | null>(null)
+  return (
+    <>
+      <Stack direction="row" spacing={1}>
+        <Button variant="outlined" size="small" onClick={() => setId('L-30450')}>Find a driver for L-30450</Button>
+        <Button variant="outlined" size="small" onClick={() => setId('L-30452')}>Find a driver for L-30452</Button>
+      </Stack>
+      <SuggestDriver adapter={loadPlansOnSchedule} loadId={id} now={LOADS_NOW} drive={driveFor} onClose={() => setId(null)} />
+    </>
+  )
+}
+
+// Every verdict a leg can have, from real legs in the fixture.
+function LegChipDemo() {
+  const legOf = (code: string, id: string) => planWithLegs(PLANS, code, { now: PLANS_NOW, drive: driveFor }).find((p) => p.load.id === id)?.leg ?? null
+  const rey = suggestDrivers(PLANS, 'L-30450', { now: PLANS_NOW, drive: driveFor }).find((c) => c.driverCode === 'RVASQUEZ')?.leg ?? null
+  const legs = [legOf('PRAMAN', 'L-30430'), legOf('PRAMAN', 'L-30433'), legOf('HBARNETT', 'L-30421'), rey]
+  return (
+    <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1 }}>
+      {legs.map((leg, i) => <LegChip key={i} leg={leg} />)}
+      <LegChip leg={legs[2] ?? null} compact />
+      <LegChip leg={null} />
+    </Stack>
   )
 }
