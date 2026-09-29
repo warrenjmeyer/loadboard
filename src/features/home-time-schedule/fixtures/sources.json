@@ -1,0 +1,6 @@
+[
+  { "Home_Time_Source_Id": 0, "Home_Time_Source": "Undefined", "Choice_Key": "-", "IsActive": 1, "Created_At": "2026-09-29 17:12:13.020", "Updated_At": "2026-09-29 17:12:13.020", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Source_Id": 1, "Home_Time_Source": "DISPATCH", "Choice_Key": "a", "IsActive": 1, "Created_At": "2026-09-29 17:12:40.103", "Updated_At": "2026-09-29 17:12:40.103", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Source_Id": 2, "Home_Time_Source": "GEOTAB", "Choice_Key": "b", "IsActive": 1, "Created_At": "2026-09-29 17:12:51.313", "Updated_At": "2026-09-29 17:12:51.313", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Source_Id": 3, "Home_Time_Source": "OTHER", "Choice_Key": "c", "IsActive": 1, "Created_At": "2026-09-29 17:13:00.757", "Updated_At": "2026-09-29 17:13:00.757", "Created_By": null, "j": 1, "TTP_ID": 0 }
+]

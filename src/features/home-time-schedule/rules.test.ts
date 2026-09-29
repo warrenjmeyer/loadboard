@@ -146,21 +146,21 @@ test('the daily count is approved, home or done -- not merely requested', () => 
 // ---------------------------------------------------------------------------
 test('an arrival or departure records who saw it', () => {
   const approved = make({ status: 'APPROVED', decidedAt: '2026-09-27T12:00:00Z' })
-  const byGeotab = applyAction(approved, { type: 'arrive', at: '2026-09-28T01:00:00Z' }, { now: NOW, by: null, source: 'geotab' })
+  const byGeotab = applyAction(approved, { type: 'arrive', at: '2026-09-28T01:00:00Z' }, { now: NOW, by: null, source: 'GEOTAB' })
   assert.ok('stay' in byGeotab)
-  assert.equal(byGeotab.stay.arrivedSource, 'geotab')
+  assert.equal(byGeotab.stay.arrivedSource, 'GEOTAB')
   const byHand = applyAction(approved, { type: 'arrive' }, { now: NOW, by: 'Dana' })
   assert.ok('stay' in byHand)
-  assert.equal(byHand.stay.arrivedSource, 'dispatch', 'clicking is dispatch, unless told otherwise')
+  assert.equal(byHand.stay.arrivedSource, 'DISPATCH', 'clicking is dispatch, unless told otherwise')
 })
 
 test('dispatch corrects what GeoTab recorded, and the status stays put', () => {
-  const home = make({ status: 'HOME', arrivedAt: '2026-09-27T23:40:00Z', arrivedSource: 'geotab' })
+  const home = make({ status: 'HOME', arrivedAt: '2026-09-27T23:40:00Z', arrivedSource: 'GEOTAB' })
   const fixed = applyAction(home, { type: 'correct', arrivedAt: '2026-09-27T22:55:00Z' }, { now: NOW, by: 'Dana' })
   assert.ok('stay' in fixed)
   assert.equal(fixed.stay.status, 'HOME')
   assert.equal(fixed.stay.arrivedAt, '2026-09-27T22:55:00Z')
-  assert.equal(fixed.stay.arrivedSource, 'dispatch')
+  assert.equal(fixed.stay.arrivedSource, 'DISPATCH')
 })
 
 test('a correction cannot invent a departure, reach into the future, or leave before arriving', () => {
@@ -203,13 +203,13 @@ test('GeoTab sees a truck come home, stay, and leave -- two moves, in order', ()
 test('applying the moves in order takes the stay home and then to done, as GeoTab', () => {
   let stay = approvedStay
   for (const m of detectHomeMoves([approvedStay], track, [HOME], { now: '2026-09-28T15:00:00Z' })) {
-    const r = applyAction(stay, m.action, { now: '2026-09-28T15:00:00Z', by: null, source: 'geotab' })
+    const r = applyAction(stay, m.action, { now: '2026-09-28T15:00:00Z', by: null, source: 'GEOTAB' })
     assert.ok('stay' in r, 'error' in r ? r.error : '')
     stay = r.stay
   }
   assert.equal(stay.status, 'DONE')
-  assert.equal(stay.arrivedSource, 'geotab')
-  assert.equal(stay.leftSource, 'geotab')
+  assert.equal(stay.arrivedSource, 'GEOTAB')
+  assert.equal(stay.leftSource, 'GEOTAB')
   // And it is not suggested again: the stay has moved on.
   assert.deepEqual(detectHomeMoves([stay], track, [HOME], { now: '2026-09-28T15:00:00Z' }), [])
 })

@@ -18,10 +18,9 @@
 --
 -- SHAPE. Each read returns two result sets, stays then drivers, with the
 -- columns named as contract.ts names them, so the API hands them over as
--- they come. Statuses are joined by NAME. Sources come back as Ids
--- (arrivedSourceId, leftSourceId): the API maps them to 'geotab'/'dispatch'
--- through DRVR.fk_Home_Time_Source by name, as it does statuses -- so these
--- queries run whether or not that table exists yet.
+-- they come. Statuses and sources are joined to their lookup tables and come
+-- back as NAMES -- REQUESTED, GEOTAB -- which are the contract's codes; the
+-- API has nothing to translate. (A source left empty comes back NULL.)
 ------------------------------------------------------------------------------
 SET NOCOUNT ON;
 -- Filtered indexes (UX_Drivers_User_Uuid) need these ON to be created, and to
@@ -47,10 +46,12 @@ IF @CallerIsDispatch = 0 THROW 50403, 'Only dispatch sees the queue.', 1;
 SELECT CAST(s.Home_Time_Stay_Id AS varchar(20)) AS id, d.Driver_Code AS driverCode, st.Home_Time_Status AS status,
        s.Home_By AS homeBy, s.Back_Out AS backOut, s.Note AS note, s.Requested_At AS requestedAt,
        s.Decided_At AS decidedAt, s.Decided_By AS decidedByUser, s.Decline_Reason AS declineReason,
-       s.Arrived_At AS arrivedAt, s.Arrived_Source_Id AS arrivedSourceId, s.Left_At AS leftAt, s.Left_Source_Id AS leftSourceId
+       s.Arrived_At AS arrivedAt, sa.Home_Time_Source AS arrivedSource, s.Left_At AS leftAt, sl.Home_Time_Source AS leftSource
   FROM DRVR.Home_Time_Stays s
   JOIN DRVR.Drivers d               ON d.Driver_Id = s.Driver_Id
   JOIN DRVR.fk_Home_Time_Status st  ON st.Home_Time_Status_Id = s.Home_Time_Status_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sa ON sa.Home_Time_Source_Id = s.Arrived_Source_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sl ON sl.Home_Time_Source_Id = s.Left_Source_Id
  WHERE st.Home_Time_Status = 'REQUESTED' AND ISNULL(s.IsActive, 1) = 1
  ORDER BY s.Requested_At;
 
@@ -78,10 +79,12 @@ IF @CallerIsDispatch = 0 THROW 50403, 'Only dispatch sees the board.', 1;
 SELECT CAST(s.Home_Time_Stay_Id AS varchar(20)) AS id, d.Driver_Code AS driverCode, st.Home_Time_Status AS status,
        s.Home_By AS homeBy, s.Back_Out AS backOut, s.Note AS note, s.Requested_At AS requestedAt,
        s.Decided_At AS decidedAt, s.Decided_By AS decidedByUser, s.Decline_Reason AS declineReason,
-       s.Arrived_At AS arrivedAt, s.Arrived_Source_Id AS arrivedSourceId, s.Left_At AS leftAt, s.Left_Source_Id AS leftSourceId
+       s.Arrived_At AS arrivedAt, sa.Home_Time_Source AS arrivedSource, s.Left_At AS leftAt, sl.Home_Time_Source AS leftSource
   FROM DRVR.Home_Time_Stays s
   JOIN DRVR.Drivers d               ON d.Driver_Id = s.Driver_Id
   JOIN DRVR.fk_Home_Time_Status st  ON st.Home_Time_Status_Id = s.Home_Time_Status_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sa ON sa.Home_Time_Source_Id = s.Arrived_Source_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sl ON sl.Home_Time_Source_Id = s.Left_Source_Id
  WHERE st.Home_Time_Status IN ('REQUESTED', 'APPROVED', 'HOME', 'DONE') AND ISNULL(s.IsActive, 1) = 1
    AND COALESCE(s.Arrived_At, s.Home_By) < @To
    AND COALESCE(s.Left_At, s.Back_Out)  > @From;
@@ -108,10 +111,12 @@ IF @CallerIsDispatch = 0
 SELECT CAST(s.Home_Time_Stay_Id AS varchar(20)) AS id, d.Driver_Code AS driverCode, st.Home_Time_Status AS status,
        s.Home_By AS homeBy, s.Back_Out AS backOut, s.Note AS note, s.Requested_At AS requestedAt,
        s.Decided_At AS decidedAt, s.Decided_By AS decidedByUser, s.Decline_Reason AS declineReason,
-       s.Arrived_At AS arrivedAt, s.Arrived_Source_Id AS arrivedSourceId, s.Left_At AS leftAt, s.Left_Source_Id AS leftSourceId
+       s.Arrived_At AS arrivedAt, sa.Home_Time_Source AS arrivedSource, s.Left_At AS leftAt, sl.Home_Time_Source AS leftSource
   FROM DRVR.Home_Time_Stays s
   JOIN DRVR.Drivers d               ON d.Driver_Id = s.Driver_Id
   JOIN DRVR.fk_Home_Time_Status st  ON st.Home_Time_Status_Id = s.Home_Time_Status_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sa ON sa.Home_Time_Source_Id = s.Arrived_Source_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sl ON sl.Home_Time_Source_Id = s.Left_Source_Id
  WHERE d.Driver_Code = @DriverCode AND ISNULL(s.IsActive, 1) = 1
  ORDER BY s.Home_By DESC;
 
@@ -139,10 +144,12 @@ IF @CallerIsDispatch = 0
 SELECT CAST(s.Home_Time_Stay_Id AS varchar(20)) AS id, d.Driver_Code AS driverCode, st.Home_Time_Status AS status,
        s.Home_By AS homeBy, s.Back_Out AS backOut, s.Note AS note, s.Requested_At AS requestedAt,
        s.Decided_At AS decidedAt, s.Decided_By AS decidedByUser, s.Decline_Reason AS declineReason,
-       s.Arrived_At AS arrivedAt, s.Arrived_Source_Id AS arrivedSourceId, s.Left_At AS leftAt, s.Left_Source_Id AS leftSourceId
+       s.Arrived_At AS arrivedAt, sa.Home_Time_Source AS arrivedSource, s.Left_At AS leftAt, sl.Home_Time_Source AS leftSource
   FROM DRVR.Home_Time_Stays s
   JOIN DRVR.Drivers d               ON d.Driver_Id = s.Driver_Id
   JOIN DRVR.fk_Home_Time_Status st  ON st.Home_Time_Status_Id = s.Home_Time_Status_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sa ON sa.Home_Time_Source_Id = s.Arrived_Source_Id
+  LEFT JOIN DRVR.fk_Home_Time_Source sl ON sl.Home_Time_Source_Id = s.Left_Source_Id
  WHERE s.Home_Time_Stay_Id = @StayId;
 
 SELECT d.Driver_Code AS driverCode, CONCAT(d.First_Name, ' ', d.Last_Name) AS name, d.Unit_No AS unitNo, lh.lastHomeAt

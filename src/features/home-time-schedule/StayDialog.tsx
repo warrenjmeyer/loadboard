@@ -23,7 +23,9 @@ import type { Stay, StayAction, StaySource, StayVerdict } from './contract.ts'
 // ---------------------------------------------------------------------------
 type Mode = 'view' | 'declining' | 'correcting'
 
-const SOURCE_WORDS: Record<StaySource, string> = { geotab: 'by GeoTab', dispatch: 'by dispatch' }
+// Keyed by the rows of DRVR.fk_Home_Time_Source, so a source added there and
+// not here is a compile error rather than a blank.
+const SOURCE_WORDS: Record<StaySource, string> = { GEOTAB: 'by GeoTab', DISPATCH: 'by dispatch', OTHER: 'from another source' }
 
 // The moves that are one click: everything but the two above.
 type SimpleMove = Exclude<StayAction['type'], 'decline' | 'correct'>

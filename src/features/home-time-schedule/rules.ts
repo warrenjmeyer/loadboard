@@ -45,7 +45,7 @@ export function actionsFor(status: StayStatus): StayAction['type'][] {
 // check applies a move, or dispatch, who clicked. Corrections are always
 // dispatch's, whatever was there before.
 // ---------------------------------------------------------------------------
-export function applyAction(stay: Stay, action: StayAction, { now, by, source = 'dispatch' }: {
+export function applyAction(stay: Stay, action: StayAction, { now, by, source = 'DISPATCH' }: {
   now: IsoMoment
   by: string | null
   source?: StaySource
@@ -94,8 +94,8 @@ export function applyAction(stay: Stay, action: StayAction, { now, by, source = 
           ...next,
           arrivedAt,
           leftAt,
-          arrivedSource: action.arrivedAt ? 'dispatch' : stay.arrivedSource ?? null,
-          leftSource: action.leftAt ? 'dispatch' : stay.leftSource ?? null,
+          arrivedSource: action.arrivedAt ? 'DISPATCH' : stay.arrivedSource ?? null,
+          leftSource: action.leftAt ? 'DISPATCH' : stay.leftSource ?? null,
         },
       }
     }
@@ -302,7 +302,7 @@ export function minutesSince(moment: IsoMoment | null, now: IsoMoment): number |
 //           outside.
 //
 // Returns the moves in the order they happened; the caller applies each with
-// applyAction(..., { source: 'geotab' }), so a stay that arrived and left
+// applyAction(..., { source: 'GEOTAB' }), so a stay that arrived and left
 // between two checks goes HOME and then DONE. REQUESTED stays are never
 // moved: a truck at home without an approved stay is a conversation for
 // dispatch, not something to record on their behalf.

@@ -20,7 +20,7 @@ are samples on the planner's clock (Monday 28 September, 10 AM). Approving,
 declining and requesting really change them, and the planner tab with them,
 until the page is reloaded. Nothing stores home time for real drivers yet.
 
-    node --test src/features/home-time-schedule/rules.test.ts src/features/home-time-schedule/statusTable.test.ts src/features/sampleData.test.ts
+    node --test src/features/home-time-schedule/rules.test.ts src/features/home-time-schedule/lookups.test.ts src/features/home-time-schedule/scope.test.ts src/features/sampleData.test.ts
     npm run typecheck
 
 ## One record is one stay
@@ -130,7 +130,7 @@ the order they happened:
 On the host this is a server job on a timer, say every ten minutes. Fetch
 the fixes since the last run (GeoTab `LogRecord`s for trucks with an
 APPROVED or HOME stay), call `detectHomeMoves`, and apply each move with
-`applyAction(stay, move.action, { now, by: null, source: 'geotab' })`. A
+`applyAction(stay, move.action, { now, by: null, source: 'GEOTAB' })`. A
 move that has been applied is never suggested again, because the stay's
 status has moved on.
 

@@ -47,13 +47,22 @@ export interface Stay {
   /** What actually happened. Set on HOME and DONE. */
   arrivedAt: IsoMoment | null
   leftAt: IsoMoment | null
-  /** Who said so: GeoTab saw the truck, or dispatch entered or corrected it.
-   * Optional so data from before GeoTab did this still fits. */
+  /** Who said so: GeoTab saw the truck, dispatch entered or corrected it, or
+   * it came from somewhere else. Optional so data from before GeoTab did
+   * this still fits. */
   arrivedSource?: StaySource | null
   leftSource?: StaySource | null
 }
 
-export type StaySource = 'geotab' | 'dispatch'
+// The rows of DRVR.fk_Home_Time_Source, spelled exactly as its
+// Home_Time_Source column spells them -- the name is the code, as with the
+// statuses, and lookups.ts checks the two lists still agree.
+//
+// OTHER is reserved for future use (Warren, 2026-09-29). Nothing sets it yet:
+// GeoTab's check records GEOTAB and every move a person makes records
+// DISPATCH. A stay that carries it shows "from another source".
+export const STAY_SOURCES = ['GEOTAB', 'DISPATCH', 'OTHER'] as const
+export type StaySource = (typeof STAY_SOURCES)[number]
 
 export interface ScheduleDriver {
   driverCode: string
@@ -202,7 +211,9 @@ export function checkSchedule(data: unknown): string[] {
     if (s.status === 'DECLINED' && !s.declineReason) problems.push(`${at} is DECLINED with no declineReason`)
     for (const k of ['arrivedSource', 'leftSource']) {
       const v = s[k]
-      if (v !== null && v !== undefined && v !== 'geotab' && v !== 'dispatch') problems.push(`${at}.${k} must be "geotab" or "dispatch", not ${JSON.stringify(v)}`)
+      if (v !== null && v !== undefined && !(STAY_SOURCES as readonly unknown[]).includes(v)) {
+        problems.push(`${at}.${k} must be one of ${STAY_SOURCES.join(', ')}, not ${JSON.stringify(v)}`)
+      }
     }
   })
   return problems

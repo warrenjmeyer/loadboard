@@ -47,11 +47,11 @@ export {
   detectHomeMoves, HOME_RADIUS_MILES, DWELL_MINUTES,
 } from './rules.ts'
 export type { PlannerHomeTime, Fix, HomePoint, HomeMove } from './rules.ts'
-export { checkStatusRows, statusIds } from './statusTable.ts'
-export type { StayStatusRow } from './statusTable.ts'
+export { checkStatusRows, statusIds, checkSourceRows, sourceIds } from './lookups.ts'
+export type { StayStatusRow, StaySourceRow } from './lookups.ts'
 
 // The contract.
-export { checkSchedule, STAY_STATUSES } from './contract.ts'
+export { checkSchedule, STAY_STATUSES, STAY_SOURCES } from './contract.ts'
 export type {
   Stay, StayStatus, StayAction, StaySource, StayVerdict, NewStay, ScheduleData, ScheduleDriver, ScheduleAdapter,
   ReadArgs, IsoMoment,
