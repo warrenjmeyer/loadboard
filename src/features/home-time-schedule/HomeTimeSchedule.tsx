@@ -1,16 +1,21 @@
-import { useEffect, useState } from 'react'
-import ScheduleView from './ScheduleView.tsx'
-import type { ScheduleAdapter, ScheduleData, Stay, StayAction, StayVerdict } from './contract.ts'
+import { Stack, Typography } from '@mui/material'
+import DecisionQueue from './DecisionQueue.tsx'
+import ScheduleBoard from './ScheduleBoard.tsx'
+import { ScheduleSync } from './sync.tsx'
+import type { ScheduleAdapter, Stay, StayVerdict } from './contract.ts'
 
 // ---------------------------------------------------------------------------
-// THE ENTRY POINT for dispatch. The one component a host mounts in the
-// Driver Home Time Schedule tab:
+// MODULE: the whole Driver Home Time Schedule tab, for dispatch.
 //
-//   <HomeTimeSchedule adapter={myAdapter} organizationId={org} verdictFor={...} />
+//   <HomeTimeSchedule adapter={a} organizationId={org} verdictFor={v} />
 //
-// It loads through the adapter, hands the data to ScheduleView, and puts each
-// stay the adapter sends back into the list in place of the old one -- so
-// what is on screen after a move is what was stored, not what was hoped.
+// A composition, not a screen of its own: the DecisionQueue above the
+// ScheduleBoard, each reading its own slice, under one ScheduleSync so that
+// approving a request up top redraws the board below. A host that wants
+// them apart -- the queue on a dashboard, the board on a wall screen --
+// mounts the two modules separately and loses nothing.
+//
+// Piece: ScheduleView (the same screen drawn from data already held).
 // ---------------------------------------------------------------------------
 export interface HomeTimeScheduleProps {
   adapter: ScheduleAdapter
@@ -19,34 +24,19 @@ export interface HomeTimeScheduleProps {
   verdictFor?: ((stay: Stay) => StayVerdict | null) | null
 }
 
-const messageOf = (err: unknown) => (err instanceof Error ? err.message : String(err))
-
 export default function HomeTimeSchedule({ adapter, organizationId = null, now = null, verdictFor = null }: HomeTimeScheduleProps) {
-  const [data, setData] = useState<ScheduleData | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
-  const [asked, setAsked] = useState(0)
-
-  useEffect(() => {
-    const controller = new AbortController()
-    setLoading(true)
-    setError(null)
-    Promise.resolve()
-      .then(() => adapter.loadSchedule({ organizationId, signal: controller.signal }))
-      .then((d) => { if (!controller.signal.aborted) { setData(d); setLoading(false) } })
-      .catch((err: unknown) => { if (!controller.signal.aborted) { setError(messageOf(err)); setLoading(false) } })
-    return () => controller.abort()
-  }, [adapter, organizationId, asked])
-
-  async function onAction(id: string, action: StayAction) {
-    const stored = await adapter.actOnStay(id, action) // a refusal rejects, and ScheduleView shows it
-    setData((d) => (d ? { ...d, stays: d.stays.map((s) => (s.id === id ? stored : s)) } : d))
-  }
-
   return (
-    <ScheduleView
-      data={data} loading={loading} error={error} now={now} verdictFor={verdictFor}
-      onAction={onAction} onRefresh={() => setAsked((n) => n + 1)}
-    />
+    <ScheduleSync>
+      <Stack spacing={3}>
+        <section>
+          <Typography variant="subtitle1" component="h3" sx={{ mb: 1 }}>Needs a decision</Typography>
+          <DecisionQueue adapter={adapter} organizationId={organizationId} now={now} verdictFor={verdictFor} />
+        </section>
+        <section>
+          <Typography variant="subtitle1" component="h3" sx={{ mb: 1 }}>The next two weeks</Typography>
+          <ScheduleBoard adapter={adapter} organizationId={organizationId} now={now} verdictFor={verdictFor} />
+        </section>
+      </Stack>
+    </ScheduleSync>
   )
 }

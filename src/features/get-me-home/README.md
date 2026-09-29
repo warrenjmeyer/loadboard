@@ -50,10 +50,11 @@ deployed site. A switch at the top picks where the drivers come from:
 
 | File | What it is | Ports? |
 |---|---|---|
-| `index.ts` | The public names, components and types. Import from here. | yes |
-| `GetMeHomePlanner.tsx` | The component a host mounts: asks the adapter, shows the result. | yes |
-| `PlannerView.tsx` | The screen, drawn from a roster. Fetches nothing. | yes |
-| `RosterTable.tsx`, `DriverPlan.tsx`, `StatusChip.tsx` | The parts of the screen. | yes |
+| `index.ts` | The public names: every module, every piece, the types. Import from here. | yes |
+| `modules.ts` | The register of modules (below). | yes |
+| `GetMeHomePlanner.tsx`, `PlannerRoster.tsx`, `DriverTripHome.tsx` | The loading wrappers: each reads its slice and draws its piece. | yes |
+| `PlannerView.tsx`, `RosterTable.tsx`, `DriverPlan.tsx`, `StatusChip.tsx` | The pieces: draw from props, fetch nothing. | yes |
+| `useRosterRead.ts` | The loading pattern the wrappers share. | yes |
 | `planHome.ts` | **All the rules**, and the types of what they produce (`Plan`, `Schedule`, `Status`). No React, no runtime imports. | yes, unchanged |
 | `contract.ts` | The types of the data the planner needs (`Roster`, `Driver`, `Adapter`), plus `checkRoster()` to test real data against them. | yes |
 | `statusTable.ts` | Keeps the planner's statuses and the `DRVR.fk_get_me_home_status` table in step: `checkStatusRows()`, `statusIds()`. | yes |
@@ -67,6 +68,20 @@ deployed site. A switch at the top picks where the drivers come from:
 
 The preview page and the tsconfig live one level up, in `src/features/`,
 because they serve every feature built here for MyTechgacity; neither ports.
+
+## The modules
+
+Each is a loading wrapper (reads its slice, handles loading and errors)
+around a piece (draws from props). All are exported, demoed on the modules
+page (`/get-me-home.html?page=modules`) and listed in `modules.ts`. See
+`src/features/README.md` for the rule.
+
+| Module | Piece | Reads | What it is |
+|---|---|---|---|
+| `GetMeHomePlanner` | `PlannerView` | `loadRoster` | The whole tab: the roster, and the chosen driver's trip home beside it |
+| `PlannerRoster` | `RosterTable` | `loadRoster` | The table alone, calling `onSelect` with a driver code |
+| `DriverTripHome` | `DriverPlan` | `loadDriver` | One driver's trip home, reading that driver alone |
+| `StatusChip` | (is its own piece) | nothing | A status, or a count of them |
 
 ## Porting it
 
@@ -86,8 +101,9 @@ because they serve every feature built here for MyTechgacity; neither ports.
 4. **Run the tests** with `node --test planHome.test.ts statusTable.test.ts`. That needs Node
    22.18 or later, which runs TypeScript directly; on older Node, run them
    under Vitest. If they pass on your side, the rules came across intact.
-5. **Write the adapter.** It is one object with one method, and the
-   `Adapter` type says exactly what that method takes and returns:
+5. **Write the adapter.** It is one object with two scoped reads: the
+   roster, and one driver as a roster of one. The `Adapter` type says exactly
+   what each takes and returns:
 
    ```ts
    import type { Adapter, Roster } from './get-me-home'
@@ -96,6 +112,10 @@ because they serve every feature built here for MyTechgacity; neither ports.
      async loadRoster({ organizationId, signal }) {
        const { data } = await api.get<Roster>('/get-me-home/roster', { params: { organizationId }, signal })
        return data // shaped as contract.ts says, or mapped into that shape here
+     },
+     async loadDriver({ organizationId, driverCode, signal }) {
+       const { data } = await api.get<Roster>(`/get-me-home/drivers/${driverCode}`, { params: { organizationId }, signal })
+       return data // { drivers: [] } for a driver who is not there
      },
    }
    ```

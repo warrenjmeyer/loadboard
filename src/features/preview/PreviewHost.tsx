@@ -8,6 +8,8 @@ import DriverHomeTime from '../home-time-schedule/DriverHomeTime.tsx'
 import { sampleScheduleAdapter } from '../home-time-schedule/adapters/sampleAdapter.ts'
 import scheduleSample from '../home-time-schedule/fixtures/schedule.json'
 import { plannerOnSchedule, verdictFor } from './wiring.ts'
+import ModulesPage from './ModulesPage.tsx'
+import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
 // ---------------------------------------------------------------------------
 // A stand-in for the host's component page -- the same three tabs in the same
@@ -33,6 +35,7 @@ const TABS = [
 
 type Source = 'sample' | 'live'
 type View = 'dispatch' | 'driver'
+type Page = 'host' | 'modules'
 
 function param(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name)
@@ -53,17 +56,34 @@ export default function PreviewHost() {
   const [source, setSource] = useState<Source>(() => (param('source') === 'live' ? 'live' : 'sample'))
   const [view, setView] = useState<View>(() => (param('view') === 'driver' ? 'driver' : 'dispatch'))
   const [driverCode, setDriverCode] = useState(() => param('driver') || 'TBOONE')
+  const [page, setPage] = useState<Page>(() => (param('page') === 'modules' ? 'modules' : 'host'))
 
   const chooseTab = (i: number) => { setTab(i); setParam('tab', i === 0 ? null : TABS[i]!.key) }
   const chooseSource = (next: Source | null) => { if (next) { setSource(next); setParam('source', next === 'live' ? 'live' : null) } }
   const chooseView = (next: View | null) => { if (next) { setView(next); setParam('view', next === 'driver' ? 'driver' : null) } }
   const chooseDriver = (code: string) => { setDriverCode(code); setParam('driver', code) }
+  const choosePage = (next: Page | null) => { if (next) { setPage(next); setParam('page', next === 'modules' ? 'modules' : null) } }
+
+  // Which page: the stand-in for the host's tabs, or the catalogue of modules.
+  const header = (
+    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 1.5 }}>
+      <ToggleButtonGroup size="small" exclusive value={page} onChange={(_, next: Page | null) => choosePage(next)} aria-label="Which page">
+        <ToggleButton value="host">Host page</ToggleButton>
+        <ToggleButton value="modules">Modules</ToggleButton>
+      </ToggleButtonGroup>
+      <Typography variant="caption" sx={{ color: 'text.secondary' }}>
+        Design preview. This page runs on the dev server only and is never deployed.
+      </Typography>
+    </Box>
+  )
+
+  if (page === 'modules') {
+    return <Box sx={{ px: 2, py: 1.5 }}>{header}<ModulesPage /></Box>
+  }
 
   return (
     <Box sx={{ px: 2, py: 1.5 }}>
-      <Typography variant="caption" component="p" sx={{ color: 'text.secondary', mb: 1 }}>
-        Design preview. This page runs on the dev server only and is never deployed.
-      </Typography>
+      {header}
 
       <Tabs value={tab} onChange={(_, next: number) => chooseTab(next)} sx={{ borderBottom: 1, borderColor: 'divider', mb: 2 }}>
         {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
@@ -102,7 +122,11 @@ export default function PreviewHost() {
               <ToggleButton value="driver">Driver</ToggleButton>
             </ToggleButtonGroup>
             {view === 'driver' && (
-              <TextField select size="small" label="Driver" value={driverCode} onChange={(e) => chooseDriver(e.target.value)} sx={{ minWidth: 200 }}>
+              <TextField
+                select size="small" label="Driver" value={driverCode} onChange={(e) => chooseDriver(e.target.value)} sx={{ minWidth: 200 }}
+                // Ten names can outgrow a short window; MUI warns when its menu does.
+                slotProps={{ select: { MenuProps: { slotProps: { paper: { sx: { maxHeight: 320 } } } } } }}
+              >
                 {DRIVERS.map((d) => <MenuItem key={d.driverCode} value={d.driverCode}>{d.name}</MenuItem>)}
               </TextField>
             )}
@@ -112,8 +136,8 @@ export default function PreviewHost() {
             and the planner tab -- until the page is reloaded. There is no live schedule yet: nothing stores home time.
           </Alert>
           {view === 'dispatch'
-            ? <HomeTimeSchedule adapter={sampleScheduleAdapter} organizationId="preview" verdictFor={verdictFor} />
-            : <DriverHomeTime key={driverCode} adapter={sampleScheduleAdapter} driverCode={driverCode} organizationId="preview" />}
+            ? <HomeTimeSchedule adapter={sampleScheduleAdapter} organizationId="preview" now={SAMPLE_NOW} verdictFor={verdictFor} />
+            : <DriverHomeTime key={driverCode} adapter={sampleScheduleAdapter} driverCode={driverCode} organizationId="preview" now={SAMPLE_NOW} />}
         </>
       )}
 

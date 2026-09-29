@@ -114,6 +114,16 @@ function span(stay: Stay): { start: number; end: number } | null {
   return { start, end: Math.max(start, end) }
 }
 
+/** Whether a stay occupies the calendar anywhere between two moments -- the
+ * test the board's read applies. DECLINED and CANCELLED never do. */
+export function overlaps(stay: Stay, from: IsoMoment, to: IsoMoment): boolean {
+  if (!OCCUPIES.includes(stay.status)) return false
+  const s = span(stay)
+  const a = ms(from)
+  const b = ms(to)
+  return s !== null && a !== null && b !== null && s.start < b && s.end > a
+}
+
 // ---------------------------------------------------------------------------
 // Every reason a driver's request cannot be taken, as sentences. Empty means
 // it can. The driver sees these before anything is sent.

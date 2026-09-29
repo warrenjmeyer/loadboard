@@ -64,29 +64,42 @@ the foreign key the table exists for.
 - **`requestedBy`**: the earliest home-by among REQUESTED and APPROVED stays.
 - **`note`**: that request's reason.
 
-## The screens
+## The modules
 
-- **Dispatch** (`HomeTimeSchedule`): requests needing a decision, oldest
-  first, each with the planner's verdict above Approve; a two-week board of
-  who is home when, with a count of drivers home each day; and a dialog per
-  stay offering the moves its status allows.
-- **Driver** (`DriverHomeTime`): their own stays, dispatch's answers
-  including any decline reason, and a request form. The rules check the
-  request before it is sent: in the future, back out after home by, not on
-  top of another stay.
+Each is a loading wrapper (reads its slice, handles loading and errors)
+around a piece (draws from props). All are exported, all have a live demo on
+the modules page (`/get-me-home.html?page=modules`), and all are listed in
+`modules.ts`. See `src/features/README.md` for the rule.
+
+| Module | Piece | Reads | What it is |
+|---|---|---|---|
+| `HomeTimeSchedule` | `ScheduleView` | via its two modules | The whole dispatch tab: `DecisionQueue` above `ScheduleBoard`, under one `ScheduleSync` |
+| `DecisionQueue` | `DecisionList` | `loadQueue` | Requests waiting, oldest first, with Approve, Decline and the planner's verdict |
+| `ScheduleBoard` | `Board` | `loadBoard` | Two weeks of who is home when, with a count per day |
+| `StayDetails` | `StayDialog` | `loadStay` | One stay by id, with the moves its status allows |
+| `DriverHomeTime` | `DriverStays` | `loadDriverStays` | The driver's side: their stays, dispatch's answers, a request form |
+| `RequestHomeTime` | `RequestForm` | `loadDriverStays` | A "Request home time" button and its form |
+
+**Scoped reads.** The adapter has one read per screen, never "load
+everything". `scope.ts` says exactly what each read returns, and
+`scope.test.ts` pins it down, including that a driver's read carries no
+other driver's stays. **Modules on one page stay in step** under a shared
+`<ScheduleSync>`: an action in one makes all of them read again.
 
 ## Porting it
 
 1. **Copy the folder**, leaving out `adapters/` (the sample adapter).
-2. **Write the adapter** (`ScheduleAdapter` in `contract.ts`): one read,
-   `loadSchedule`, and two writes, `requestStay` and `actOnStay`. The server
-   should run the same `applyAction` and `checkNewStay` the sample adapter
-   does, and it is where "a driver may only touch their own stays" is
-   enforced; the screens don't offer more than a role should do, but they
-   are not the guard. `checkSchedule()` tests real data against the
-   contract.
-3. **Mount it**: `<HomeTimeSchedule adapter verdictFor />` in the tab, and
-   `<DriverHomeTime adapter driverCode />` wherever drivers work.
+2. **Write the adapter** (`ScheduleAdapter` in `contract.ts`). It has four
+   scoped reads (`loadQueue`, `loadBoard`, `loadDriverStays`, `loadStay`)
+   answering exactly as `scope.ts` does, and two writes, `requestStay` and
+   `actOnStay`. The server should run the same `applyAction` and
+   `checkNewStay` the sample adapter does, and it is where "a driver may only
+   read and touch their own stays" is enforced; the screens don't offer more
+   than a role should do, but they are not the guard. `checkSchedule()` tests
+   real data against the contract.
+3. **Mount the modules**: `<HomeTimeSchedule adapter verdictFor />` in the
+   tab, `<DriverHomeTime adapter driverCode />` wherever drivers work, or any
+   of the others on their own.
 4. **Join it to the planner**, where the host has both. Feed the planner's
    `homeTime` from `homeTimeFor`, and pass `verdictFor`, which plans the
    driver against a request's home-by. `src/features/preview/wiring.ts` is

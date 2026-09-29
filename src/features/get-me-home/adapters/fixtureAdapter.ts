@@ -24,16 +24,31 @@ import type { Adapter, Roster } from '../contract.ts'
 // ---------------------------------------------------------------------------
 const DELAY_MS = 400
 
+// Refuses a signal that is already cancelled, as fetch and axios do -- an
+// 'abort' listener added after the fact never fires.
+function pause(signal: AbortSignal): Promise<void> {
+  return new Promise<void>((resolve, reject) => {
+    if (signal.aborted) return reject(new DOMException('The roster request was cancelled.', 'AbortError'))
+    const timer = setTimeout(resolve, DELAY_MS)
+    signal.addEventListener('abort', () => {
+      clearTimeout(timer)
+      reject(new DOMException('The roster request was cancelled.', 'AbortError'))
+    })
+  })
+}
+
 export const fixtureAdapter: Adapter = {
   async loadRoster({ signal }) {
-    await new Promise<void>((resolve, reject) => {
-      const timer = setTimeout(resolve, DELAY_MS)
-      signal.addEventListener('abort', () => {
-        clearTimeout(timer)
-        reject(new DOMException('The roster request was cancelled.', 'AbortError'))
-      })
-    })
+    await pause(signal)
     // A copy, so nothing downstream can change the sample for the next load.
     return structuredClone(roster) as Roster
+  },
+
+  // One driver, as a roster of one -- the same answer a server's
+  // single-driver query gives, including an empty one for a stranger.
+  async loadDriver({ driverCode, signal }) {
+    await pause(signal)
+    const all = structuredClone(roster) as Roster
+    return { ...all, drivers: all.drivers.filter((d) => d.driverCode === driverCode) }
   },
 }

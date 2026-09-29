@@ -33,9 +33,13 @@ export type Seconds = number
 /** What an adapter hands the planner. Keep it STABLE -- module scope or
  * useMemo. A new adapter object every render is a new request every render. */
 export interface Adapter {
-  /** Fetch the roster for one organisation. `signal` aborts when the planner
-   * unmounts or asks again; pass it on to fetch or axios. */
+  /** Every driver in one organisation -- the roster screens. `signal` aborts
+   * when the module unmounts or asks again; pass it on to fetch or axios. */
   loadRoster(args: { organizationId: string | null; signal: AbortSignal }): Promise<Roster>
+  /** One driver, as a roster of one -- the single-driver screens. Reads are
+   * scoped per screen: a card about one driver does not fetch twenty. An
+   * unknown driver is a roster with no drivers, not an error. */
+  loadDriver(args: { organizationId: string | null; driverCode: string; signal: AbortSignal }): Promise<Roster>
 }
 
 export interface Roster {

@@ -15,8 +15,13 @@ import type { ApiHours, ApiPositions, ApiRosterDriver, ApiZones } from './loadbo
 // Plain fetch, not the load board's src/lib/api.js: this folder imports
 // nothing from outside itself, adapters included, so it type-checks alone.
 // ---------------------------------------------------------------------------
-async function get<T>(path: string, signal: AbortSignal): Promise<T> {
+// `orNull` turns a 404 into null: "no such truck" or "no such driver" is an
+// answer for one driver's read, not a failure of it.
+async function get<T>(path: string, signal: AbortSignal): Promise<T>
+async function get<T>(path: string, signal: AbortSignal, orNull: 'null-on-404'): Promise<T | null>
+async function get<T>(path: string, signal: AbortSignal, orNull?: 'null-on-404'): Promise<T | null> {
   const res = await fetch(path, { signal, headers: { Accept: 'application/json' } })
+  if (res.status === 404 && orNull) return null
   const isJson = (res.headers.get('content-type') || '').includes('application/json')
 
   if (res.ok) {
@@ -56,5 +61,31 @@ export const loadboardAdapter: Adapter = {
       get<ApiZones>('/api/telematics/zones', signal),
     ])
     return buildLoadboardRoster({ roster, positions, hours, zones })
+  },
+
+  // One driver. The API has no single-driver roster, but the roster is one
+  // cheap SQL query and names the driver's truck; GeoTab is the expensive
+  // part, and that IS asked about one truck and one driver only.
+  //
+  // One thing is lost by asking about one truck: a driver sitting in someone
+  // else's truck (a swap) is found by the full read, not by this one -- it
+  // knows only the truck the roster gives them.
+  async loadDriver({ driverCode, signal }) {
+    const [roster, zones] = await Promise.all([
+      get<ApiRosterDriver[]>('/api/roster', signal),
+      get<ApiZones>('/api/telematics/zones', signal),
+    ])
+    const driver = roster.find((d) => d.driverCode === driverCode)
+    if (!driver) return { drivers: [] }
+    const [positions, hours] = await Promise.all([
+      driver.unitNo ? get<ApiPositions>(`/api/telematics/positions?unit=${encodeURIComponent(driver.unitNo)}`, signal, 'null-on-404') : null,
+      get<ApiHours>(`/api/telematics/hours?driver=${encodeURIComponent(driverCode)}`, signal, 'null-on-404'),
+    ])
+    return buildLoadboardRoster({
+      roster: [driver],
+      positions: positions || { asOf: '', trucks: [] },
+      hours: hours || { asOf: '', drivers: [] },
+      zones,
+    })
   },
 }

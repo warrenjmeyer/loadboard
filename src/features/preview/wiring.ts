@@ -28,14 +28,19 @@ const SAMPLE = roster as Roster
 const NOW = SAMPLE.asOf || new Date().toISOString()
 const POLICY = mergePolicy(SAMPLE.policy)
 
+// Both reads, the same join: whatever the planner's sample returns, its home
+// time is replaced by the schedule's.
+function withScheduleHomeTime(r: Roster): Roster {
+  const stays = sampleStays()
+  return { ...r, drivers: r.drivers.map((d) => ({ ...d, homeTime: homeTimeFor(stays, d.driverCode, r.asOf || NOW) })) }
+}
+
 export const plannerOnSchedule: Adapter = {
   async loadRoster(args) {
-    const r = await fixtureAdapter.loadRoster(args)
-    const stays = sampleStays()
-    return {
-      ...r,
-      drivers: r.drivers.map((d) => ({ ...d, homeTime: homeTimeFor(stays, d.driverCode, r.asOf || NOW) })),
-    }
+    return withScheduleHomeTime(await fixtureAdapter.loadRoster(args))
+  },
+  async loadDriver(args) {
+    return withScheduleHomeTime(await fixtureAdapter.loadDriver(args))
   },
 }
 

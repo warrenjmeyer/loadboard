@@ -68,7 +68,8 @@ export default function Board({ drivers, stays, now, onOpen }: {
         {/* One row per driver */}
         {ordered.map((driver) => {
           const mine = stays.filter((s) => s.driverCode === driver.driverCode)
-          const last = homeTimeFor(stays, driver.driverCode, now).lastHomeAt
+          // A scoped read sends lastHomeAt; data held whole can work it out.
+          const last = driver.lastHomeAt !== undefined ? driver.lastHomeAt : homeTimeFor(stays, driver.driverCode, now).lastHomeAt
           const out = last ? Math.floor((nowMs - Date.parse(last)) / 86400000) : null
           return (
             <Box key={driver.driverCode} sx={{ display: 'contents' }}>

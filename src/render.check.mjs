@@ -877,6 +877,22 @@ const cases = [
   ['HomeTime all answered', '/src/features/home-time-schedule/ScheduleView.tsx', { data: homeTimeAnswered }],
   ['HomeTime loading', '/src/features/home-time-schedule/ScheduleView.tsx', { data: null, loading: true }],
   ['HomeTime error', '/src/features/home-time-schedule/ScheduleView.tsx', { data: null, error: 'HTTP 502' }],
+
+  // The schedule's pieces that draw on their own, from a slice of the data --
+  // the shape a scoped read returns.
+  ['HomeTime driver stays', '/src/features/home-time-schedule/DriverStays.tsx', {
+    data: { ...homeTimeSample, stays: homeTimeSample.stays.filter((s) => s.driverCode === 'TBOONE') },
+    driverCode: 'TBOONE', now: homeTimeSample.asOf, onRequest() {}, onCancel() {},
+  }],
+  ['HomeTime queue piece', '/src/features/home-time-schedule/DecisionList.tsx', {
+    stays: homeTimeSample.stays.filter((s) => s.status === 'REQUESTED'), drivers: homeTimeSample.drivers,
+    now: homeTimeSample.asOf, busyId: null, onApprove() {}, onDecline() {},
+  }],
+
+  // The modules page, whole: every demo mounted at once. Under a server
+  // renderer the wrappers show their loading state -- effects do not run --
+  // so this proves the page and every module on it render without throwing.
+  ['Modules page', '/src/features/preview/ModulesPage.tsx', {}],
 ]
 
 let failed = 0

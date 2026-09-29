@@ -59,6 +59,10 @@ export interface ScheduleDriver {
   driverCode: string
   name: string
   unitNo: string | null
+  /** When they last left home -- or now, if they are there. A scoped read
+   * sends this so a screen showing only some stays can still count days out
+   * (the stay it came from may be older than anything the screen loaded). */
+  lastHomeAt?: IsoMoment | null
 }
 
 export interface ScheduleData {
@@ -94,16 +98,49 @@ export interface StayVerdict {
   text: string
 }
 
+/** Every read gets these. */
+export interface ReadArgs {
+  organizationId: string | null
+  signal: AbortSignal
+}
+
 /** What the schedule needs from the host. Keep it STABLE (module scope or
  * useMemo), as with the planner's adapter. The host decides who may do what:
- * the schedule only offers each action where the status allows it. */
+ * the schedule only offers each action where the status allows it.
+ *
+ * READS ARE SCOPED PER SCREEN. There is no "load everything": each module
+ * asks for exactly what it shows, and the server answers with no more. That
+ * is a matter of size -- a year of stays is not a queue of three -- and of
+ * privacy: a driver's screen must not receive every other driver's stays to
+ * throw away. scope.ts says precisely what each read returns, as pure
+ * functions a JavaScript server can run as they stand. */
 export interface ScheduleAdapter {
-  loadSchedule(args: { organizationId: string | null; signal: AbortSignal }): Promise<ScheduleData>
-  /** A driver's request. Resolves to the stored stay, id and all. */
+  /** Requests waiting on dispatch (REQUESTED), and the drivers they are for.
+   * WHO: dispatch only. */
+  loadQueue(args: ReadArgs): Promise<ScheduleData>
+  /** Every driver, and the stays on the board between `from` and `to`.
+   * WHO: dispatch only -- the board is every driver's home time. */
+  loadBoard(args: ReadArgs & { from: IsoMoment; to: IsoMoment }): Promise<ScheduleData>
+  /** One driver, and their stays.
+   * WHO: dispatch, or THAT driver. A driver asking with anyone else's code
+   * is refused, not answered with an empty list. */
+  loadDriverStays(args: ReadArgs & { driverCode: string }): Promise<ScheduleData>
+  /** One stay, and its driver. Empty stays when there is no such stay.
+   * WHO: dispatch, or the driver whose stay it is. */
+  loadStay(args: ReadArgs & { id: string }): Promise<ScheduleData>
+  /** A driver's request. Resolves to the stored stay, id and all.
+   * WHO: the driver, for themselves -- the server takes driverCode from who
+   * is signed in, not from the body. */
   requestStay(stay: NewStay): Promise<Stay>
-  /** Dispatch or the driver acting on a stay. Resolves to it as stored after. */
+  /** Dispatch or the driver acting on a stay. Resolves to it as stored after.
+   * WHO: dispatch, any move; a driver, only `cancel`, on their own stay. */
   actOnStay(id: string, action: StayAction): Promise<Stay>
 }
+
+// SCOPING IS NOT THE GUARD. Each screen asks only for its slice, so a
+// driver's screen never RECEIVES other drivers' stays -- but a request can be
+// written by hand. The WHO on each method is enforced by the server from the
+// signed-in user; the screens are courteous, the server is strict.
 
 // ---------------------------------------------------------------------------
 // Checking data from outside -- `unknown`, like the planner's checkRoster,
