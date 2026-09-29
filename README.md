@@ -34,11 +34,15 @@ Two consequences worth holding onto:
   see `refuseDevWrites` in `vite.config.js`. Setting `VITE_API_TARGET` lifts
   the block, because setting it is the deliberate act of saying where writes
   should go.
-- **Dev always shows you signed out.** `/.auth` is proxied too, so `/.auth/me`
-  returns real JSON rather than the app shell — but the auth cookie belongs to
-  the deployed origin and is never sent to `localhost`. Only production knows
-  who you are. To exercise the add form for real, open a pull request and use
-  the preview environment it builds.
+- **You can sign in on the dev server, and still not write.** Signing in on
+  the deployed site does nothing for `localhost` — a cookie never crosses
+  origins. But the dev server lets exactly two POSTs through, `/api/login`
+  and `/api/logout`, so signing in at `http://localhost:5173/signin` puts the
+  session cookie on `localhost` itself, and every GET after that is made as
+  you. Every other write — a load, a charge, registering — is still refused.
+  To exercise the add form for real, open a pull request and use the preview
+  environment it builds. (`/.auth`, the platform's GitHub login, is proxied
+  too but stays signed out here.)
 - **Config changes need a restart.** Vite does not hot-reload `vite.config.js`.
   If `/api` suddenly returns the app shell instead of JSON, your dev server
   predates the proxy — stop it and start it again.

@@ -568,7 +568,8 @@ async function listEvents(request) {
 //
 // Every driver, and the load they are on if they are on one. This is what a
 // dispatcher looks at before assigning: who is free, who is already moving
-// and where they will end up. The existing /api/drivers lists only drivers
+// and where they will end up. The Get Me Home planner reads it too, for home
+// towns and final deliveries. The existing /api/drivers lists only drivers
 // who have been paid, because it exists to be clicked through to a statement;
 // this lists everyone, because a new hire with no settlement yet is exactly
 // who is free.
@@ -581,6 +582,7 @@ async function roster(request) {
   const pool = await getPool()
   const result = await pool.request().query(`
     SELECT d.driver_code, d.first_name, d.last_name, d.driver_type, d.unit_no, d.truck_description,
+           d.city, d.state, d.job,
            t.status AS truck_status,
            cur.id AS load_id, cur.status AS load_status, cur.destination AS load_destination,
            cur.delivery_end AS load_delivery_end,
@@ -608,6 +610,13 @@ async function roster(request) {
       // Retired, so the picker can say "truck in shop" beside the name.
       truckStatus: r.truck_status || null,
       openLoads: Number(r.open_loads),
+      // Where the driver lives, and what kind of driving they do. The Get Me
+      // Home planner needs both: home is where the trip ends, and the job
+      // ("OTR Driver") picks how long they can be out. Town and state only --
+      // the street address stays on the pay statement, which is the one
+      // document that needs it.
+      home: { city: r.city, state: r.state },
+      job: r.job,
       currentLoad: r.load_id
         ? { id: r.load_id, status: r.load_status, destination: r.load_destination, deliveryEnd: isoDateTime(r.load_delivery_end) }
         : null,

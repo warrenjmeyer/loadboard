@@ -25,11 +25,20 @@ wraps it in.
     npm run dev
     http://localhost:5173/get-me-home.html
 
-That page shows sample drivers. It exists only on the dev server: `vite
-build` compiles `index.html` and nothing else, so neither this page nor the
-sample roster ever reaches the deployed site.
+That page exists only on the dev server: `vite build` compiles `index.html`
+and nothing else, so neither this page nor its data ever reaches the
+deployed site. A switch at the top picks where the drivers come from:
 
-    node --test src/features/get-me-home/planHome.test.ts src/features/get-me-home/statusTable.test.ts
+- **Sample drivers**: nine made-up drivers from `fixtures/roster.json`, one
+  for every status, on a fixed clock. The page to design against.
+- **Live: API and GeoTab** (`?source=live`): the load board's real drivers
+  and loads, with positions and hours from GeoTab, read through the deployed
+  API. It needs a dispatcher or admin signed in on the dev server. Open
+  `http://localhost:5173/signin` first; the dev server lets sign-in through,
+  and still refuses every other write. Nothing records home time yet, so
+  live drivers have no request and no days-out count.
+
+    node --test src/features/get-me-home/planHome.test.ts src/features/get-me-home/statusTable.test.ts src/features/get-me-home/adapters/loadboardRoster.test.ts
     npm run typecheck                                       # the types
     node src/render.check.mjs                               # every screen state renders
 
@@ -50,12 +59,14 @@ sample roster ever reaches the deployed site.
 | `fixtures/statuses.json` | The status table's rows exactly as the app created them on 2026-09-29. | yes |
 | `tsconfig.json` | Type-checks this folder in the load board. | no; the host has its own |
 | `adapters/fixtureAdapter.ts` | Serves the sample roster. Also the template for a real adapter. | no |
+| `adapters/loadboardAdapter.ts`, `loadboardRoster.ts`, `dockTime.ts` | The load board's live adapter: its API and GeoTab, turned into a `Roster`, with 11 tests. **The worked example of a real adapter**: what to fetch, how a place gets coordinates, how a dock's local time gets a zone. | no, but read it |
 | `preview/` | The dev-only preview page. | no |
 
 ## Porting it
 
-1. **Copy the folder**, leaving out `preview/`, `adapters/fixtureAdapter.ts`
-   and `tsconfig.json`.
+1. **Copy the folder**, leaving out `preview/`, `adapters/` and
+   `tsconfig.json`. The adapters are the load board's side of the handshake;
+   the host writes its own.
 2. **Dependencies:** React 18 or later, and `@mui/material` 5 or later with
    emotion. It uses only core components (Box, Stack, Table, Card, Chip,
    Alert, Tooltip, LinearProgress, Button, Typography). Everything is styled

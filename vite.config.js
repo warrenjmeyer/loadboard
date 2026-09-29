@@ -47,7 +47,18 @@ const apiTarget = explicitTarget || 'https://wonderful-tree-0a929e80f.7.azuresta
 // To exercise writes against real infrastructure without this, open a pull
 // request: Static Web Apps builds it a preview environment on its own URL,
 // and tearing that down is closing the PR.
+//
+// TWO POSTS ARE LET THROUGH: signing in and signing out. They write a session
+// row, not freight, and without them the dev server could never read anything
+// a role guards -- the Get Me Home planner's live data is GeoTab hours, which
+// only a dispatcher may see. The proxy strips the Domain Azure adds to the
+// session cookie (see cookieDomainRewrite below), so it lands on localhost,
+// and the browser hands it back on every GET.
+// Register, verify, forgot and reset stay refused: they create accounts and
+// send email, which is a write to somebody's inbox.
 // ---------------------------------------------------------------------------
+const DEV_ALLOWED_POSTS = new Set(['/api/login', '/api/logout'])
+
 function refuseDevWrites() {
   return {
     name: 'refuse-dev-writes',
@@ -60,7 +71,9 @@ function refuseDevWrites() {
       server.middlewares.use((req, res, next) => {
         const isApi = req.url === '/api' || req.url.startsWith('/api/')
         const isRead = req.method === 'GET' || req.method === 'HEAD'
-        if (explicitTarget || !isApi || isRead) return next()
+        // Compared without the query string, and only for POST.
+        const isSession = req.method === 'POST' && DEV_ALLOWED_POSTS.has(req.url.split('?')[0])
+        if (explicitTarget || !isApi || isRead || isSession) return next()
 
         res.statusCode = 403
         res.setHeader('Content-Type', 'application/json')
@@ -106,6 +119,13 @@ export default defineConfig({
       '/api': {
         target: apiTarget,
         changeOrigin: true,
+        // Strip the Domain from every cookie on the way back. The API's own
+        // code sets none, but the deployed response arrives with
+        // `domain=wonderful-tree-...azurestaticapps.net` added by Azure -- and a
+        // browser on localhost silently discards a cookie that names another
+        // host. Signing in then "worked", answered 200, and left nobody
+        // signed in. With no Domain the cookie is localhost's own.
+        cookieDomainRewrite: { '*': '' },
       },
 
       // /.auth is served by Static Web Apps itself, not by our function, so
@@ -113,12 +133,11 @@ export default defineConfig({
       // /.auth/me returns the SPA fallback and the page cannot tell whether
       // anyone is signed in.
       //
-      // Proxying it does not sign you in on localhost, and cannot: the auth
-      // cookie belongs to the deployed origin and is never sent to a
-      // different host. So dev shows you as signed out, always. That is the
-      // same seam as the API proxy -- dev is pointed at production and only
-      // production knows who you are -- and it is the other half of why
-      // writes are refused above.
+      // Proxying it does not sign you in on localhost: a cookie from the
+      // deployed origin is never sent to a different host. /.auth is the
+      // PLATFORM's login (GitHub), and stays signed out here. The app's own
+      // login is different -- POST /api/login through the proxy, which
+      // refuseDevWrites lets past, sets lb_session on localhost itself.
       '/.auth': {
         target: apiTarget,
         changeOrigin: true,
