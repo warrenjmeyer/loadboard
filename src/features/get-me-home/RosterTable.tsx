@@ -110,7 +110,7 @@ function NowCell({ plan, short }: { plan: Plan; short: Short }) {
 // when to start, or -- with no request -- simply when they could be home.
 function HomeByCell({ plan, short }: { plan: Plan; short: Short }) {
   const { schedule, slackSeconds, leaveBy, status, requestedBy } = plan
-  if (status === 'home') return <Two main="Home now" />
+  if (status === 'HOME') return <Two main="Home now" />
 
   const main = requestedBy ? short(requestedBy) : 'No request'
   if (!schedule) return <Two main={main} />
@@ -124,7 +124,7 @@ function HomeByCell({ plan, short }: { plan: Plan; short: Short }) {
     <Two
       main={main}
       sub={`start by ${short(leaveBy)}`}
-      subColor={status === 'tight' ? 'warning.main' : undefined}
+      subColor={status === 'TIGHT' ? 'warning.main' : undefined}
       title={`Earliest home ${formatWhen(schedule.arriveAt)}`}
     />
   )

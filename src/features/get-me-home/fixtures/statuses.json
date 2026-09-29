@@ -1,0 +1,11 @@
+[
+  { "fk_get_me_home_status_Id": 0, "fk_get_me_home_status": "Undefined", "Choice_Key": "-", "IsActive": 1, "Created_At": "2026-09-29 14:18:34.433", "Updated_At": "2026-09-29 14:18:34.433", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 1, "fk_get_me_home_status": "LATE", "Choice_Key": "a", "IsActive": 1, "Created_At": "2026-09-29 14:21:44.127", "Updated_At": "2026-09-29 14:21:44.127", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 2, "fk_get_me_home_status": "TIGHT", "Choice_Key": "b", "IsActive": 1, "Created_At": "2026-09-29 14:24:43.883", "Updated_At": "2026-09-29 14:24:43.883", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 3, "fk_get_me_home_status": "OVERDUE", "Choice_Key": "c", "IsActive": 1, "Created_At": "2026-09-29 14:24:55.173", "Updated_At": "2026-09-29 14:24:55.173", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 4, "fk_get_me_home_status": "NOLOCATION", "Choice_Key": "d", "IsActive": 1, "Created_At": "2026-09-29 14:25:25.770", "Updated_At": "2026-09-29 14:25:25.770", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 5, "fk_get_me_home_status": "SOON", "Choice_Key": "e", "IsActive": 1, "Created_At": "2026-09-29 14:25:38.583", "Updated_At": "2026-09-29 14:25:38.583", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 6, "fk_get_me_home_status": "ONTRACK", "Choice_Key": "f", "IsActive": 1, "Created_At": "2026-09-29 14:25:51.017", "Updated_At": "2026-09-29 14:25:51.017", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 7, "fk_get_me_home_status": "ONTHEROAD", "Choice_Key": "g", "IsActive": 1, "Created_At": "2026-09-29 14:26:03.017", "Updated_At": "2026-09-29 14:26:03.017", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "fk_get_me_home_status_Id": 8, "fk_get_me_home_status": "HOME", "Choice_Key": "h", "IsActive": 1, "Created_At": "2026-09-29 14:26:14.670", "Updated_At": "2026-09-29 14:26:14.670", "Created_By": null, "j": 1, "TTP_ID": 0 }
+]

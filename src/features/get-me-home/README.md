@@ -29,7 +29,7 @@ That page shows sample drivers. It exists only on the dev server: `vite
 build` compiles `index.html` and nothing else, so neither this page nor the
 sample roster ever reaches the deployed site.
 
-    node --test src/features/get-me-home/planHome.test.ts   # the rules
+    node --test src/features/get-me-home/planHome.test.ts src/features/get-me-home/statusTable.test.ts
     npm run typecheck                                       # the types
     node src/render.check.mjs                               # every screen state renders
 
@@ -43,9 +43,11 @@ sample roster ever reaches the deployed site.
 | `RosterTable.tsx`, `DriverPlan.tsx`, `StatusChip.tsx` | The parts of the screen. | yes |
 | `planHome.ts` | **All the rules**, and the types of what they produce (`Plan`, `Schedule`, `Status`). No React, no runtime imports. | yes, unchanged |
 | `contract.ts` | The types of the data the planner needs (`Roster`, `Driver`, `Adapter`), plus `checkRoster()` to test real data against them. | yes |
+| `statusTable.ts` | Keeps the planner's statuses and the `DRVR.fk_get_me_home_status` table in step: `checkStatusRows()`, `statusIds()`. | yes |
 | `status.ts`, `format.ts` | Labels, colours (palette names), date and duration formatting. | yes |
-| `planHome.test.ts` | 24 tests. Run them after the port to prove it. | yes |
+| `planHome.test.ts`, `statusTable.test.ts` | 31 tests. Run them after the port to prove it. | yes |
 | `fixtures/roster.json` | A complete, valid sample roster. The tests use it. | yes |
+| `fixtures/statuses.json` | The status table's rows exactly as the app created them on 2026-09-29. | yes |
 | `tsconfig.json` | Type-checks this folder in the load board. | no; the host has its own |
 | `adapters/fixtureAdapter.ts` | Serves the sample roster. Also the template for a real adapter. | no |
 | `preview/` | The dev-only preview page. | no |
@@ -65,7 +67,7 @@ sample roster ever reaches the deployed site.
    template already turns on. If yours doesn't, turn it on, or find and
    replace `.ts'` and `.tsx'` in the imports. The code uses no enums or
    namespaces, so it also passes `erasableSyntaxOnly`.
-4. **Run the tests** with `node --test planHome.test.ts`. That needs Node
+4. **Run the tests** with `node --test planHome.test.ts statusTable.test.ts`. That needs Node
    22.18 or later, which runs TypeScript directly; on older Node, run them
    under Vitest. If they pass on your side, the rules came across intact.
 5. **Write the adapter.** It is one object with one method, and the
@@ -149,18 +151,45 @@ the data behind it has to come from somewhere.
 
 ## How it decides
 
-| Status | Means |
-|---|---|
-| **Won't make it** | Can't be home by the requested time, even leaving now. |
-| **Route home now** | Can make it, with less than 12 hours to spare. |
-| **Overdue home** | No request open, and out longer than policy allows. |
-| **Can't place** | No position and no current load, so there is no trip to plan. |
-| **Due home soon** | No request, close to the days-out limit. |
-| **On track** | Makes the request with 12+ hours to spare. |
-| **On the road** | No request, well inside the limit. |
-| **Home** | Empty, and within 25 miles of home. |
+| Code | Shown as | Means |
+|---|---|---|
+| `LATE` | **Won't make it** | Can't be home by the requested time, even leaving now. |
+| `TIGHT` | **Route home now** | Can make it, with less than 12 hours to spare. |
+| `OVERDUE` | **Overdue home** | No request open, and out longer than policy allows. |
+| `NOLOCATION` | **Can't place** | No position and no current load, so there is no trip to plan. |
+| `SOON` | **Due home soon** | No request, close to the days-out limit. |
+| `ONTRACK` | **On track** | Makes the request with 12+ hours to spare. |
+| `ONTHEROAD` | **On the road** | No request, well inside the limit. |
+| `HOME` | **Home** | Empty, and within 25 miles of home. |
 
 The roster sorts in that order, least spare time first within a status.
+
+### The status lookup table
+
+The codes are the rows of `DRVR.fk_get_me_home_status`, a lookup table the
+stakeholder created through the app. It exists so that anything which
+*stores* a status (a saved plan, a home-time request) can hold it as a
+foreign key. The planner itself stores nothing; it works the status out on
+every load.
+
+- **Rows are matched by name** (the `fk_get_me_home_status` column), never by
+  `fk_get_me_home_status_Id` or `Choice_Key`. The app hands out both Ids and
+  keys in the order rows are created (1–8 and `a`–`h`), so a database built
+  in a different order would disagree on them. The name is what a person
+  chose.
+- **The table holds codes; the words a dispatcher reads live in `status.ts`**,
+  alongside the colours.
+- **Row 0, `Undefined`**, is the app's placeholder in every lookup table (the
+  column default). It is not a status and is ignored.
+- **To store a status as a foreign key**, `statusIds(rows)` gives the Id for
+  each code: `LATE` → 1, …, `HOME` → 8 in the current table.
+- **Keeping them in step.** The table is edited through the app and the
+  rules live in code, so nothing else stops them drifting.
+  `checkStatusRows(rows)` compares the table's actual rows (from `SELECT *`)
+  with the planner and lists every mismatch: a renamed row, a missing or
+  extra one, a duplicate, a status switched off. Run it after the port and
+  whenever someone edits the table. Adding a status means a new row *and* a
+  new rule in `planHome.ts`; either one alone shows up here.
 
 **Hours of service.** Uses the US property-carrying rules: 11 hours driving
 inside a 14-hour window, then a 10-hour rest; a 30-minute break after 8

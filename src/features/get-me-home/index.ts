@@ -7,10 +7,13 @@ export type { GetMeHomePlannerProps } from './GetMeHomePlanner.tsx'
 export { default as PlannerView } from './PlannerView.tsx'
 export type { PlannerViewProps } from './PlannerView.tsx'
 
-export { planRoster, planDriver, scheduleDrive, DEFAULT_POLICY } from './planHome.ts'
+export { planRoster, planDriver, scheduleDrive, DEFAULT_POLICY, STATUS_ORDER } from './planHome.ts'
 export type {
   Plan, RosterPlan, Schedule, Block, BlockKind, Start, PlannedRoute, PlanWarning, WarningCode, Status, Policy,
 } from './planHome.ts'
+
+export { checkStatusRows, statusIds } from './statusTable.ts'
+export type { StatusRow } from './statusTable.ts'
 
 export { checkRoster, JOB_TYPES } from './contract.ts'
 export type {

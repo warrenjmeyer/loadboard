@@ -8,9 +8,12 @@ import type { BlockKind, Status } from './planHome.ts'
 // "error" and "warning" look like, so the planner picks up its colours from
 // the app it lands in instead of bringing the load board's along.
 //
-// Filled is for "act today", outlined for "worth knowing". Only late and
-// tight are filled red and amber; overdue is outlined, because with no
+// Filled is for "act today", outlined for "worth knowing". Only LATE and
+// TIGHT are filled red and amber; OVERDUE is outlined, because with no
 // request open it is a conversation to start, not a deadline being missed.
+//
+// Keyed by the names in DRVR.fk_get_me_home_status. The table holds the
+// codes; the words a dispatcher reads live here, next to the colours.
 //
 // Typed as a Record over Status, so a status added to planHome.ts and
 // forgotten here is a compile error rather than a chip with no label.
@@ -24,56 +27,56 @@ export interface StatusMeta {
 }
 
 export const STATUS: Record<Status, StatusMeta> = {
-  late: {
+  LATE: {
     label: "Won't make it",
     count: (n) => `${n} won't make it`,
     color: 'error',
     variant: 'filled',
     hint: 'Cannot be home by the requested time, even starting now. The request needs a new date or a different plan.',
   },
-  tight: {
+  TIGHT: {
     label: 'Route home now',
     count: (n) => `${n} to route now`,
     color: 'warning',
     variant: 'filled',
     hint: 'Can still make it, with less than 12 hours to spare. The next load should point them home.',
   },
-  overdue: {
+  OVERDUE: {
     label: 'Overdue home',
     count: (n) => `${n} overdue`,
     color: 'error',
     variant: 'outlined',
     hint: 'Out longer than company policy allows, and no home time requested yet.',
   },
-  unknown: {
+  NOLOCATION: {
     label: "Can't place",
     count: (n) => `${n} can't place`,
     color: 'default',
     variant: 'outlined',
     hint: 'No position and no current load, so there is no trip home to plan.',
   },
-  'due-soon': {
+  SOON: {
     label: 'Due home soon',
     count: (n) => `${n} due soon`,
     color: 'warning',
     variant: 'outlined',
     hint: 'Close to the days-out limit for this kind of driver.',
   },
-  'on-track': {
+  ONTRACK: {
     label: 'On track',
     count: (n) => `${n} on track`,
     color: 'success',
     variant: 'outlined',
     hint: 'Home by the requested time with at least 12 hours to spare.',
   },
-  ok: {
+  ONTHEROAD: {
     label: 'On the road',
     count: (n) => `${n} on the road`,
     color: 'default',
     variant: 'outlined',
     hint: 'No request open and well inside the days-out limit.',
   },
-  home: {
+  HOME: {
     label: 'Home',
     count: (n) => `${n} home`,
     color: 'success',
@@ -83,7 +86,7 @@ export const STATUS: Record<Status, StatusMeta> = {
 }
 
 // The statuses worth a chip in the header. The rest are the quiet majority.
-export const ATTENTION: readonly Status[] = ['late', 'tight', 'overdue', 'unknown', 'due-soon']
+export const ATTENTION: readonly Status[] = ['LATE', 'TIGHT', 'OVERDUE', 'NOLOCATION', 'SOON']
 
 // How each kind of block in a trip is named and coloured. Palette paths
 // again, resolved by the theme.

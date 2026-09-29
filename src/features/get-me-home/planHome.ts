@@ -43,7 +43,14 @@ import type { Driver, Hours, IsoMoment, JobType, Place, PolicyInput, Roster, Rou
 // ---------------------------------------------------------------------------
 // What the planner hands back. The screen reads these and nothing else.
 // ---------------------------------------------------------------------------
-export type Status = 'late' | 'tight' | 'overdue' | 'unknown' | 'due-soon' | 'on-track' | 'ok' | 'home'
+// The statuses are the rows of the stakeholder's lookup table,
+// DRVR.fk_get_me_home_status, spelled exactly as its fk_get_me_home_status
+// column spells them. That NAME is the key, not the Id and not Choice_Key:
+// the app hands out both in the order rows are created (Ids 1-8, keys a-h),
+// so another database built in another order would disagree on either. The
+// name is the one value a person chose. statusTable.ts checks that the table
+// and this list still agree.
+export type Status = 'LATE' | 'TIGHT' | 'OVERDUE' | 'NOLOCATION' | 'SOON' | 'ONTRACK' | 'ONTHEROAD' | 'HOME'
 
 export type BlockKind = 'drive' | 'break' | 'rest' | 'restart'
 
@@ -178,10 +185,11 @@ export const DEFAULT_POLICY: Policy = {
   dueSoonDays: 2,
 }
 
-// Most urgent first. "late" and "tight" are the ones that need a dispatcher
-// today; "unknown" sits above the routine ones because a driver nobody can
-// place is a question somebody should be asking.
-export const STATUS_ORDER: readonly Status[] = ['late', 'tight', 'overdue', 'unknown', 'due-soon', 'on-track', 'ok', 'home']
+// Most urgent first -- the same order as the table's Ids, though nothing
+// relies on that. LATE and TIGHT are the ones that need a dispatcher today;
+// NOLOCATION sits above the routine ones because a driver nobody can place
+// is a question somebody should be asking.
+export const STATUS_ORDER: readonly Status[] = ['LATE', 'TIGHT', 'OVERDUE', 'NOLOCATION', 'SOON', 'ONTRACK', 'ONTHEROAD', 'HOME']
 
 // ---------------------------------------------------------------------------
 // Small readers. They take `unknown` because they are the guard at the door:
@@ -478,21 +486,21 @@ function decideStatus({ start, route, schedule, slackSeconds, daysOut, maxDaysOu
   maxDaysOut: number
   dueSoonDays: number
 }): Status {
-  if (!start || !route || !schedule) return 'unknown'
-  // Only a truck that is empty and sitting in its home town is "home". One
+  if (!start || !route || !schedule) return 'NOLOCATION'
+  // Only a truck that is empty and sitting in its home town is HOME. One
   // delivering there is still working.
-  if (start.from === 'position' && route.miles <= AT_HOME_MILES) return 'home'
+  if (start.from === 'position' && route.miles <= AT_HOME_MILES) return 'HOME'
   if (slackSeconds !== null) {
-    if (slackSeconds < 0) return 'late'
-    if (slackSeconds < TIGHT_SECONDS) return 'tight'
-    return 'on-track'
+    if (slackSeconds < 0) return 'LATE'
+    if (slackSeconds < TIGHT_SECONDS) return 'TIGHT'
+    return 'ONTRACK'
   }
-  if (daysOut !== null && daysOut > maxDaysOut) return 'overdue'
+  if (daysOut !== null && daysOut > maxDaysOut) return 'OVERDUE'
   // "Soon" scales down for short limits, or a local driver home every night
   // would be due soon from the moment they left the yard.
   const soon = Math.min(dueSoonDays, Math.floor(maxDaysOut / 3))
-  if (daysOut !== null && daysOut > 0 && daysOut >= maxDaysOut - soon) return 'due-soon'
-  return 'ok'
+  if (daysOut !== null && daysOut > 0 && daysOut >= maxDaysOut - soon) return 'SOON'
+  return 'ONTHEROAD'
 }
 
 export function mergePolicy(policy?: PolicyInput | null): Policy {

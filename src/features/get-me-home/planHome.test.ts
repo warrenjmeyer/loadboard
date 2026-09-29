@@ -5,7 +5,7 @@ import {
   HOS, AT_HOME_MILES, DEFAULT_POLICY, placeable, milesBetween, estimateRoute, scheduleDrive,
   daysBetween, planDriver, planRoster, mergePolicy,
 } from './planHome.ts'
-import type { Schedule } from './planHome.ts'
+import type { Schedule, Status } from './planHome.ts'
 import { checkRoster } from './contract.ts'
 import type { Driver, JobType, Roster } from './contract.ts'
 
@@ -31,6 +31,14 @@ function must<T>(value: T | null | undefined, what = 'a value'): T {
   return value
 }
 const kinds = (s: Schedule) => s.blocks.map((b) => b.kind)
+
+// Statuses are compared through this rather than assert.equal, whose second
+// argument is `unknown`. Typed as Status, the expected value is checked by
+// the compiler: a status misspelt here -- or one renamed in the lookup table
+// and not here -- fails `npm run typecheck` instead of failing forever.
+function isStatus(actual: Status, expected: Status): void {
+  assert.equal(actual, expected)
+}
 
 const CEDAR_RAPIDS = { place: 'Cedar Rapids, IA', latitude: 41.9779, longitude: -91.6656 }
 const CHICAGO = { latitude: 41.8781, longitude: -87.6298 }
@@ -125,9 +133,9 @@ function driver(overrides: Partial<Driver> = {}): Driver {
 test('home by a time it cannot make is late; with under 12 hours spare it is tight; otherwise on track', () => {
   const at = (requestedBy: string) => planDriver(driver({ homeTime: { lastHomeAt: null, requestedBy } }), { now: START }).status
   // Chicago to Cedar Rapids is about five hours at the estimate's speed.
-  assert.equal(at('2026-09-28T17:00:00Z'), 'late')
-  assert.equal(at('2026-09-28T23:00:00Z'), 'tight')
-  assert.equal(at('2026-09-30T12:00:00Z'), 'on-track')
+  isStatus(at('2026-09-28T17:00:00Z'), 'LATE')
+  isStatus(at('2026-09-28T23:00:00Z'), 'TIGHT')
+  isStatus(at('2026-09-30T12:00:00Z'), 'ONTRACK')
 })
 
 test('the latest start is now plus the spare time', () => {
@@ -138,12 +146,12 @@ test('the latest start is now plus the spare time', () => {
 test('with no request, days out against the policy decide overdue, due soon, or ok', () => {
   const out = (lastHomeAt: string, jobType: JobType = 'Regional') =>
     planDriver(driver({ jobType, homeTime: { lastHomeAt, requestedBy: null } }), { now: START }).status
-  assert.equal(out('2026-09-20T12:00:00Z'), 'overdue') // 8 of 7
-  assert.equal(out('2026-09-23T12:00:00Z'), 'due-soon') // 5 of 7
-  assert.equal(out('2026-09-26T12:00:00Z'), 'ok') // 2 of 7
+  isStatus(out('2026-09-20T12:00:00Z'), 'OVERDUE') // 8 of 7
+  isStatus(out('2026-09-23T12:00:00Z'), 'SOON') // 5 of 7
+  isStatus(out('2026-09-26T12:00:00Z'), 'ONTHEROAD') // 2 of 7
   // A local driver is not "due soon" the morning they leave the yard.
-  assert.equal(out('2026-09-28T06:00:00Z', 'Local'), 'ok')
-  assert.equal(out('2026-09-27T06:00:00Z', 'Local'), 'due-soon')
+  isStatus(out('2026-09-28T06:00:00Z', 'Local'), 'ONTHEROAD')
+  isStatus(out('2026-09-27T06:00:00Z', 'Local'), 'SOON')
 })
 
 test('a jobType the policy does not know -- or an empty one -- takes the default limit', () => {
@@ -157,13 +165,13 @@ test('a jobType the policy does not know -- or an empty one -- takes the default
 
 test('an empty truck in its home town is home; one delivering there is not', () => {
   const inTown = { near: 'Cedar Rapids, IA', latitude: 41.99, longitude: -91.64, reportedAt: START }
-  assert.equal(planDriver(driver({ position: inTown }), { now: START }).status, 'home')
+  isStatus(planDriver(driver({ position: inTown }), { now: START }).status, 'HOME')
 
   const delivering = planDriver(driver({
     currentLoad: { id: 'L-1', finalStop: { place: 'Marion, IA', latitude: 42.03, longitude: -91.6 }, emptyAt: '2026-09-28T20:00:00Z' },
   }), { now: START })
   assert.ok(must(delivering.route).miles <= AT_HOME_MILES)
-  assert.notEqual(delivering.status, 'home')
+  assert.notEqual(delivering.status, 'HOME' satisfies Status)
 })
 
 test('a driver on a load goes home from the last stop, once it is empty, after a rest', () => {
@@ -184,7 +192,7 @@ test('a route the host sends beats the estimate', () => {
 
 test('a truck nobody can place has no plan, and says why', () => {
   const p = planDriver(driver({ position: null }), { now: START })
-  assert.equal(p.status, 'unknown')
+  isStatus(p.status, 'NOLOCATION')
   assert.equal(p.schedule, null)
   assert.ok(p.warnings.some((w) => w.code === 'unplaced'))
 })
@@ -222,13 +230,13 @@ test('the contract catches the mistakes a port makes', () => {
 test('the sample roster covers every status, most urgent first', () => {
   const { plans, counts } = planRoster(roster)
   assert.deepEqual(plans.map((p) => p.status), [
-    'late', 'tight', 'tight', 'overdue', 'unknown', 'due-soon', 'on-track', 'ok', 'home',
-  ])
-  assert.equal(counts.tight, 2)
+    'LATE', 'TIGHT', 'TIGHT', 'OVERDUE', 'NOLOCATION', 'SOON', 'ONTRACK', 'ONTHEROAD', 'HOME',
+  ] satisfies Status[])
+  assert.equal(counts.TIGHT, 2)
   // Of the two tight drivers, the one with less time to spare comes first.
   assert.ok(must(plans[1]?.slackSeconds) <= must(plans[2]?.slackSeconds))
   // Dale Foster is tight because of the restart, not the miles.
   const foster = must(plans.find((p) => p.driverCode === 'DFOSTER'), 'Dale Foster')
-  assert.equal(foster.status, 'tight')
+  isStatus(foster.status, 'TIGHT')
   assert.equal(must(foster.schedule).restarts, 1)
 })

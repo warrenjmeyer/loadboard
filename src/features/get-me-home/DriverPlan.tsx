@@ -48,7 +48,7 @@ export default function DriverPlan({ plan }: { plan: Plan | null }) {
 
         <Facts plan={plan} />
 
-        {schedule && schedule.blocks.length > 0 && plan.status !== 'home' && (
+        {schedule && schedule.blocks.length > 0 && plan.status !== 'HOME' && (
           <>
             <Divider sx={{ my: 2 }} />
             <Typography variant="subtitle2" component="h4">The trip home</Typography>
@@ -93,7 +93,7 @@ function Facts({ plan }: { plan: Plan }) {
     ].filter(Boolean).join(', ')
     rows.push(['Off duty on the way', `${formatDuration(schedule.offSeconds)}${parts ? ` (${parts})` : ''}`])
   }
-  if (schedule && plan.status !== 'home') rows.push(['Earliest home', formatWhen(schedule.arriveAt)])
+  if (schedule && plan.status !== 'HOME') rows.push(['Earliest home', formatWhen(schedule.arriveAt)])
   rows.push(['Asked to be home by', plan.requestedBy ? formatWhen(plan.requestedBy) : 'No request open'])
   if (plan.slackSeconds !== null) {
     rows.push(plan.slackSeconds < 0
