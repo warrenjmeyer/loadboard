@@ -1,6 +1,7 @@
 {
-  // Type-checks this folder, and only this folder: the rest of the load board
-  // is JavaScript and stays that way. `npm run typecheck` runs it.
+  // Type-checks src/features -- everything built here for MyTechgacity, and
+  // the preview page that hosts it -- and nothing else: the rest of the load
+  // board is JavaScript and stays that way. `npm run typecheck` runs it.
   //
   // The settings are Vite's own react-ts template -- the most likely shape of
   // the host's tsconfig -- so code that passes here should pass there.

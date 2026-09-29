@@ -1,0 +1,79 @@
+{
+  "about": "Sample home-time schedule, on the same clock and drivers as the planner's sample roster. Each driver's last DONE stay ends when the planner says they were last home, and each open request is the planner's 'asked to be home by' -- src/features/sampleData.test.ts checks that the two samples agree.",
+  "asOf": "2026-09-28T15:00:00Z",
+  "drivers": [
+    { "driverCode": "ACORTEZ", "name": "Alma Cortez", "unitNo": "Demo - 03" },
+    { "driverCode": "DFOSTER", "name": "Dale Foster", "unitNo": "Demo - 05" },
+    { "driverCode": "HBARNETT", "name": "Hollis Barnett", "unitNo": "Demo - 01" },
+    { "driverCode": "LHARTMAN", "name": "Lena Hartman", "unitNo": "Demo - 07" },
+    { "driverCode": "RDELGADO", "name": "Rosa Delgado", "unitNo": "Demo - 04" },
+    { "driverCode": "PRAMAN", "name": "Priya Raman", "unitNo": "Demo - 13" },
+    { "driverCode": "SOAKS", "name": "Sherman Oaks", "unitNo": "Demo - 10" },
+    { "driverCode": "TBOONE", "name": "Terrell Boone", "unitNo": "Demo - 02" },
+    { "driverCode": "RVASQUEZ", "name": "Rey Vasquez", "unitNo": "Demo - 21" },
+    { "driverCode": "MWEBB", "name": "Marcus Webb", "unitNo": "Demo - 18" }
+  ],
+  "stays": [
+    { "id": "HT-1001", "driverCode": "TBOONE", "status": "DONE", "homeBy": "2026-09-08T23:00:00Z", "backOut": "2026-09-12T13:00:00Z", "note": null,
+      "requestedAt": "2026-09-02T15:00:00Z", "decidedAt": "2026-09-02T18:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-08T22:40:00Z", "leftAt": "2026-09-12T13:00:00Z" },
+    { "id": "HT-1011", "driverCode": "TBOONE", "status": "REQUESTED", "homeBy": "2026-09-29T18:00:00-05:00", "backOut": "2026-10-04T06:00:00-05:00",
+      "note": "Son's homecoming game Tuesday night",
+      "requestedAt": "2026-09-27T02:10:00Z", "decidedAt": null, "decidedBy": null, "declineReason": null, "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1002", "driverCode": "HBARNETT", "status": "DONE", "homeBy": "2026-09-19T22:00:00Z", "backOut": "2026-09-22T12:00:00Z", "note": null,
+      "requestedAt": "2026-09-15T14:00:00Z", "decidedAt": "2026-09-15T16:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-19T21:30:00Z", "leftAt": "2026-09-22T12:00:00Z" },
+    { "id": "HT-1012", "driverCode": "HBARNETT", "status": "REQUESTED", "homeBy": "2026-09-29T12:00:00-05:00", "backOut": "2026-09-30T06:00:00-05:00",
+      "note": "Doctor's appointment Tuesday afternoon",
+      "requestedAt": "2026-09-28T13:05:00Z", "decidedAt": null, "decidedBy": null, "declineReason": null, "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1003", "driverCode": "DFOSTER", "status": "DONE", "homeBy": "2026-09-12T22:00:00Z", "backOut": "2026-09-16T14:00:00Z", "note": null,
+      "requestedAt": "2026-09-08T13:00:00Z", "decidedAt": "2026-09-08T15:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-12T23:10:00Z", "leftAt": "2026-09-16T14:00:00Z" },
+    { "id": "HT-1013", "driverCode": "DFOSTER", "status": "REQUESTED", "homeBy": "2026-10-01T12:00:00-05:00", "backOut": "2026-10-05T06:00:00-05:00",
+      "note": null,
+      "requestedAt": "2026-09-28T09:30:00Z", "decidedAt": null, "decidedBy": null, "declineReason": null, "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1004", "driverCode": "ACORTEZ", "status": "DONE", "homeBy": "2026-09-06T22:00:00Z", "backOut": "2026-09-10T15:00:00Z", "note": null,
+      "requestedAt": "2026-09-01T12:00:00Z", "decidedAt": "2026-09-01T14:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-06T21:00:00Z", "leftAt": "2026-09-10T15:00:00Z" },
+    { "id": "HT-1014", "driverCode": "ACORTEZ", "status": "APPROVED", "homeBy": "2026-10-01T18:00:00-05:00", "backOut": "2026-10-05T18:00:00-05:00",
+      "note": null,
+      "requestedAt": "2026-09-24T19:00:00Z", "decidedAt": "2026-09-25T14:30:00Z", "decidedBy": "Dispatch", "declineReason": null, "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1005", "driverCode": "RDELGADO", "status": "DONE", "homeBy": "2026-09-17T22:00:00Z", "backOut": "2026-09-19T20:00:00Z", "note": null,
+      "requestedAt": "2026-09-14T13:00:00Z", "decidedAt": "2026-09-14T15:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-17T22:30:00Z", "leftAt": "2026-09-19T20:00:00Z" },
+    { "id": "HT-1015", "driverCode": "RDELGADO", "status": "DECLINED", "homeBy": "2026-09-26T22:00:00Z", "backOut": "2026-09-28T12:00:00Z",
+      "note": "Family reunion",
+      "requestedAt": "2026-09-23T13:00:00Z", "decidedAt": "2026-09-23T17:45:00Z", "decidedBy": "Dispatch",
+      "declineReason": "The dedicated account needs cover this weekend. Offered Oct 2 instead.", "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1006", "driverCode": "RVASQUEZ", "status": "DONE", "homeBy": "2026-09-10T22:00:00Z", "backOut": "2026-09-14T12:00:00Z", "note": null,
+      "requestedAt": "2026-09-05T12:00:00Z", "decidedAt": "2026-09-05T13:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-10T23:00:00Z", "leftAt": "2026-09-14T12:00:00Z" },
+
+    { "id": "HT-1007", "driverCode": "LHARTMAN", "status": "DONE", "homeBy": "2026-09-20T22:00:00Z", "backOut": "2026-09-23T12:00:00Z", "note": null,
+      "requestedAt": "2026-09-16T12:00:00Z", "decidedAt": "2026-09-16T14:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-20T22:15:00Z", "leftAt": "2026-09-23T12:00:00Z" },
+    { "id": "HT-1016", "driverCode": "LHARTMAN", "status": "CANCELLED", "homeBy": "2026-10-02T22:00:00Z", "backOut": "2026-10-04T22:00:00Z",
+      "note": "Cousin's wedding",
+      "requestedAt": "2026-09-21T12:00:00Z", "decidedAt": "2026-09-21T15:00:00Z", "decidedBy": "Dispatch", "declineReason": null, "arrivedAt": null, "leftAt": null },
+
+    { "id": "HT-1008", "driverCode": "PRAMAN", "status": "DONE", "homeBy": "2026-09-24T22:00:00Z", "backOut": "2026-09-25T22:00:00Z", "note": null,
+      "requestedAt": "2026-09-20T12:00:00Z", "decidedAt": "2026-09-20T13:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-24T22:20:00Z", "leftAt": "2026-09-25T22:00:00Z" },
+
+    { "id": "HT-1009", "driverCode": "SOAKS", "status": "DONE", "homeBy": "2026-09-27T23:00:00Z", "backOut": "2026-09-28T11:00:00Z", "note": null,
+      "requestedAt": "2026-09-27T11:00:00Z", "decidedAt": "2026-09-27T11:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-27T23:05:00Z", "leftAt": "2026-09-28T11:00:00Z" },
+
+    { "id": "HT-1017", "driverCode": "MWEBB", "status": "DONE", "homeBy": "2026-09-19T22:00:00Z", "backOut": "2026-09-21T11:00:00Z", "note": null,
+      "requestedAt": "2026-09-15T12:00:00Z", "decidedAt": "2026-09-15T13:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-19T22:40:00Z", "leftAt": "2026-09-21T11:00:00Z" },
+    { "id": "HT-1010", "driverCode": "MWEBB", "status": "HOME", "homeBy": "2026-09-26T22:00:00Z", "backOut": "2026-09-29T11:00:00Z", "note": null,
+      "requestedAt": "2026-09-21T14:00:00Z", "decidedAt": "2026-09-21T16:00:00Z", "decidedBy": "Dispatch", "declineReason": null,
+      "arrivedAt": "2026-09-26T21:15:00Z", "leftAt": null }
+  ]
+}

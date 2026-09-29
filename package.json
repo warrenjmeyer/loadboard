@@ -8,7 +8,7 @@
     "build": "vite build",
     "preview": "vite preview",
     "test": "node --test",
-    "typecheck": "tsc -p src/features/get-me-home"
+    "typecheck": "tsc -p src/features"
   },
   "dependencies": {
     "@emotion/react": "^11.14.0",

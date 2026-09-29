@@ -12,7 +12,8 @@ rest of the load board, and the only thing the host has to write is an
 *adapter* that supplies the data.
 
 It is **TypeScript**, like the host. (The rest of the load board is
-JavaScript; this folder has its own `tsconfig.json`.) The settings are
+JavaScript; `src/features/tsconfig.json` type-checks this folder and the
+features beside it.) The settings are
 Vite's standard React + TypeScript template with strict mode on, and it
 type-checks cleanly under both TypeScript 5.9 and 7.
 
@@ -30,7 +31,10 @@ and nothing else, so neither this page nor its data ever reaches the
 deployed site. A switch at the top picks where the drivers come from:
 
 - **Sample drivers**: nine made-up drivers from `fixtures/roster.json`, one
-  for every status, on a fixed clock. The page to design against.
+  for every status, on a fixed clock. The page to design against. Their
+  home time comes from the Driver Home Time Schedule tab's sample stays, so
+  deciding a request there changes this tab
+  (`src/features/preview/wiring.ts`).
 - **Live: API and GeoTab** (`?source=live`): the load board's real drivers
   and loads, with positions and hours from GeoTab, read through the deployed
   API. It needs a dispatcher or admin signed in on the dev server. Open
@@ -57,16 +61,17 @@ deployed site. A switch at the top picks where the drivers come from:
 | `planHome.test.ts`, `statusTable.test.ts` | 31 tests. Run them after the port to prove it. | yes |
 | `fixtures/roster.json` | A complete, valid sample roster. The tests use it. | yes |
 | `fixtures/statuses.json` | The status table's rows exactly as the app created them on 2026-09-29. | yes |
-| `tsconfig.json` | Type-checks this folder in the load board. | no; the host has its own |
 | `adapters/fixtureAdapter.ts` | Serves the sample roster. Also the template for a real adapter. | no |
 | `adapters/loadboardAdapter.ts`, `loadboardRoster.ts`, `dockTime.ts` | The load board's live adapter: its API and GeoTab, turned into a `Roster`, with 11 tests. **The worked example of a real adapter**: what to fetch, how a place gets coordinates, how a dock's local time gets a zone. | no, but read it |
-| `preview/` | The dev-only preview page. | no |
+
+
+The preview page and the tsconfig live one level up, in `src/features/`,
+because they serve every feature built here for MyTechgacity; neither ports.
 
 ## Porting it
 
-1. **Copy the folder**, leaving out `preview/`, `adapters/` and
-   `tsconfig.json`. The adapters are the load board's side of the handshake;
-   the host writes its own.
+1. **Copy the folder**, leaving out `adapters/`. The adapters are the load
+   board's side of the handshake; the host writes its own.
 2. **Dependencies:** React 18 or later, and `@mui/material` 5 or later with
    emotion. It uses only core components (Box, Stack, Table, Card, Chip,
    Alert, Tooltip, LinearProgress, Button, Typography). Everything is styled

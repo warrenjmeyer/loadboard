@@ -1,0 +1,9 @@
+[
+  { "Home_Time_Status_Id": 0, "Home_Time_Status": "Undefined", "Choice_Key": "-", "IsActive": 1, "Created_At": "2026-09-29 15:43:24.813", "Updated_At": "2026-09-29 15:43:24.813", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 1, "Home_Time_Status": "REQUESTED", "Choice_Key": "a", "IsActive": 1, "Created_At": "2026-09-29 15:43:48.430", "Updated_At": "2026-09-29 15:43:48.430", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 2, "Home_Time_Status": "APPROVED", "Choice_Key": "b", "IsActive": 1, "Created_At": "2026-09-29 15:44:02.610", "Updated_At": "2026-09-29 15:44:02.610", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 3, "Home_Time_Status": "HOME", "Choice_Key": "c", "IsActive": 1, "Created_At": "2026-09-29 15:44:18.713", "Updated_At": "2026-09-29 15:44:18.713", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 4, "Home_Time_Status": "DONE", "Choice_Key": "d", "IsActive": 1, "Created_At": "2026-09-29 15:44:28.767", "Updated_At": "2026-09-29 15:44:28.767", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 5, "Home_Time_Status": "DECLINED", "Choice_Key": "e", "IsActive": 1, "Created_At": "2026-09-29 15:44:38.993", "Updated_At": "2026-09-29 15:44:38.993", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Home_Time_Status_Id": 6, "Home_Time_Status": "CANCELLED", "Choice_Key": "f", "IsActive": 1, "Created_At": "2026-09-29 15:44:49.247", "Updated_At": "2026-09-29 15:44:49.247", "Created_By": null, "j": 1, "TTP_ID": 0 }
+]

@@ -173,6 +173,12 @@ const getMeHomeRoster = JSON.parse(
 const getMeHomePlans = planGetMeHome(getMeHomeRoster).plans
 const getMeHomePlan = (code) => getMeHomePlans.find((p) => p.driverCode === code)
 
+// The home-time schedule's sample stays, and the same with nothing waiting.
+const homeTimeSample = JSON.parse(
+  readFileSync(new URL('./features/home-time-schedule/fixtures/schedule.json', import.meta.url), 'utf8')
+)
+const homeTimeAnswered = { ...homeTimeSample, stays: homeTimeSample.stays.filter((s) => s.status !== 'REQUESTED') }
+
 // Each entry is a state the component can actually be in. Rendering only the
 // happy path would miss the branches that exist precisely because something
 // went wrong -- which are the ones nobody looks at until they matter.
@@ -862,6 +868,15 @@ const cases = [
   ['GetMeHome restart', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('DFOSTER') }],
   ['GetMeHome after a load', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('RDELGADO') }],
   ['GetMeHome unplaced', '/src/features/get-me-home/DriverPlan.tsx', { plan: getMeHomePlan('RVASQUEZ') }],
+
+  // The home-time schedule, dispatch side: the sample stays (three waiting,
+  // the board full), the empty-queue case, and the two states before data.
+  // Its dialogs are not here: a Modal renders into a portal, which a server
+  // renderer has nowhere to put.
+  ['HomeTime schedule', '/src/features/home-time-schedule/ScheduleView.tsx', { data: homeTimeSample }],
+  ['HomeTime all answered', '/src/features/home-time-schedule/ScheduleView.tsx', { data: homeTimeAnswered }],
+  ['HomeTime loading', '/src/features/home-time-schedule/ScheduleView.tsx', { data: null, loading: true }],
+  ['HomeTime error', '/src/features/home-time-schedule/ScheduleView.tsx', { data: null, error: 'HTTP 502' }],
 ]
 
 let failed = 0
