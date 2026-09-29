@@ -53,9 +53,15 @@ function adapterBody(folder: string, name: string): string {
   return src.slice(start, src.indexOf('\n}', start))
 }
 
+// Folders here that are not features, and why. Anything else is one.
+const NOT_FEATURES: Record<string, string> = {
+  preview: 'the dev-only page where features meet; not ported',
+  sql: 'scripts for the host database; no screens in it',
+}
+
 test('every feature folder under src/features is in the list above', () => {
   const folders = readdirSync(here('./'), { withFileTypes: true })
-    .filter((d) => d.isDirectory() && d.name !== 'preview')
+    .filter((d) => d.isDirectory() && !(d.name in NOT_FEATURES))
     .map((d) => d.name)
     .sort()
   assert.deepEqual(folders, FEATURES.map((f) => f.folder).sort(), 'a new feature folder must be registered here, with its modules.ts')
