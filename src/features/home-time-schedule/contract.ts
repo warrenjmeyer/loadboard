@@ -7,8 +7,8 @@
 //
 //   REQUESTED  the driver asked                     (driver)
 //   APPROVED   dispatch said yes                    (dispatch)
-//   HOME       the driver got there                 (dispatch, later GeoTab)
-//   DONE       the driver left again                (dispatch, later GeoTab)
+//   HOME       the driver got there                 (GeoTab, or dispatch)
+//   DONE       the driver left again                (GeoTab, or dispatch)
 //   DECLINED   dispatch said no, and why            (dispatch)
 //   CANCELLED  withdrawn before it happened         (either)
 //
@@ -47,7 +47,13 @@ export interface Stay {
   /** What actually happened. Set on HOME and DONE. */
   arrivedAt: IsoMoment | null
   leftAt: IsoMoment | null
+  /** Who said so: GeoTab saw the truck, or dispatch entered or corrected it.
+   * Optional so data from before GeoTab did this still fits. */
+  arrivedSource?: StaySource | null
+  leftSource?: StaySource | null
 }
+
+export type StaySource = 'geotab' | 'dispatch'
 
 export interface ScheduleDriver {
   driverCode: string
@@ -77,6 +83,8 @@ export type StayAction =
   | { type: 'cancel' }
   | { type: 'arrive'; at?: IsoMoment }
   | { type: 'leave'; at?: IsoMoment }
+  /** Dispatch fixing what GeoTab (or somebody) recorded. The status stays. */
+  | { type: 'correct'; arrivedAt?: IsoMoment; leftAt?: IsoMoment }
 
 /** What the planner thinks of a stay, shown beside Approve so nobody agrees
  * to a promise the hours cannot keep. The schedule does not know the planner:
@@ -155,6 +163,10 @@ export function checkSchedule(data: unknown): string[] {
       problems.push(`${at}.backOut is not after homeBy`)
     }
     if (s.status === 'DECLINED' && !s.declineReason) problems.push(`${at} is DECLINED with no declineReason`)
+    for (const k of ['arrivedSource', 'leftSource']) {
+      const v = s[k]
+      if (v !== null && v !== undefined && v !== 'geotab' && v !== 'dispatch') problems.push(`${at}.${k} must be "geotab" or "dispatch", not ${JSON.stringify(v)}`)
+    }
   })
   return problems
 }

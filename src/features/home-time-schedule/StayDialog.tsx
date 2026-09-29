@@ -1,20 +1,34 @@
 import { useEffect, useState } from 'react'
 import {
-  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, TextField, Typography,
+  Alert, Box, Button, Chip, Dialog, DialogActions, DialogContent, DialogTitle, FormControl, FormLabel, OutlinedInput,
+  Stack, TextField, Typography,
 } from '@mui/material'
 import { MOVES, actionsFor } from './rules.ts'
 import { STAY_LOOK } from './status.ts'
-import { formatWhen } from './format.ts'
-import type { Stay, StayAction, StayVerdict } from './contract.ts'
+import { formatWhen, fromLocalInput, toLocalInput } from './format.ts'
+import type { Stay, StayAction, StaySource, StayVerdict } from './contract.ts'
 
 // ---------------------------------------------------------------------------
 // One stay, everything about it, and the moves its status allows. The
-// buttons come from actionsFor in rules.ts, so a DONE stay has none and a
-// REQUESTED one has approve, decline and cancel -- this never decides that.
+// buttons come from actionsFor in rules.ts, so this never decides that.
 //
-// Declining asks for the reason in place, before anything is sent: the rules
-// refuse a decline without one, and saying so after a round trip is worse.
+// Two moves need more than a click, and ask for it in place, before anything
+// is sent:
+//
+//   Decline         the reason, which the driver sees.
+//   Correct times   the arrival (and, once they have left, the departure)
+//                   as they really were. GeoTab records these on its own; a
+//                   dispatcher who knows better fixes them here, and the
+//                   stay then says "by dispatch" instead of "by GeoTab".
 // ---------------------------------------------------------------------------
+type Mode = 'view' | 'declining' | 'correcting'
+
+const SOURCE_WORDS: Record<StaySource, string> = { geotab: 'by GeoTab', dispatch: 'by dispatch' }
+
+// The moves that are one click: everything but the two above.
+type SimpleMove = Exclude<StayAction['type'], 'decline' | 'correct'>
+const simple = (type: SimpleMove): StayAction => ({ type })
+
 export default function StayDialog({ stay, driverName, verdict, startDeclining = false, busy, error, onAction, onClose }: {
   stay: Stay | null
   driverName: string
@@ -25,27 +39,53 @@ export default function StayDialog({ stay, driverName, verdict, startDeclining =
   onAction: (stay: Stay, action: StayAction) => void
   onClose: () => void
 }) {
-  const [declining, setDeclining] = useState(startDeclining)
+  const [mode, setMode] = useState<Mode>(startDeclining ? 'declining' : 'view')
   const [reason, setReason] = useState('')
+  const [arrived, setArrived] = useState('')
+  const [left, setLeft] = useState('')
 
   // A different stay is a fresh start.
   useEffect(() => {
-    setDeclining(startDeclining)
+    setMode(startDeclining ? 'declining' : 'view')
     setReason('')
   }, [stay?.id, startDeclining])
 
+  // A correction that landed shows as the stay's new times: back to viewing.
+  useEffect(() => {
+    setMode((m) => (m === 'correcting' ? 'view' : m))
+  }, [stay?.arrivedAt, stay?.leftAt])
+
   if (!stay) return null
   const look = STAY_LOOK[stay.status]
+  const said = (source: StaySource | null | undefined) => (source ? ` · ${SOURCE_WORDS[source]}` : '')
+
   const rows: [string, string][] = [
     ['Home by', formatWhen(stay.homeBy)],
     ['Back out', formatWhen(stay.backOut)],
   ]
-  if (stay.arrivedAt) rows.push(['Arrived home', formatWhen(stay.arrivedAt)])
-  if (stay.leftAt) rows.push(['Left home', formatWhen(stay.leftAt)])
+  if (stay.arrivedAt) rows.push(['Arrived home', `${formatWhen(stay.arrivedAt)}${said(stay.arrivedSource)}`])
+  if (stay.leftAt) rows.push(['Left home', `${formatWhen(stay.leftAt)}${said(stay.leftSource)}`])
   rows.push(['Asked', formatWhen(stay.requestedAt)])
   if (stay.decidedAt) rows.push([stay.status === 'DECLINED' ? 'Declined' : 'Decided', `${formatWhen(stay.decidedAt)}${stay.decidedBy ? ` by ${stay.decidedBy}` : ''}`])
 
-  const actions = actionsFor(stay.status).filter((a) => a !== 'decline' || !declining)
+  function startCorrecting() {
+    setArrived(toLocalInput(stay!.arrivedAt))
+    setLeft(toLocalInput(stay!.leftAt))
+    setMode('correcting')
+  }
+
+  // Only what changed is sent: re-saving a time GeoTab got right should not
+  // relabel it as dispatch's.
+  function saveCorrection() {
+    const action: Extract<StayAction, { type: 'correct' }> = { type: 'correct' }
+    if (arrived !== toLocalInput(stay!.arrivedAt)) action.arrivedAt = fromLocalInput(arrived) || undefined
+    if (stay!.status === 'DONE' && left !== toLocalInput(stay!.leftAt)) action.leftAt = fromLocalInput(left) || undefined
+    if (!action.arrivedAt && !action.leftAt) {
+      setMode('view') // nothing changed
+      return
+    }
+    onAction(stay!, action)
+  }
 
   return (
     <Dialog open onClose={busy ? undefined : onClose} fullWidth maxWidth="sm" aria-labelledby="stay-title">
@@ -67,7 +107,7 @@ export default function StayDialog({ stay, driverName, verdict, startDeclining =
         {verdict && (stay.status === 'REQUESTED' || stay.status === 'APPROVED') && (
           <Alert severity={verdict.severity} variant="outlined" sx={{ mt: 2 }}>{verdict.text}</Alert>
         )}
-        {declining && (
+        {mode === 'declining' && (
           <TextField
             label="Why not? The driver sees this."
             value={reason}
@@ -75,27 +115,52 @@ export default function StayDialog({ stay, driverName, verdict, startDeclining =
             multiline minRows={2} fullWidth autoFocus sx={{ mt: 2 }}
           />
         )}
+        {mode === 'correcting' && (
+          <Stack spacing={2} sx={{ mt: 2 }}>
+            <FormControl>
+              <FormLabel htmlFor="correct-arrived">Arrived home</FormLabel>
+              <OutlinedInput id="correct-arrived" type="datetime-local" size="small" value={arrived} onChange={(e) => setArrived(e.target.value)} />
+            </FormControl>
+            {stay.status === 'DONE' && (
+              <FormControl>
+                <FormLabel htmlFor="correct-left">Left home</FormLabel>
+                <OutlinedInput id="correct-left" type="datetime-local" size="small" value={left} onChange={(e) => setLeft(e.target.value)} />
+              </FormControl>
+            )}
+          </Stack>
+        )}
         {error && <Alert severity="error" sx={{ mt: 2 }}>{error}</Alert>}
       </DialogContent>
       <DialogActions>
-        {declining ? (
+        {mode === 'declining' && (
           <>
-            <Button onClick={() => setDeclining(false)} disabled={busy}>Back</Button>
+            <Button onClick={() => setMode('view')} disabled={busy}>Back</Button>
             <Button color="error" variant="contained" disabled={busy || !reason.trim()}
               onClick={() => onAction(stay, { type: 'decline', reason })}>
               Decline request
             </Button>
           </>
-        ) : (
+        )}
+        {mode === 'correcting' && (
+          <>
+            <Button onClick={() => setMode('view')} disabled={busy}>Back</Button>
+            <Button variant="contained" disabled={busy} onClick={saveCorrection}>Save times</Button>
+          </>
+        )}
+        {mode === 'view' && (
           <>
             <Button onClick={onClose} disabled={busy}>Close</Button>
-            {actions.map((a) => (
+            {actionsFor(stay.status).map((a) => (
               <Button
                 key={a}
                 disabled={busy}
                 variant={a === 'approve' || a === 'arrive' || a === 'leave' ? 'contained' : 'outlined'}
                 color={a === 'decline' || a === 'cancel' ? 'error' : 'primary'}
-                onClick={() => (a === 'decline' ? setDeclining(true) : onAction(stay, { type: a } as StayAction))}
+                onClick={() => {
+                  if (a === 'decline') setMode('declining')
+                  else if (a === 'correct') startCorrecting()
+                  else onAction(stay, simple(a))
+                }}
               >
                 {MOVES[a].label}
               </Button>

@@ -29,8 +29,8 @@ until the page is reloaded. Nothing stores home time for real drivers yet.
 |---|---|---|
 | `REQUESTED` | The driver asked | driver |
 | `APPROVED` | Dispatch said yes | dispatch |
-| `HOME` | The driver got there (`arrivedAt`) | dispatch, later GeoTab |
-| `DONE` | The driver left again (`leftAt`) | dispatch, later GeoTab |
+| `HOME` | The driver got there (`arrivedAt`) | GeoTab, or dispatch |
+| `DONE` | The driver left again (`leftAt`) | GeoTab, or dispatch |
 | `DECLINED` | Dispatch said no, with a reason the driver sees | dispatch |
 | `CANCELLED` | Withdrawn before it happened | either |
 
@@ -92,14 +92,46 @@ the foreign key the table exists for.
    driver against a request's home-by. `src/features/preview/wiring.ts` is
    the worked example; TypeScript checks the join there.
 
-## Open questions
+5. **Run the GeoTab check on a timer** (below).
 
-1. **Time zones.** The screens show the viewer's zone, as the planner does.
-   A request is really about the driver's home zone. For a Midwest fleet
-   with Midwest dispatch they agree; if not, which should the board show?
-2. **Automatic arrive and leave.** GeoTab can see a truck enter or leave the
-   home-town zone. Should HOME and DONE set themselves, with dispatch
-   correcting instead of entering?
-3. **Limits.** Is there a longest stay, a minimum notice, or a cap on how
-   many drivers may be home at once? The board's daily count is ready for a
-   cap.
+## GeoTab marks arriving and leaving
+
+Decided 2026-09-29: HOME and DONE set themselves from GeoTab, and dispatch
+corrects rather than enters. `detectHomeMoves(stays, fixes, homes, { now })`
+takes each truck's recent GPS fixes and returns the moves they prove, in
+the order they happened:
+
+- **Home** means within **25 miles** of the driver's home town, the
+  planner's own definition of HOME, so the two tabs agree.
+- **Half an hour** on one side of that line before it counts. Driving
+  through town is not coming home, and a fuel stop just outside is not
+  leaving.
+- **Only APPROVED stays arrive.** A truck at home without an approved stay
+  is a conversation for dispatch, not something to record on their behalf. A
+  driver who got home before Approve was clicked still arrived when they
+  arrived.
+- **Every arrival and departure says who recorded it** (`arrivedSource`,
+  `leftSource`: `geotab` or `dispatch`), and the stay's dialog shows it.
+  **Correct times** fixes either one and relabels it as dispatch's.
+
+On the host this is a server job on a timer, say every ten minutes. Fetch
+the fixes since the last run (GeoTab `LogRecord`s for trucks with an
+APPROVED or HOME stay), call `detectHomeMoves`, and apply each move with
+`applyAction(stay, move.action, { now, by: null, source: 'geotab' })`. A
+move that has been applied is never suggested again, because the stay's
+status has moved on.
+
+The sample clock is Monday morning, and no approved stay is due home by
+then, so the preview shows the results (Marcus Webb's arrival, Sherman
+Oaks's night at home) rather than the check running. The tests run it:
+coming home, staying, leaving, a drive-through that must not count, and a
+driver who beat the approval.
+
+## Decided
+
+1. **Time zones: the viewer's.** The dispatcher's board shows the
+   dispatcher's zone, as the planner does. A driver's own screen shows the
+   zone their phone is in.
+2. **GeoTab marks arriving and leaving**, with dispatch correcting (above).
+3. **No limits** on how long, how soon, or how many at once. The board's
+   daily count stays informational.

@@ -8,13 +8,16 @@ export type { ScheduleViewProps } from './ScheduleView.tsx'
 export { default as DriverHomeTime } from './DriverHomeTime.tsx'
 export type { DriverHomeTimeProps } from './DriverHomeTime.tsx'
 
-export { homeTimeFor, applyAction, actionsFor, checkNewStay, needsDecision, MOVES } from './rules.ts'
-export type { PlannerHomeTime } from './rules.ts'
+export {
+  homeTimeFor, applyAction, actionsFor, checkNewStay, needsDecision, MOVES,
+  detectHomeMoves, HOME_RADIUS_MILES, DWELL_MINUTES,
+} from './rules.ts'
+export type { PlannerHomeTime, Fix, HomePoint, HomeMove } from './rules.ts'
 
 export { checkStatusRows, statusIds } from './statusTable.ts'
 export type { StayStatusRow } from './statusTable.ts'
 
 export { checkSchedule, STAY_STATUSES } from './contract.ts'
 export type {
-  Stay, StayStatus, StayAction, StayVerdict, NewStay, ScheduleData, ScheduleDriver, ScheduleAdapter, IsoMoment,
+  Stay, StayStatus, StayAction, StaySource, StayVerdict, NewStay, ScheduleData, ScheduleDriver, ScheduleAdapter, IsoMoment,
 } from './contract.ts'
