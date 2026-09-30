@@ -45,6 +45,28 @@ export function actionsFor(status: StayStatus): StayAction['type'][] {
 // check applies a move, or dispatch, who clicked. Corrections are always
 // dispatch's, whatever was there before.
 // ---------------------------------------------------------------------------
+// What each move would do, for the sentence that refuses it: "An approved
+// stay cannot be approved." "A requested stay cannot be marked home."
+const WOULD: Record<StayAction['type'], string> = {
+  approve: 'be approved',
+  decline: 'be declined',
+  cancel: 'be cancelled',
+  arrive: 'be marked home',
+  leave: 'be marked as left home',
+  correct: 'have its times corrected',
+}
+
+// "A requested", "An approved".
+const aStay = (status: StayStatus) => `${/^[aeiou]/i.test(status) ? 'An' : 'A'} ${status.toLowerCase()} stay`
+
+// A moment that has not come yet cannot be when somebody got home or left.
+const notYet = (at: IsoMoment | null | undefined, now: IsoMoment) => {
+  const a = ms(at)
+  const n = ms(now)
+  return a !== null && n !== null && a > n
+}
+const NOT_YET = 'That time has not happened yet.'
+
 export function applyAction(stay: Stay, action: StayAction, { now, by, source = 'DISPATCH' }: {
   now: IsoMoment
   by: string | null
@@ -54,8 +76,8 @@ export function applyAction(stay: Stay, action: StayAction, { now, by, source = 
   if (!move.from.includes(stay.status)) {
     return {
       error: move.to
-        ? `A ${stay.status.toLowerCase()} stay cannot be ${move.to.toLowerCase()}.`
-        : `A ${stay.status.toLowerCase()} stay has no arrival or departure to correct.`,
+        ? `${aStay(stay.status)} cannot ${WOULD[action.type]}.`
+        : `${aStay(stay.status)} has no arrival or departure to correct.`,
     }
   }
   const next: Stay = { ...stay, status: move.to ?? stay.status }
@@ -71,9 +93,12 @@ export function applyAction(stay: Stay, action: StayAction, { now, by, source = 
     case 'cancel':
       return { stay: next }
     case 'arrive':
+      // The same rule as correcting: an arrival is something that happened.
+      if (notYet(action.at, now)) return { error: NOT_YET }
       return { stay: { ...next, arrivedAt: action.at || now, arrivedSource: source } }
     case 'leave': {
       const at = action.at || now
+      if (notYet(at, now)) return { error: NOT_YET }
       const arrived = ms(stay.arrivedAt)
       const left = ms(at)
       if (arrived !== null && left !== null && left < arrived) return { error: 'Left home before arriving?' }
@@ -87,7 +112,7 @@ export function applyAction(stay: Stay, action: StayAction, { now, by, source = 
       const l = ms(leftAt)
       const n = ms(now)
       if (a === null) return { error: 'When did they get home?' }
-      if (n !== null && (a > n || (l !== null && l > n))) return { error: 'That time has not happened yet.' }
+      if (n !== null && (a > n || (l !== null && l > n))) return { error: NOT_YET }
       if (l !== null && l < a) return { error: 'Left home before arriving?' }
       return {
         stay: {

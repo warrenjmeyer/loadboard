@@ -49,11 +49,12 @@ test('a request goes approved, home, done -- and records who and when', () => {
   assert.equal(approved.stay.decidedBy, 'Dana')
   assert.equal(approved.stay.decidedAt, NOW)
 
-  const home = applyAction(approved.stay, { type: 'arrive', at: '2026-10-02T22:30:00Z' }, { now: NOW, by: null })
+  // Each recorded once it has happened: an arrival is not taken in advance.
+  const home = applyAction(approved.stay, { type: 'arrive', at: '2026-10-02T22:30:00Z' }, { now: '2026-10-02T23:00:00Z', by: null })
   assert.ok('stay' in home)
   assert.equal(home.stay.arrivedAt, '2026-10-02T22:30:00Z')
 
-  const done = applyAction(home.stay, { type: 'leave', at: '2026-10-05T12:00:00Z' }, { now: NOW, by: null })
+  const done = applyAction(home.stay, { type: 'leave', at: '2026-10-05T12:00:00Z' }, { now: '2026-10-05T12:30:00Z', by: null })
   assert.ok('stay' in done)
   assert.equal(done.stay.status, 'DONE')
   assert.equal(done.stay.leftAt, '2026-10-05T12:00:00Z')
@@ -73,8 +74,9 @@ test('a decline needs a reason', () => {
 })
 
 test('leaving before arriving is refused', () => {
+  // Both moments have happened by now; the one is before the other.
   const home = make({ status: 'HOME', arrivedAt: '2026-10-02T22:30:00Z' })
-  assert.match(statusOf(applyAction(home, { type: 'leave', at: '2026-10-01T00:00:00Z' }, { now: NOW, by: null })), /before arriving/)
+  assert.match(statusOf(applyAction(home, { type: 'leave', at: '2026-10-01T00:00:00Z' }, { now: '2026-10-03T00:00:00Z', by: null })), /before arriving/)
 })
 
 test('a new request must be in the future, in order, and not on top of another', () => {
@@ -241,3 +243,22 @@ test('requests, unplaced homes and other drivers are left alone', () => {
   assert.deepEqual(detectHomeMoves([approvedStay], track, [{ driverCode: 'TEST', latitude: null, longitude: null }], { now: '2026-09-28T15:00:00Z' }), [], 'no home position')
   assert.deepEqual(detectHomeMoves([{ ...approvedStay, driverCode: 'OTHER' }], track, [HOME], { now: '2026-09-28T15:00:00Z' }), [], 'not their truck')
 })
+
+test('a move a status does not allow is refused in plain English', () => {
+  const approved = make({ status: 'APPROVED' })
+  assert.equal(statusOf(applyAction(approved, { type: 'approve' }, { now: NOW, by: 'Dana' })), 'An approved stay cannot be approved.')
+  assert.equal(statusOf(applyAction(make(), { type: 'arrive' }, { now: NOW, by: 'Dana' })), 'A requested stay cannot be marked home.')
+  assert.equal(statusOf(applyAction(approved, { type: 'leave' }, { now: NOW, by: 'Dana' })), 'An approved stay cannot be marked as left home.')
+  assert.equal(statusOf(applyAction(make({ status: 'DECLINED', declineReason: 'no' }), { type: 'cancel' }, { now: NOW, by: 'Dana' })), 'A declined stay cannot be cancelled.')
+})
+
+test('arriving and leaving are things that happened: a time still to come is refused', () => {
+  const approved = make({ status: 'APPROVED' })
+  assert.equal(statusOf(applyAction(approved, { type: 'arrive', at: '2026-09-28T16:00:00Z' }, { now: NOW, by: 'Dana' })), 'That time has not happened yet.')
+  assert.equal(statusOf(applyAction(approved, { type: 'arrive', at: NOW }, { now: NOW, by: 'Dana' })), 'HOME', 'this very moment has happened')
+  assert.equal(statusOf(applyAction(approved, { type: 'arrive' }, { now: NOW, by: 'Dana' })), 'HOME', 'no time given: now')
+  const home = make({ status: 'HOME', arrivedAt: '2026-09-27T22:00:00Z' })
+  assert.equal(statusOf(applyAction(home, { type: 'leave', at: '2026-09-29T12:00:00Z' }, { now: NOW, by: 'Dana' })), 'That time has not happened yet.')
+  assert.equal(statusOf(applyAction(home, { type: 'leave', at: '2026-09-28T14:00:00Z' }, { now: NOW, by: 'Dana' })), 'DONE')
+})
+
