@@ -17,7 +17,35 @@ JavaScript.
 
     npm run dev
     http://localhost:5173/get-me-home.html                 the host's tabs
+    http://localhost:5173/get-me-home.html?data=laptop     the same, on the laptop database
     http://localhost:5173/get-me-home.html?page=modules    every module, with a live demo
+
+## The laptop database
+
+"Sample data / Laptop database" at the top of the preview switches every tab
+between made-up data held in memory and the laptop's own `mvp-techgacity`
+(built by `sql/local_stand_in.sql`; see `sql/README.md`). On the laptop
+database the tabs read and write real rows **through the host's own SQL**:
+`03` and `07` for the schedule, `05` and `06` for the load plans. The dev
+server runs them (`tools/local-db/plugin.mjs`), filling in each script's
+"Try it" values, so what is tried here is the text the host will run, who-may
+checks included. The schedule's moves go through its rules first
+(`applyAction`, `checkNewStay`), as the host's API must. `vite build` never
+includes any of it.
+
+What the database does not hold comes from GeoTab through the deployed API,
+as the host's API would add it: truck positions, hours, and town locations.
+That needs a dispatcher or admin signed in on the dev server; the page says
+who is signed in. Without it the loads and stays still come through, and each
+check says it cannot tell. The planner tab needs it for everything.
+
+The driver view acts as the chosen driver (each laptop driver has a made-up
+user from `sql/local_test_users.sql`), so a driver asking for anyone else's
+stays is refused by the same check the host runs.
+
+`preview/laptop.ts` turns the rows into the tabs' data (and is tested in
+`preview/laptop.test.ts`); `preview/laptopAdapters.ts` does the asking. Both
+are the worked example of what the host's API has to do with its rows.
 
 ## Every addition is a reusable module
 

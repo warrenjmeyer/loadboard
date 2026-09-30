@@ -21,6 +21,7 @@ through the app's interface; everything else is created here.
 | 8 | mvp-techgacity | `load_plans_from_tms_loads.sql`: puts the Covered and In Transit loads `TMS.Loads` already has drivers for onto their plans. Safe to repeat. |
 | – | mvp-techgacity | `05_load_plan_reads.sql`: not setup. The load plans' four reads, each dispatch-only. Writes nothing. |
 | – | mvp-techgacity | `06_load_plan_writes.sql`: not setup. Assign and Take back. Trying it rolls back unless `@Keep = 1`. |
+| – | mvp-techgacity | `07_stay_writes.sql`: not setup. The schedule's two writes: a driver's request, and storing a move the API worked out with `applyAction`. Trying it rolls back unless `@Keep = 1`. |
 
 Each setup script refuses to run twice and says what it needs if a step was
 skipped.
@@ -42,6 +43,11 @@ the host's order:
 5. `local_shift_dates.sql`: brings the test loads into this week (laptop
    only; it refuses to run anywhere else). Re-run it after every fresh loads
    copy, which puts the old dates back.
+6. `local_test_users.sql`: gives each laptop driver a made-up user, so the
+   preview can act as a driver and the who-may checks run for real.
+
+The preview reads and writes this database when "Laptop database" is chosen
+at the top of `/get-me-home.html` (see `src/features/README.md`).
 
 Done 2026-09-30: 24 drivers, 230 loads, and 5 plans seeded (2 covered, 3 in
 transit). The copies and the seed changed nothing on a second run. The

@@ -148,8 +148,18 @@ test('a stay or load that ends after the pickup closes is not where the leg star
 
 test('the plan\'s totals count loads, miles, and what needs a look', () => {
   const s = summarize(planWithLegs(data, 'PRAMAN', { now: NOW }))
-  assert.deepEqual(s, { loads: 2, loadedMiles: 344, deadheadMiles: 98, late: 0, tight: 1, clashes: 0 })
+  assert.deepEqual(s, { loads: 2, loadedMiles: 344, deadheadMiles: 98, legs: 2, unplacedLegs: 0, late: 0, tight: 1, clashes: 0 })
   assert.equal(summarize(planWithLegs(data, 'ACORTEZ', { now: NOW })).clashes, 1)
+})
+
+test('a leg nobody can place has unknown empty miles, not zero', () => {
+  const unplaced: LoadPlanData = { ...data, drivers: data.drivers.map((d) => (d.driverCode === 'ACORTEZ' ? { ...d, position: null } : d)) }
+  const s = summarize(planWithLegs(unplaced, 'ACORTEZ', { now: NOW }))
+  assert.equal(s.legs, 1)
+  assert.equal(s.unplacedLegs, 1)
+  assert.equal(s.deadheadMiles, 0, 'the known miles only')
+  // Rosa's only leg is from where her load under way delivers: placed.
+  assert.equal(summarize(planWithLegs(data, 'RDELGADO', { now: NOW })).unplacedLegs, 0)
 })
 
 test('two loads of one driver at the same time overlap, and each says which', () => {

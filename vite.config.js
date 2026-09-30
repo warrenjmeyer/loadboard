@@ -1,5 +1,7 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
+// Dev only: the preview's "Laptop database" data. See tools/local-db/plugin.mjs.
+import { localDb } from './tools/local-db/plugin.mjs'
 
 // Vite is the build tool. In dev it serves your files straight to the browser;
 // `npm run build` compiles everything into a plain static ./dist folder, which
@@ -90,7 +92,7 @@ function refuseDevWrites() {
 }
 
 export default defineConfig({
-  plugins: [react(), refuseDevWrites()],
+  plugins: [react(), refuseDevWrites(), localDb()],
   base: '/',
 
   // Dev-only. Vite serves the front end but has no /api of its own, so an

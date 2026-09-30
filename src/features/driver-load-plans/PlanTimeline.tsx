@@ -1,7 +1,7 @@
 import { Box, Typography } from '@mui/material'
 import { barFor, boardWindow, freeCounts, loadSpan, planWithLegs, plainDrive, positionOf, staySpan, summarize } from './rules.ts'
 import { LOAD_LOOK, STAY_LOOK, VERDICT_LOOK } from './look.ts'
-import { dayHeading, formatMiles, formatWhen, formatWindow, lane } from './format.ts'
+import { dayHeading, formatEmpty, formatMiles, formatWhen, formatWindow, lane } from './format.ts'
 import type { BoardWindow, DriveFn, PlannedLoad } from './rules.ts'
 import type { LoadPlanData, PlanLoad } from './contract.ts'
 
@@ -91,7 +91,7 @@ export default function PlanTimeline({ data, now, drive = null, onOpenDriver = n
               >
                 <Typography variant="body2" noWrap sx={{ fontWeight: 500 }}>{driver.name}</Typography>
                 <Typography variant="caption" noWrap component="div" sx={{ color: 'text.secondary' }}>
-                  {totals.loads === 0 ? 'nothing planned' : `${totals.loads} load${totals.loads === 1 ? '' : 's'} · ${formatMiles(totals.deadheadMiles)} empty`}
+                  {totals.loads === 0 ? 'nothing planned' : [`${totals.loads} load${totals.loads === 1 ? '' : 's'}`, formatEmpty(totals)].filter(Boolean).join(' · ')}
                 </Typography>
                 {flags && <Typography variant="caption" noWrap component="div" sx={{ color: 'error.main', fontWeight: 600 }}>{flags}</Typography>}
               </Box>

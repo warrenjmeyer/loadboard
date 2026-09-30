@@ -2,7 +2,7 @@ import { Alert, Box, Button, Chip, Paper, Stack, Typography } from '@mui/materia
 import LegChip from './LegChip.tsx'
 import { planWithLegs, plainDrive, summarize } from './rules.ts'
 import { LOAD_LOOK, STAY_LOOK } from './look.ts'
-import { formatDuration, formatMiles, formatMoney, formatShort, formatWindow, lane, placeName } from './format.ts'
+import { formatDuration, formatEmpty, formatMiles, formatMoney, formatShort, formatWindow, lane, placeName } from './format.ts'
 import type { DriveFn, Leg, PlannedLoad } from './rules.ts'
 import type { LoadPlanData, PlanLoad } from './contract.ts'
 
@@ -48,7 +48,7 @@ export default function PlanList({ data, driverCode, now, drive = null, highligh
       <Typography variant="body2" sx={{ mt: 0.5 }}>
         {totals.loads === 0
           ? 'Nothing planned.'
-          : `${totals.loads} load${totals.loads === 1 ? '' : 's'} · ${formatMiles(totals.loadedMiles)} loaded · ${formatMiles(totals.deadheadMiles)} empty`}
+          : [`${totals.loads} load${totals.loads === 1 ? '' : 's'}`, `${formatMiles(totals.loadedMiles)} loaded`, formatEmpty(totals)].filter(Boolean).join(' · ')}
       </Typography>
 
       {stays.length > 0 && (

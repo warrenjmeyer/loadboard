@@ -1,6 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Alert, Box, Link, MenuItem, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
+import { Alert, Box, Chip, Link, MenuItem, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import GetMeHomePlanner from '../get-me-home/GetMeHomePlanner.tsx'
 import { loadboardAdapter } from '../get-me-home/adapters/loadboardAdapter.ts'
 import HomeTimeSchedule from '../home-time-schedule/HomeTimeSchedule.tsx'
@@ -9,6 +9,7 @@ import { sampleScheduleAdapter } from '../home-time-schedule/adapters/sampleAdap
 import scheduleSample from '../home-time-schedule/fixtures/schedule.json'
 import DriverLoadPlans from '../driver-load-plans/DriverLoadPlans.tsx'
 import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
+import { laptopDrivers, laptopLoadPlanAdapter, laptopScheduleAdapter, laptopScheduleAdapterFor, plannerOnLaptop, signedIn } from './laptopAdapters.ts'
 import ModulesPage from './ModulesPage.tsx'
 import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
@@ -17,16 +18,21 @@ import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 // order -- with the features built here mounted in them. Dev-only: served by
 // get-me-home.html, never built, never deployed.
 //
-//   Get Me Home Planner        sample drivers, or live (?source=live)
-//   Driver Home Time Schedule  sample stays, as dispatch or as a driver
-//   Driver Load Plans          sample loads, timed with or without the
-//                              planner's hours model (?hours=off)
+// Two kinds of data (?data=laptop):
 //
-// The tabs are joined the way a host joins them (see wiring.ts): the
-// planner's home time and the load plans' home time both come from the
-// schedule's stays, and the load plans are timed by the planner's hours
-// model. A decision in one tab shows in the others. Changes last until the
-// page is reloaded.
+//   SAMPLE DATA      made-up drivers, stays and loads on a fixed clock, held
+//                    in memory until the page is reloaded. The tabs are
+//                    joined the way a host joins them (wiring.ts).
+//   LAPTOP DATABASE  the laptop's mvp-techgacity -- the host's tables, filled
+//                    from Millstream -- read and written through the host's
+//                    own SQL (tools/local-db/plugin.mjs, laptopAdapters.ts),
+//                    with positions, hours and town locations from GeoTab
+//                    through the deployed API. Real clock; real rows.
+//
+//   Get Me Home Planner        sample drivers, or live (?source=live)
+//   Driver Home Time Schedule  as dispatch or as a driver
+//   Driver Load Plans          timed with or without the planner's hours
+//                              model (?hours=off)
 //
 // Which tab, which data and which view are kept in the address, so a reload
 // or a pasted link lands in the same place.
@@ -37,6 +43,7 @@ const TABS = [
   { key: 'loads', label: 'Driver Load Plans' },
 ] as const
 
+type Data = 'sample' | 'laptop'
 type Source = 'sample' | 'live'
 type View = 'dispatch' | 'driver'
 type Page = 'host' | 'modules'
@@ -54,10 +61,11 @@ function setParam(name: string, value: string | null) {
   window.history.replaceState(null, '', url)
 }
 
-const DRIVERS = scheduleSample.drivers
+const SAMPLE_DRIVERS = scheduleSample.drivers
 
 export default function PreviewHost() {
   const [tab, setTab] = useState(() => Math.max(0, TABS.findIndex((t) => t.key === param('tab'))))
+  const [data, setData] = useState<Data>(() => (param('data') === 'laptop' ? 'laptop' : 'sample'))
   const [source, setSource] = useState<Source>(() => (param('source') === 'live' ? 'live' : 'sample'))
   const [view, setView] = useState<View>(() => (param('view') === 'driver' ? 'driver' : 'dispatch'))
   const [driverCode, setDriverCode] = useState(() => param('driver') || 'TBOONE')
@@ -65,11 +73,16 @@ export default function PreviewHost() {
   const [hours, setHours] = useState<HoursModel>(() => (param('hours') === 'off' ? 'off' : 'planner'))
 
   const chooseTab = (i: number) => { setTab(i); setParam('tab', i === 0 ? null : TABS[i]!.key) }
+  const chooseData = (next: Data | null) => { if (next) { setData(next); setParam('data', next === 'laptop' ? 'laptop' : null) } }
   const chooseSource = (next: Source | null) => { if (next) { setSource(next); setParam('source', next === 'live' ? 'live' : null) } }
   const chooseView = (next: View | null) => { if (next) { setView(next); setParam('view', next === 'driver' ? 'driver' : null) } }
   const chooseDriver = (code: string) => { setDriverCode(code); setParam('driver', code) }
   const choosePage = (next: Page | null) => { if (next) { setPage(next); setParam('page', next === 'modules' ? 'modules' : null) } }
   const chooseHours = (next: HoursModel | null) => { if (next) { setHours(next); setParam('hours', next === 'off' ? 'off' : null) } }
+
+  const laptop = data === 'laptop'
+  const { user, drivers: laptopList } = useLaptop(laptop)
+  const drivers = laptop ? laptopList : SAMPLE_DRIVERS
 
   // Which page: the stand-in for the host's tabs, or the catalogue of modules.
   const header = (
@@ -78,6 +91,18 @@ export default function PreviewHost() {
         <ToggleButton value="host">Host page</ToggleButton>
         <ToggleButton value="modules">Modules</ToggleButton>
       </ToggleButtonGroup>
+      {page === 'host' && (
+        <ToggleButtonGroup size="small" exclusive value={data} onChange={(_, next: Data | null) => chooseData(next)} aria-label="Which data">
+          <ToggleButton value="sample">Sample data</ToggleButton>
+          <ToggleButton value="laptop">Laptop database</ToggleButton>
+        </ToggleButtonGroup>
+      )}
+      {page === 'host' && laptop && (user === undefined ? null : user ? (
+        <Chip size="small" color={user.role === 'dispatcher' || user.role === 'admin' ? 'success' : 'warning'} variant="outlined"
+          label={`Signed in: ${user.name} (${user.role})`} />
+      ) : (
+        <Chip size="small" color="warning" label="Not signed in: no GeoTab" component="a" href="/signin" clickable />
+      ))}
       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
         Design preview. This page runs on the dev server only and is never deployed.
       </Typography>
@@ -88,6 +113,13 @@ export default function PreviewHost() {
     return <Box sx={{ px: 2, py: 1.5 }}>{header}<ModulesPage /></Box>
   }
 
+  const geotabNote = (
+    <>
+      Positions, hours and town locations come from GeoTab through the deployed API, which needs a dispatcher
+      or admin signed in on this dev server -- <Link href="/signin">sign in here</Link>, then come back.
+    </>
+  )
+
   return (
     <Box sx={{ px: 2, py: 1.5 }}>
       {header}
@@ -96,7 +128,15 @@ export default function PreviewHost() {
         {TABS.map((t) => <Tab key={t.key} label={t.label} />)}
       </Tabs>
 
-      {tab === 0 && (
+      {tab === 0 && (laptop ? (
+        <>
+          <Alert severity="info" sx={{ mb: 2 }}>
+            Your real drivers and their loads from Millstream, with their home time from the laptop's stays -- ask
+            for or decide home time in the schedule tab and this tab follows. {geotabNote}
+          </Alert>
+          <GetMeHomePlanner key="laptop" adapter={plannerOnLaptop} organizationId="preview" />
+        </>
+      ) : (
         <>
           <Bar>
             <ToggleButtonGroup size="small" exclusive value={source} onChange={(_, next: Source | null) => chooseSource(next)} aria-label="Where the drivers come from">
@@ -114,12 +154,12 @@ export default function PreviewHost() {
               Real drivers and loads from your database, positions and hours from GeoTab, read through
               the deployed API. It needs a dispatcher or admin signed in on this dev server
               -- <Link href="/signin">sign in here</Link>, then come back. Nothing records home time
-              for real drivers yet, so nobody has a request or a count of days out.
+              for real drivers there yet, so nobody has a request or a count of days out.
             </Alert>
           )}
           <GetMeHomePlanner key={source} adapter={source === 'live' ? loadboardAdapter : plannerOnSchedule} organizationId="preview" />
         </>
-      )}
+      ))}
 
       {tab === 1 && (
         <>
@@ -130,21 +170,32 @@ export default function PreviewHost() {
             </ToggleButtonGroup>
             {view === 'driver' && (
               <TextField
-                select size="small" label="Driver" value={driverCode} onChange={(e) => chooseDriver(e.target.value)} sx={{ minWidth: 200 }}
-                // Ten names can outgrow a short window; MUI warns when its menu does.
+                select size="small" label="Driver" value={drivers.some((d) => d.driverCode === driverCode) ? driverCode : ''}
+                onChange={(e) => chooseDriver(e.target.value)} sx={{ minWidth: 200 }}
+                // Two dozen names outgrow a short window; MUI warns when its menu does.
                 slotProps={{ select: { MenuProps: { slotProps: { paper: { sx: { maxHeight: 320 } } } } } }}
               >
-                {DRIVERS.map((d) => <MenuItem key={d.driverCode} value={d.driverCode}>{d.name}</MenuItem>)}
+                {drivers.map((d) => <MenuItem key={d.driverCode} value={d.driverCode}>{d.name}</MenuItem>)}
               </TextField>
             )}
           </Bar>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Sample stays on the planner's clock. Approving, declining and requesting really change them --
-            and the planner tab -- until the page is reloaded. There is no live schedule yet: nothing stores home time.
-          </Alert>
+          {laptop ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Stays in the laptop's database, read and written through the host's own SQL -- every request,
+              approval and decline is a real row there. The driver view acts AS that driver, so the host's
+              who-may checks decide what it gets. The planner's verdict is not shown on this data.
+            </Alert>
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Sample stays on the planner's clock. Approving, declining and requesting really change them --
+              and the planner tab -- until the page is reloaded.
+            </Alert>
+          )}
           {view === 'dispatch'
-            ? <HomeTimeSchedule adapter={sampleScheduleAdapter} organizationId="preview" now={SAMPLE_NOW} verdictFor={verdictFor} />
-            : <DriverHomeTime key={driverCode} adapter={sampleScheduleAdapter} driverCode={driverCode} organizationId="preview" now={SAMPLE_NOW} />}
+            ? <HomeTimeSchedule key={data} adapter={laptop ? laptopScheduleAdapter : sampleScheduleAdapter} organizationId="preview"
+                now={laptop ? null : SAMPLE_NOW} verdictFor={laptop ? null : verdictFor} />
+            : <DriverHomeTime key={`${data}-${driverCode}`} adapter={laptop ? laptopScheduleAdapterFor(driverCode) : sampleScheduleAdapter}
+                driverCode={driverCode} organizationId="preview" now={laptop ? null : SAMPLE_NOW} />}
         </>
       )}
 
@@ -156,17 +207,39 @@ export default function PreviewHost() {
               <ToggleButton value="off">Driving time only</ToggleButton>
             </ToggleButtonGroup>
           </Bar>
-          <Alert severity="info" sx={{ mb: 2 }}>
-            Sample loads on the planner's clock, with the planner's drivers. Home time is the schedule tab's:
-            approve a request there and a load here that runs into it says so. Assigning and taking back really
-            change the loads until the page is reloaded. There are no live load plans yet.
-          </Alert>
-          <DriverLoadPlans key={hours} adapter={loadPlansOnSchedule} organizationId="preview" now={SAMPLE_NOW}
-            drive={hours === 'planner' ? driveFor : null} />
+          {laptop ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Loads, plans and home time from the laptop's database, through the host's own SQL -- assigning and
+              taking back write real rows there. {geotabNote}
+            </Alert>
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              Sample loads on the planner's clock, with the planner's drivers. Home time is the schedule tab's:
+              approve a request there and a load here that runs into it says so. Assigning and taking back really
+              change the loads until the page is reloaded.
+            </Alert>
+          )}
+          <DriverLoadPlans key={`${data}-${hours}`} adapter={laptop ? laptopLoadPlanAdapter : loadPlansOnSchedule} organizationId="preview"
+            now={laptop ? null : SAMPLE_NOW} drive={hours === 'planner' ? driveFor : null} />
         </>
       )}
     </Box>
   )
+}
+
+// Who is signed in (GeoTab needs dispatch), and the laptop's drivers for the
+// driver picker -- asked once, when the laptop database is chosen.
+function useLaptop(on: boolean): { user: { name: string; role: string } | null | undefined; drivers: { driverCode: string; name: string }[] } {
+  const [user, setUser] = useState<{ name: string; role: string } | null | undefined>(undefined)
+  const [drivers, setDrivers] = useState<{ driverCode: string; name: string }[]>([])
+  useEffect(() => {
+    if (!on) return
+    let live = true
+    signedIn().then((u) => { if (live) setUser(u) })
+    laptopDrivers().then((d) => { if (live) setDrivers(d) }).catch(() => { /* the tabs say what is wrong */ })
+    return () => { live = false }
+  }, [on])
+  return { user, drivers }
 }
 
 function Bar({ children }: { children: ReactNode }) {

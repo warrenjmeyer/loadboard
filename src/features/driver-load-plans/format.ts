@@ -64,6 +64,16 @@ export function formatMoney(amount: number | null | undefined): string | null {
 
 export const placeName = (p: Place | null | undefined): string => p?.place || 'an unplaced stop'
 
+// A plan's empty miles, honestly: "98 mi empty", "empty miles unknown" when
+// no leg can be placed, "98 mi empty + 1 unknown" when some cannot. Null when
+// there is no leg to drive empty -- a plan whose one load is under way.
+export function formatEmpty(totals: { deadheadMiles: number; legs: number; unplacedLegs: number }): string | null {
+  if (totals.legs === 0) return null
+  if (totals.unplacedLegs === totals.legs) return 'empty miles unknown'
+  const known = `${formatMiles(totals.deadheadMiles)} empty`
+  return totals.unplacedLegs > 0 ? `${known} + ${totals.unplacedLegs} unknown` : known
+}
+
 // "Joliet, IL → Davenport, IA"
 export const lane = (load: PlanLoad): string => `${placeName(load.origin)} → ${placeName(load.destination)}`
 

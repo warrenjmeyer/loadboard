@@ -284,7 +284,13 @@ export function planWithLegs(data: LoadPlanData, driverCode: string, { now, driv
 export interface PlanSummary {
   loads: number
   loadedMiles: number
+  /** Over the legs whose distance is known. */
   deadheadMiles: number
+  /** Legs into loads (the one under way has none). */
+  legs: number
+  /** Of those, how many have no known distance -- a truck or pickup nobody
+   * can place. Their miles are unknown, not zero. */
+  unplacedLegs: number
   late: number
   tight: number
   /** Loads that run into home time or another load. */
@@ -296,10 +302,12 @@ export function summarize(planned: readonly PlannedLoad[]): PlanSummary {
     loads: s.loads + 1,
     loadedMiles: s.loadedMiles + (p.load.miles ?? 0),
     deadheadMiles: s.deadheadMiles + (p.leg?.deadheadMiles ?? 0),
+    legs: s.legs + (p.leg ? 1 : 0),
+    unplacedLegs: s.unplacedLegs + (p.leg && p.leg.deadheadMiles === null ? 1 : 0),
     late: s.late + (p.leg?.verdict === 'LATE' ? 1 : 0),
     tight: s.tight + (p.leg?.verdict === 'TIGHT' ? 1 : 0),
     clashes: s.clashes + (p.conflicts.length > 0 || p.overlapsLoad ? 1 : 0),
-  }), { loads: 0, loadedMiles: 0, deadheadMiles: 0, late: 0, tight: 0, clashes: 0 })
+  }), { loads: 0, loadedMiles: 0, deadheadMiles: 0, legs: 0, unplacedLegs: 0, late: 0, tight: 0, clashes: 0 })
 }
 
 // ---------------------------------------------------------------------------
