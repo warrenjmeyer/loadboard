@@ -379,7 +379,7 @@ export function assign(load: PlanLoad, driverCode: string): { load: PlanLoad } |
 export function unassign(load: PlanLoad): { load: PlanLoad } | { error: string } {
   if (load.status === 'In Transit') return { error: `${load.id} is already under way; it cannot come off the plan.` }
   if (load.status !== 'Covered') return { error: `${load.id} is not on anyone's plan.` }
-  return { load: { ...load, status: 'Available', driverCode: null } }
+  return { load: { ...load, status: 'Available', driverCode: null, plannedAt: null } }
 }
 
 // ---------------------------------------------------------------------------

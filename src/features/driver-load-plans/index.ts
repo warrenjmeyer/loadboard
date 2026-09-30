@@ -50,8 +50,12 @@ export {
 } from './rules.ts'
 export type { DriveFn, DriveResult, Leg, LegVerdict, LegStart, StartKind, PlannedLoad, PlanSummary, Candidate } from './rules.ts'
 
+// The status lookup table, kept in step with PLAN_STATUSES.
+export { checkPlanStatusRows, planStatusIds } from './lookups.ts'
+export type { PlanStatusRow } from './lookups.ts'
+
 // The contract.
-export { checkLoadPlans, LOAD_STATUSES } from './contract.ts'
+export { checkLoadPlans, LOAD_STATUSES, PLAN_STATUSES } from './contract.ts'
 export type {
-  PlanLoad, LoadStatus, PlanDriver, HomeStay, Hours, Place, LoadPlanData, LoadPlanAdapter, ReadArgs, IsoMoment,
+  PlanLoad, LoadStatus, PlanStatus, PlanDriver, HomeStay, Hours, Place, LoadPlanData, LoadPlanAdapter, ReadArgs, IsoMoment,
 } from './contract.ts'

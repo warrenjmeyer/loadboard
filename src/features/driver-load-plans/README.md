@@ -25,19 +25,57 @@ A switch at the top times the legs with the **planner's hours model** or by
 The loads are samples on the planner's clock (Monday 28 September, 10 AM).
 Assigning and taking back really change them until the page is reloaded.
 
-    node --test src/features/driver-load-plans/rules.test.ts src/features/driver-load-plans/scope.test.ts src/features/sampleData.test.ts
+    node --test src/features/driver-load-plans/rules.test.ts src/features/driver-load-plans/scope.test.ts src/features/driver-load-plans/lookups.test.ts src/features/sampleData.test.ts
     npm run typecheck
 
 ## A plan is loads
 
-There is no plan table. A driver's **plan** is the loads assigned to them:
-the one under way (`In Transit`) first, then the ones lined up (`Covered`)
-in pickup order. Planning means assigning a driver to an `Available` load,
-which makes it `Covered`. Taking it back makes it `Available` again. A load
-already under way cannot be taken back. `assign` and `unassign` in
-`rules.ts` are the whole of it, and the server should run the same two.
+A driver's **plan** is the loads assigned to them: the one under way
+(`In Transit`) first, then the ones lined up (`Covered`) in pickup order.
+Planning means putting an `Available` load on a driver's plan, which makes
+it `Covered`. Taking it back makes it `Available` again. A load already
+under way cannot be taken back. `assign` and `unassign` in `rules.ts` are
+the whole of it, and the server runs the same two
+(`src/features/sql/06_load_plan_writes.sql`, same sentences).
 
-**No new tables.** The host already records a load's driver and status.
+## The table: DRVR.Load_Plans
+
+Designed 2026-09-29. One row each time a load is put on a driver's plan
+(`src/features/sql/04_DRVR_Load_Plans.sql`). Warren decided:
+
+- **Planning writes only this table.** `TMS.Loads` belongs to the TMS side,
+  and its `status` and `driver_code` are never written from here.
+- **One step.** A row is `PLANNED`, or `TAKEN_BACK`. The statuses are the
+  rows of `DRVR.fk_Load_Plan_Status`, created through the app on 2026-09-29
+  (`PLANNED` = 1, `TAKEN_BACK` = 2; `fixtures/plan-statuses.json` holds the
+  rows as created), matched by name (`lookups.ts`, as the schedule's are).
+- **Taken-back rows are kept**, with who and when, so there is a record of
+  who planned what. Putting a load on a plan again is a new row.
+- **Order is by pickup time.** Nothing stores an order that could disagree
+  with the windows.
+
+| Column | What |
+|---|---|
+| `Load_Plan_Id` | int identity key |
+| `Load_Uuid` | the load: `TMS.Loads.load_uuid` |
+| `Driver_Id` | the driver: `DRVR.Drivers` |
+| `Load_Plan_Status_Id` | `PLANNED` or `TAKEN_BACK` |
+| `Planned_At`, `Planned_By` | when, and which dispatcher |
+| `Taken_Back_At`, `Taken_Back_By` | empty while on the plan |
+| the standard six | `IsActive`, `Created_At`, `Updated_At`, `Created_By`, `j`, `TTP_ID` |
+
+What the database itself refuses: **a load on two plans at once** (a unique
+index on the load, among rows not taken back, so two dispatchers clicking
+Assign together cannot both win); a status that disagrees with the
+take-back time; a take-back before the plan; an unknown driver, status or
+load.
+
+**Where the tab's load status comes from.** The view
+`DRVR.Loads_For_Planning` gives every TMS load its state: `Delivered`,
+`Cancelled` and `In Transit` from `TMS.Loads.status`, `Covered` when it is on
+a plan, and `Available` otherwise. `TMS.Loads.status` still holds the load
+board's words. Their own 16-state lifecycle is an open question with them,
+and when it is settled, that view is the one place to change.
 
 ## The four checks
 
@@ -134,18 +172,26 @@ user.
 ## Porting it
 
 1. **Copy the folder**, leaving out `adapters/` (the sample adapter).
-2. **Write the adapter** (`LoadPlanAdapter` in `contract.ts`). It has four
-   scoped reads answering exactly as `scope.ts` does, and two writes,
-   `assignLoad` and `unassignLoad`, which should run `assign` and `unassign`
-   from `rules.ts` and refuse in the same words. `checkLoadPlans()` tests
-   real data against the contract.
-3. **Mount it**: `<DriverLoadPlans adapter drive />` in the tab, or any
+2. **Build the table** (`src/features/sql/README.md` has the order): create
+   `DRVR.fk_Load_Plan_Status` through the app (`PLANNED`, `TAKEN_BACK`), run
+   `04_DRVR_Load_Plans.sql`, then `load_plans_from_tms_loads.sql` to put the
+   loads `TMS.Loads` already has drivers for onto their plans.
+3. **Write the adapter** (`LoadPlanAdapter` in `contract.ts`). Its four reads
+   are `05_load_plan_reads.sql` and its two writes are
+   `06_load_plan_writes.sql`, each with its WHO check. The API adds what the
+   database does not hold: a zone for each dock time (the dock's state, as
+   `get-me-home/adapters/dockTime.ts` does), map positions for places, and
+   each driver's position and hours from GeoTab. It trims each window to
+   the exact moments with `scope.ts` once the times have zones.
+   `checkLoadPlans()` tests the result against the contract, and
+   `checkPlanStatusRows()` tests the lookup table.
+4. **Mount it**: `<DriverLoadPlans adapter drive />` in the tab, or any
    module on its own. `DriverLoadPlan` suits a driver's page, and
    `SuggestDriver` suits a load screen.
-4. **Join it to the other two tabs**, where the host has all three:
+5. **Join it to the other two tabs**, where the host has all three:
    - `drive`: the planner's `scheduleDrive`, wrapped as a `DriveFn`;
    - the stays: the schedule's `APPROVED` and `HOME` stays, reduced to
-     `HomeStay`.
+     `HomeStay`. The reads already return exactly those.
 
    `src/features/preview/wiring.ts` is the worked example, and TypeScript
    checks the hours join there.

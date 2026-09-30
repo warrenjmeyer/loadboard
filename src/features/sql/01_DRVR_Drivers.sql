@@ -28,7 +28,7 @@ SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
 
 IF SCHEMA_ID(N'DRVR') IS NULL
-    THROW 50000, 'There is no DRVR schema here. Is this the database with DRVR.fk_Home_Time_Status in it?', 1;
+    THROW 50000, 'There is no DRVR schema here, or this login may not see it (00_check_permissions.sql says which). Is this the database with DRVR.fk_Home_Time_Status in it?', 1;
 
 IF OBJECT_ID(N'DRVR.Drivers', N'U') IS NOT NULL
     THROW 50000, 'DRVR.Drivers already exists. This script creates it; it does not change it.', 1;

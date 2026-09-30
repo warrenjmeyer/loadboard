@@ -222,6 +222,7 @@ test('taking back makes a Covered load Available; one under way cannot come off'
   assert.ok('load' in back)
   assert.equal(back.load.status, 'Available')
   assert.equal(back.load.driverCode, null)
+  assert.equal(back.load.plannedAt, null, 'off the plan, so no longer planned at any time')
   assert.deepEqual(unassign(load('L-30412')), { error: 'L-30412 is already under way; it cannot come off the plan.' })
   assert.deepEqual(unassign(load('L-30450')), { error: 'L-30450 is not on anyone\'s plan.' })
 })

@@ -95,7 +95,7 @@ function LoadCard({ planned, now, highlighted, busy, onTakeBack }: {
         Pick up {formatWindow(load.pickupStart, load.pickupEnd, now)} · deliver {formatWindow(load.deliveryStart, load.deliveryEnd, now)}
       </Typography>
       <Typography variant="caption" component="p" sx={{ color: 'text.secondary' }}>
-        {[formatMiles(load.miles), load.equipment, money].filter(Boolean).join(' · ')}
+        {[formatMiles(load.miles), load.equipment, money, load.plannedAt && `planned ${formatShort(load.plannedAt, now)}`].filter(Boolean).join(' · ')}
       </Typography>
 
       {leg && <LegLine leg={leg} now={now} />}

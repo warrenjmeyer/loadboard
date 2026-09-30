@@ -3,9 +3,15 @@
 // runs in, and what it asks that app to do.
 //
 // A driver's PLAN is the loads assigned to them, in pickup order: the one
-// they are on (In Transit), then the ones lined up next (Covered). There is
-// no plan table -- planning IS assigning a driver to an Available load, or
-// taking it back, which is what TMS.Loads already records on the host.
+// they are on (In Transit), then the ones lined up next (Covered). Planning
+// is putting an Available load on a driver's plan, or taking it back.
+//
+// On the host that is a row in DRVR.Load_Plans (src/features/sql/
+// 04_DRVR_Load_Plans.sql): PLANNED while it is on the plan, TAKEN_BACK once
+// it comes off, the row kept either way. TMS.Loads is never written. A
+// load's status here is worked out by the view DRVR.Loads_For_Planning:
+// Delivered, Cancelled and In Transit from TMS.Loads' own status; Covered
+// when it is on a plan; Available otherwise.
 //
 // Same units as the other tabs: moments are ISO 8601 WITH A ZONE, durations
 // are seconds, places carry decimal-degree coordinates.
@@ -18,6 +24,13 @@ export type IsoMoment = string
 
 export const LOAD_STATUSES = ['Available', 'Covered', 'In Transit', 'Delivered', 'Cancelled'] as const
 export type LoadStatus = (typeof LOAD_STATUSES)[number]
+
+// The rows of DRVR.fk_Load_Plan_Status, spelled exactly as its
+// Load_Plan_Status column spells them -- the name is the code, as with the
+// schedule's statuses, and lookups.ts checks the two still agree. One step
+// (decided 2026-09-29): on the plan, or taken back off it.
+export const PLAN_STATUSES = ['PLANNED', 'TAKEN_BACK'] as const
+export type PlanStatus = (typeof PLAN_STATUSES)[number]
 
 export interface Place {
   /** "Joliet, IL" */
@@ -43,6 +56,9 @@ export interface PlanLoad {
   miles: number | null
   rate?: number | null
   equipment?: string | null
+  /** When it went on the plan it is on (DRVR.Load_Plans.Planned_At). Null
+   * while Available, and for loads planned before anything recorded it. */
+  plannedAt?: IsoMoment | null
 }
 
 /** Seconds LEFT on each hours-of-service clock; null when unknown. The
@@ -178,7 +194,8 @@ export function checkLoadPlans(data: unknown): string[] {
     if ((l.status === 'Covered' || l.status === 'In Transit') && !l.driverCode) problems.push(`${at} is ${String(l.status)} with no driver`)
     place(problems, `${at}.origin`, l.origin)
     place(problems, `${at}.destination`, l.destination)
-    for (const k of ['pickupStart', 'pickupEnd', 'deliveryStart', 'deliveryEnd']) moment(problems, `${at}.${k}`, l[k])
+    for (const k of ['pickupStart', 'pickupEnd', 'deliveryStart', 'deliveryEnd', 'plannedAt']) moment(problems, `${at}.${k}`, l[k])
+    if (l.status === 'Available' && l.plannedAt) problems.push(`${at} is Available but has a plannedAt`)
   })
 
   ;(data.stays as unknown[]).forEach((s, i) => {

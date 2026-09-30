@@ -80,7 +80,11 @@ export function makeSampleLoadPlanAdapter({ stays = () => SAMPLE.stays }: { stay
 
     assignLoad(loadId, driverCode) {
       if (!SAMPLE.drivers.some((d) => d.driverCode === driverCode)) return Promise.reject(new Error(`There is no driver ${driverCode}.`))
-      return move(loadId, (load) => assign(load, driverCode))
+      // The server stamps Planned_At; the sample stamps its own clock.
+      return move(loadId, (load) => {
+        const result = assign(load, driverCode)
+        return 'load' in result ? { load: { ...result.load, plannedAt: SAMPLE_NOW } } : result
+      })
     },
 
     unassignLoad(loadId) {

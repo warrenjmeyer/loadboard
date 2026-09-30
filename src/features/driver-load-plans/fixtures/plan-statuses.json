@@ -1,0 +1,5 @@
+[
+  { "Load_Plan_Status_Id": 0, "Load_Plan_Status": "Undefined", "Choice_Key": "-", "IsActive": 1, "Created_At": "2026-09-29 19:07:58.110", "Updated_At": "2026-09-29 19:07:58.110", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Load_Plan_Status_Id": 1, "Load_Plan_Status": "PLANNED", "Choice_Key": "a", "IsActive": 1, "Created_At": "2026-09-29 19:08:10.517", "Updated_At": "2026-09-29 19:08:10.517", "Created_By": null, "j": 1, "TTP_ID": 0 },
+  { "Load_Plan_Status_Id": 2, "Load_Plan_Status": "TAKEN_BACK", "Choice_Key": "b", "IsActive": 1, "Created_At": "2026-09-29 19:08:22.930", "Updated_At": "2026-09-29 19:08:22.930", "Created_By": null, "j": 1, "TTP_ID": 0 }
+]

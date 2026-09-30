@@ -31,9 +31,9 @@ SET QUOTED_IDENTIFIER ON;
 SET ANSI_NULLS ON;
 
 IF OBJECT_ID(N'DRVR.Drivers', N'U') IS NULL
-    THROW 50000, 'DRVR.Drivers does not exist. Run 01_DRVR_Drivers.sql first.', 1;
+    THROW 50000, 'DRVR.Drivers is not here, or this login may not see it (00_check_permissions.sql says which). It is made by 01_DRVR_Drivers.sql.', 1;
 IF COL_LENGTH(N'DRVR.fk_Home_Time_Status', N'Home_Time_Status_Id') IS NULL
-    THROW 50000, 'DRVR.fk_Home_Time_Status (with Home_Time_Status_Id) does not exist. Create it through the app first.', 1;
+    THROW 50000, 'DRVR.fk_Home_Time_Status (with Home_Time_Status_Id) is not here, or this login may not see it (00_check_permissions.sql says which). It is created through the app.', 1;
 IF OBJECT_ID(N'DRVR.Home_Time_Stays', N'U') IS NOT NULL
     THROW 50000, 'DRVR.Home_Time_Stays already exists. This script creates it; it does not change it.', 1;
 
