@@ -1,11 +1,10 @@
 import { loadboardAdapter } from '../get-me-home/adapters/loadboardAdapter.ts'
 import type { Adapter, Roster } from '../get-me-home/contract.ts'
 import type { ApiHours, ApiPositions, ApiZones } from '../get-me-home/adapters/loadboardRoster.ts'
-import { homeTimeFor } from '../home-time-schedule/rules.ts'
 import type { ScheduleAdapter, ScheduleData } from '../home-time-schedule/contract.ts'
 import { scopeOpenLoads, scopePlanBoard } from '../driver-load-plans/scope.ts'
 import type { LoadPlanAdapter, LoadPlanData, PlanLoad } from '../driver-load-plans/contract.ts'
-import { toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
+import { rosterOnLaptop, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
 import type { GeoTab, HomeStayRow, LoadRow, PlanDriverRow, ScheduleDriverRow, StayRow } from './laptop.ts'
 
 // ---------------------------------------------------------------------------
@@ -168,32 +167,23 @@ export async function laptopDrivers(): Promise<{ driverCode: string; name: strin
 // ---- The planner -----------------------------------------------------------
 
 // The planner's live drivers -- Millstream and GeoTab, through the deployed
-// API -- with their home time from the laptop's stays: the same join
-// wiring.ts makes for the samples, made with the laptop's.
-async function withLaptopHomeTime(roster: Roster, signal: AbortSignal): Promise<Roster> {
-  const now = new Date().toISOString()
+// API -- with their current loads and home time from the laptop database
+// (rosterOnLaptop in laptop.ts): the same joins wiring.ts makes for the
+// samples, made with the laptop's rows. A year each side, so a load under
+// way since long ago and a stay long past both come back.
+async function onLaptop(roster: Roster, signal: AbortSignal): Promise<Roster> {
   const year = 365 * 24 * 3600 * 1000
-  const from = new Date(Date.now() - year).toISOString()
-  const to = new Date(Date.now() + year).toISOString()
-  const schedule = await laptopScheduleAdapter.loadBoard({ organizationId: null, from, to, signal })
-  return {
-    ...roster,
-    drivers: roster.drivers.map((d) => {
-      const fromStays = homeTimeFor(schedule.stays, d.driverCode, now)
-      const scoped = schedule.drivers.find((s) => s.driverCode === d.driverCode)
-      // A scoped driver carries lastHomeAt from ALL their stays, older than
-      // the window included -- so it wins where it is there.
-      return { ...d, homeTime: { ...fromStays, lastHomeAt: scoped?.lastHomeAt ?? fromStays.lastHomeAt } }
-    }),
-  }
+  const window = { organizationId: null, from: new Date(Date.now() - year).toISOString(), to: new Date(Date.now() + year).toISOString(), signal }
+  const [plans, schedule] = await Promise.all([laptopLoadPlanAdapter.loadPlanBoard(window), laptopScheduleAdapter.loadBoard(window)])
+  return rosterOnLaptop(roster, { plans, schedule, now: new Date().toISOString() })
 }
 
 export const plannerOnLaptop: Adapter = {
   async loadRoster(args) {
-    return withLaptopHomeTime(await loadboardAdapter.loadRoster(args), args.signal)
+    return onLaptop(await loadboardAdapter.loadRoster(args), args.signal)
   },
   async loadDriver(args) {
-    return withLaptopHomeTime(await loadboardAdapter.loadDriver(args), args.signal)
+    return onLaptop(await loadboardAdapter.loadDriver(args), args.signal)
   },
 }
 

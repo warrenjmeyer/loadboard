@@ -134,8 +134,9 @@ export default function PreviewHost() {
       {tab === 0 && (laptop ? (
         <>
           <Alert severity="info" sx={{ mb: 2 }}>
-            Your real drivers and their loads from Millstream, with their home time from the laptop's stays -- ask
-            for or decide home time in the schedule tab and this tab follows. {geotabNote}
+            Your real drivers from Millstream, with their current loads and home time from the laptop's database --
+            the loads the load plans tab shows, and the stays the schedule tab keeps. Assign a load or decide home
+            time there and this tab follows. {geotabNote}
           </Alert>
           <GetMeHomePlanner key="laptop" adapter={plannerOnLaptop} organizationId="preview" />
         </>

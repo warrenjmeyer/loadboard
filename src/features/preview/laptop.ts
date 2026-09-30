@@ -3,6 +3,9 @@ import { zoneKey } from '../get-me-home/adapters/loadboardRoster.ts'
 import type { ApiHours, ApiPositions, ApiZones } from '../get-me-home/adapters/loadboardRoster.ts'
 import type { HomeStay, Hours, LoadPlanData, LoadStatus, Place, PlanDriver, PlanLoad } from '../driver-load-plans/contract.ts'
 import type { ScheduleData, ScheduleDriver, Stay, StaySource, StayStatus } from '../home-time-schedule/contract.ts'
+import type { Roster } from '../get-me-home/contract.ts'
+import { planFor } from '../driver-load-plans/rules.ts'
+import { homeTimeFor } from '../home-time-schedule/rules.ts'
 
 // ---------------------------------------------------------------------------
 // The laptop database's rows, turned into the tabs' data. Pure: rows and
@@ -185,3 +188,44 @@ export function toLoadPlanData(
       .map((s): HomeStay => ({ driverCode: s.driverCode, homeBy: s.homeBy, backOut: s.backOut, status: s.status as HomeStay['status'] })),
   }
 }
+
+// ---- The planner ---------------------------------------------------------
+
+/** The planner's live roster -- Millstream's drivers, GeoTab's positions and
+ * hours -- with what the laptop database knows put in its place:
+ *
+ *   currentLoad  the first load on the driver's laptop plan: the one under
+ *                way first, then the earliest pickup -- the rule the load
+ *                board's /api/roster uses, over the laptop's loads, so the
+ *                three tabs agree on what each truck is doing;
+ *   homeTime     from the laptop's stays, as the schedule tab shows them.
+ *
+ * Positions and hours stay GeoTab's. A driver with nothing on the laptop
+ * plan has no current load, whatever Millstream says. */
+export function rosterOnLaptop(roster: Roster, { plans, schedule, now }: {
+  plans: LoadPlanData
+  schedule: ScheduleData
+  now: string
+}): Roster {
+  return {
+    ...roster,
+    drivers: roster.drivers.map((d) => {
+      const load = planFor(plans, d.driverCode)[0]
+      const fromStays = homeTimeFor(schedule.stays, d.driverCode, now)
+      const scoped = schedule.drivers.find((s) => s.driverCode === d.driverCode)
+      return {
+        ...d,
+        currentLoad: load
+          ? { id: load.id, finalStop: load.destination, emptyAt: load.deliveryEnd ?? load.deliveryStart }
+          : null,
+        // A road route home was measured from where Millstream's load ended;
+        // the laptop's may end elsewhere, so the planner estimates instead.
+        routeHome: null,
+        // A scoped driver carries lastHomeAt from ALL their stays, older than
+        // the window included -- so it wins where it is there.
+        homeTime: { ...fromStays, lastHomeAt: scoped?.lastHomeAt ?? fromStays.lastHomeAt },
+      }
+    }),
+  }
+}
+

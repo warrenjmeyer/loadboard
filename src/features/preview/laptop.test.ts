@@ -1,9 +1,13 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
-import { dockMoment, placeFrom, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
+import { readFileSync } from 'node:fs'
+import { dockMoment, placeFrom, rosterOnLaptop, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
 import type { LoadRow, StayRow } from './laptop.ts'
 import { checkLoadPlans } from '../driver-load-plans/contract.ts'
 import { checkSchedule } from '../home-time-schedule/contract.ts'
+import type { ScheduleData } from '../home-time-schedule/contract.ts'
+import type { LoadPlanData } from '../driver-load-plans/contract.ts'
+import type { Roster } from '../get-me-home/contract.ts'
 
 // The laptop database's rows, turned into the tabs' data -- what the host's
 // API has to do with its own rows. The rows here are shaped exactly as the
@@ -100,3 +104,51 @@ test('a stored stay comes out as the schedule\'s Stay, and valid schedule data',
   const data = toScheduleData({ stays: [row], drivers: [{ driverCode: 'TBOONE', name: 'Terrell Boone', unitNo: 'Demo - 02', lastHomeAt: null }] })
   assert.deepEqual(checkSchedule(data), [])
 })
+
+// ---- The planner on the laptop: its loads and home time ----------------
+const read = <T>(path: string) => JSON.parse(readFileSync(new URL(path, import.meta.url), 'utf8')) as T
+const roster = read<Roster>('../get-me-home/fixtures/roster.json')
+const plans = read<LoadPlanData>('../driver-load-plans/fixtures/plans.json')
+const schedule = read<ScheduleData>('../home-time-schedule/fixtures/schedule.json')
+const driver = (r: Roster, code: string) => {
+  const d = r.drivers.find((x) => x.driverCode === code)
+  if (!d) throw new Error(`no driver ${code}`)
+  return d
+}
+
+test("the planner's current load is the first on the laptop plan: the one under way, else the earliest pickup", () => {
+  const r = rosterOnLaptop(roster, { plans, schedule, now: roster.asOf! })
+  const rosa = driver(r, 'RDELGADO').currentLoad
+  assert.equal(rosa?.id, 'L-30412', 'under way beats the Davenport load lined up after it')
+  assert.equal(rosa?.finalStop.place, 'Joliet, IL')
+  assert.equal(rosa?.emptyAt, '2026-09-28T16:00:00-05:00')
+  assert.equal(driver(r, 'PRAMAN').currentLoad?.id, 'L-30430', 'two lined up: the earlier pickup')
+  assert.equal(driver(r, 'SOAKS').currentLoad?.id, 'L-30440')
+})
+
+test('a load Millstream still shows but the laptop plan does not is gone -- the laptop decides', () => {
+  const stale: Roster = { ...roster, drivers: roster.drivers.map((d) => d.driverCode === 'TBOONE'
+    ? { ...d, currentLoad: { id: 'L-OLD', finalStop: { place: 'Laredo, TX', latitude: 27.5, longitude: -99.5 }, emptyAt: '2026-09-16T20:00:00-05:00' } }
+    : d) }
+  assert.equal(driver(rosterOnLaptop(stale, { plans, schedule, now: roster.asOf! }), 'TBOONE').currentLoad, null)
+})
+
+test("a road route home measured from Millstream's load is not reused", () => {
+  assert.ok(driver(roster, 'PRAMAN').routeHome, 'the fixture has one')
+  assert.equal(driver(rosterOnLaptop(roster, { plans, schedule, now: roster.asOf! }), 'PRAMAN').routeHome, null)
+})
+
+test("home time comes from the laptop's stays, and a scoped driver's lastHomeAt wins", () => {
+  const r = rosterOnLaptop(roster, { plans, schedule, now: roster.asOf! })
+  assert.equal(driver(r, 'TBOONE').homeTime.requestedBy, '2026-09-29T18:00:00-05:00')
+  assert.equal(driver(r, 'TBOONE').homeTime.lastHomeAt, '2026-09-12T13:00:00Z', 'from his DONE stay')
+  const scoped = { ...schedule, drivers: schedule.drivers.map((d) => (d.driverCode === 'TBOONE' ? { ...d, lastHomeAt: '2026-09-20T12:00:00Z' } : d)) }
+  assert.equal(driver(rosterOnLaptop(roster, { plans, schedule: scoped, now: roster.asOf! }), 'TBOONE').homeTime.lastHomeAt, '2026-09-20T12:00:00Z')
+})
+
+test("positions and hours stay GeoTab's", () => {
+  const r = rosterOnLaptop(roster, { plans, schedule, now: roster.asOf! })
+  assert.deepEqual(driver(r, 'HBARNETT').position, driver(roster, 'HBARNETT').position)
+  assert.deepEqual(driver(r, 'HBARNETT').hours, driver(roster, 'HBARNETT').hours)
+})
+
