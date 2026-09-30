@@ -10,6 +10,8 @@ import scheduleSample from '../home-time-schedule/fixtures/schedule.json'
 import DriverLoadPlans from '../driver-load-plans/DriverLoadPlans.tsx'
 import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
 import { laptopDrivers, laptopLoadPlanAdapter, laptopScheduleAdapter, laptopScheduleAdapterFor, plannerOnLaptop, signedIn } from './laptopAdapters.ts'
+import { makeVerdictFor, verdictUnavailable } from './verdict.ts'
+import type { Stay, StayVerdict } from '../home-time-schedule/contract.ts'
 import ModulesPage from './ModulesPage.tsx'
 import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
@@ -82,6 +84,7 @@ export default function PreviewHost() {
 
   const laptop = data === 'laptop'
   const { user, drivers: laptopList } = useLaptop(laptop)
+  const laptopVerdictFor = useLaptopVerdict(laptop && tab === 1)
   const drivers = laptop ? laptopList : SAMPLE_DRIVERS
 
   // Which page: the stand-in for the host's tabs, or the catalogue of modules.
@@ -183,7 +186,8 @@ export default function PreviewHost() {
             <Alert severity="info" sx={{ mb: 2 }}>
               Stays in the laptop's database, read and written through the host's own SQL -- every request,
               approval and decline is a real row there. The driver view acts AS that driver, so the host's
-              who-may checks decide what it gets. The planner's verdict is not shown on this data.
+              who-may checks decide what it gets. The planner's verdict beside Approve plans your real drivers
+              from GeoTab, so it needs a dispatcher or admin signed in; it appears once they have loaded.
             </Alert>
           ) : (
             <Alert severity="info" sx={{ mb: 2 }}>
@@ -193,7 +197,7 @@ export default function PreviewHost() {
           )}
           {view === 'dispatch'
             ? <HomeTimeSchedule key={data} adapter={laptop ? laptopScheduleAdapter : sampleScheduleAdapter} organizationId="preview"
-                now={laptop ? null : SAMPLE_NOW} verdictFor={laptop ? null : verdictFor} />
+                now={laptop ? null : SAMPLE_NOW} verdictFor={laptop ? laptopVerdictFor : verdictFor} />
             : <DriverHomeTime key={`${data}-${driverCode}`} adapter={laptop ? laptopScheduleAdapterFor(driverCode) : sampleScheduleAdapter}
                 driverCode={driverCode} organizationId="preview" now={laptop ? null : SAMPLE_NOW} />}
         </>
@@ -240,6 +244,30 @@ function useLaptop(on: boolean): { user: { name: string; role: string } | null |
     return () => { live = false }
   }, [on])
   return { user, drivers }
+}
+
+// The planner's verdict on the laptop data: the live roster -- Millstream's
+// drivers, GeoTab's positions and hours, the laptop's home time -- loaded
+// when the schedule tab opens, and every request planned against it. Until
+// it arrives there is no verdict; if it cannot arrive, every request says why.
+type VerdictFor = (stay: Stay) => StayVerdict | null
+function useLaptopVerdict(on: boolean): VerdictFor | null {
+  const [verdict, setVerdict] = useState<VerdictFor | null>(null)
+  useEffect(() => {
+    if (!on) return
+    const controller = new AbortController()
+    plannerOnLaptop.loadRoster({ organizationId: 'preview', signal: controller.signal })
+      .then((roster) => setVerdict(() => makeVerdictFor(roster)))
+      .catch((err: unknown) => {
+        if (controller.signal.aborted) return
+        const message = err instanceof Error ? err.message : String(err)
+        setVerdict(() => verdictUnavailable(/not signed in/.test(message)
+          ? 'it plans your real drivers from GeoTab, which needs a dispatcher or admin signed in on this dev server. Sign in at /signin, then reload.'
+          : message))
+      })
+    return () => controller.abort()
+  }, [on])
+  return on ? verdict : null
 }
 
 function Bar({ children }: { children: ReactNode }) {

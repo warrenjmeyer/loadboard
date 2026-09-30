@@ -1,11 +1,11 @@
 import roster from '../get-me-home/fixtures/roster.json'
 import { fixtureAdapter } from '../get-me-home/adapters/fixtureAdapter.ts'
-import { mergePolicy, planDriver, scheduleDrive } from '../get-me-home/planHome.ts'
+import { scheduleDrive } from '../get-me-home/planHome.ts'
 import type { Adapter, Roster } from '../get-me-home/contract.ts'
 import { homeTimeFor } from '../home-time-schedule/rules.ts'
 import { sampleStays } from '../home-time-schedule/adapters/sampleAdapter.ts'
-import { formatDuration, formatWhen } from '../home-time-schedule/format.ts'
-import type { Stay, StayVerdict } from '../home-time-schedule/contract.ts'
+import type { Stay } from '../home-time-schedule/contract.ts'
+import { makeVerdictFor } from './verdict.ts'
 import { makeSampleLoadPlanAdapter } from '../driver-load-plans/adapters/sampleAdapter.ts'
 import type { DriveFn } from '../driver-load-plans/rules.ts'
 import type { HomeStay, LoadPlanAdapter } from '../driver-load-plans/contract.ts'
@@ -38,7 +38,6 @@ import type { HomeStay, LoadPlanAdapter } from '../driver-load-plans/contract.ts
 // ---------------------------------------------------------------------------
 const SAMPLE = roster as Roster
 const NOW = SAMPLE.asOf || new Date().toISOString()
-const POLICY = mergePolicy(SAMPLE.policy)
 
 // Both reads, the same join: whatever the planner's sample returns, its home
 // time is replaced by the schedule's.
@@ -56,31 +55,9 @@ export const plannerOnSchedule: Adapter = {
   },
 }
 
-export function verdictFor(stay: Stay): StayVerdict | null {
-  if (stay.status !== 'REQUESTED' && stay.status !== 'APPROVED') return null
-  const driver = SAMPLE.drivers.find((d) => d.driverCode === stay.driverCode)
-  if (!driver) {
-    return { severity: 'info', text: 'The planner has no position or hours for this driver, so it cannot say whether this can be made.' }
-  }
-  const plan = planDriver(
-    { ...driver, homeTime: { ...driver.homeTime, requestedBy: stay.homeBy } },
-    { now: NOW, policy: POLICY },
-  )
-  switch (plan.status) {
-    case 'LATE':
-      return { severity: 'error', text: `The planner says this can't be made: earliest home ${formatWhen(plan.schedule?.arriveAt)}, ${formatDuration(-(plan.slackSeconds ?? 0))} late.` }
-    case 'TIGHT':
-      return { severity: 'warning', text: `Can be made, only just: the trip home has to start by ${formatWhen(plan.leaveBy)}.` }
-    case 'ONTRACK':
-      return { severity: 'success', text: `Can be made, with ${formatDuration(plan.slackSeconds)} to spare. Earliest home ${formatWhen(plan.schedule?.arriveAt)}.` }
-    case 'HOME':
-      return { severity: 'success', text: 'Already home.' }
-    case 'NOLOCATION':
-      return { severity: 'info', text: "The planner can't place this truck, so it can't say whether this can be made." }
-    default:
-      return null
-  }
-}
+// The schedule's Approve button shows the planner's verdict on the sample
+// drivers, on the sample clock (verdict.ts has the join itself).
+export const verdictFor = makeVerdictFor(SAMPLE, { now: NOW })
 
 export const driveFor: DriveFn = ({ driveSeconds, hours, startAt }) => {
   const s = scheduleDrive({ driveSeconds, hours, startAt })
