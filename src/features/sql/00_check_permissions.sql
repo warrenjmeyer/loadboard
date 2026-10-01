@@ -35,5 +35,6 @@ SELECT v.name AS [table or view], v.madeBy AS [made by],
         ('DRVR.fk_Load_Plan_Status',  'the app'),
         ('DRVR.Drivers',              '01_DRVR_Drivers.sql'),
         ('DRVR.Home_Time_Stays',      '02_DRVR_Home_Time_Stays.sql'),
+        ('DRVR.Home_Time_Stay_History', '08_DRVR_Home_Time_Stay_History.sql'),
         ('DRVR.Load_Plans',           '04_DRVR_Load_Plans.sql'),
         ('DRVR.Loads_For_Planning',   '04_DRVR_Load_Plans.sql')) v(name, madeBy);

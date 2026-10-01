@@ -15,6 +15,7 @@ through the app's interface; everything else is created here.
 | 3 | **Millstream** | `drivers_to_drvr.sql`: *generates* the copy. Results to Grid, select the column, copy. |
 | 4 | mvp-techgacity | Paste the generated script and run it. Re-run steps 3 and 4 whenever drivers change; it is safe to repeat. |
 | 5 | mvp-techgacity | `02_DRVR_Home_Time_Stays.sql`: creates `DRVR.Home_Time_Stays`. Once. |
+| 5b | mvp-techgacity | `08_DRVR_Home_Time_Stay_History.sql`: creates `DRVR.Home_Time_Stay_History`, one row per move of a stay (who, when, from which status to which). Once. `07` writes to it, so run it before using `07` for real. |
 | – | mvp-techgacity | `03_scoped_reads.sql`: not setup. It holds the API's four reads, each with its "who" check, runnable here to try them. |
 | 6 | the app | `fk_Load_Plan_Status` (PLANNED = 1, TAKEN_BACK = 2): done |
 | 7 | mvp-techgacity | `04_DRVR_Load_Plans.sql`: creates `DRVR.Load_Plans` and the view `DRVR.Loads_For_Planning`. Once. |
@@ -45,6 +46,29 @@ the host's order:
    copy, which puts the old dates back.
 6. `local_test_users.sql`: gives each laptop driver a made-up user, so the
    preview can act as a driver and the who-may checks run for real.
+7. `08_DRVR_Home_Time_Stay_History.sql`, then `local_reset_stays.sql`:
+   empties the laptop's stays and their history and files five fresh
+   requests (TBOONE, HBARNETT, DFOSTER, MWEBB, RDELGADO), dated from today,
+   each as its driver. Re-run it to test dispatch's decisions from the start.
+
+## Where a decision is kept
+
+A stay is one row of `DRVR.Home_Time_Stays`, changed in place: it holds the
+stay as it is NOW (approved and then cancelled reads `CANCELLED`). Every
+move -- the request, approve, decline, cancel, arrived, left, a correction
+-- also adds a row to `DRVR.Home_Time_Stay_History`, in the same
+transaction, so the way it got there is kept: who (`Moved_By`), when, and
+`From_Status_Id` -> `To_Status_Id`. There is no action column: the move is
+read from the two statuses (`same -> same` is a correction). On the laptop,
+dispatch has no user, so dispatch's `Moved_By` and `Decided_By` are empty;
+on the host they are the signed-in dispatcher.
+
+Tested 2026-10-01 on the laptop, through the dev server: approve then
+cancel kept both rows; a decline kept its reason; a driver's request and a
+driver's own cancel were recorded as that driver; approving a declined
+stay, a driver cancelling someone else's stay, and a driver approving were
+refused and wrote no history. `08` refuses a second run, and gave the five
+stays already there their request row.
 
 The preview reads and writes this database when "Laptop database" is chosen
 at the top of `/get-me-home.html` (see `src/features/README.md`).
