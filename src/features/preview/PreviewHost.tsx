@@ -1,5 +1,5 @@
 /// <reference types="vite/client" />
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Box, Chip, Link, MenuItem, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
 import GetMeHomePlanner from '../get-me-home/GetMeHomePlanner.tsx'
@@ -63,12 +63,20 @@ function param(name: string): string | null {
   return new URLSearchParams(window.location.search).get(name)
 }
 
-// replace, not push: these are settings of the page, not places in it.
-function setParam(name: string, value: string | null) {
+// Settings of the page -- which tab, which data -- REPLACE the address, so
+// Back does not step through every click. The two PAGES, the host's tabs and
+// the modules, are places: switching between them PUSHES one entry, so Back
+// returns to where you were. (The modules page's own jumps replace too.)
+function setParam(name: string, value: string | null, { push = false }: { push?: boolean } = {}) {
   const url = new URL(window.location.href)
   if (value === null) url.searchParams.delete(name)
   else url.searchParams.set(name, value)
-  window.history.replaceState(null, '', url)
+  if (push) {
+    url.hash = '' // a module jumped to on the modules page is not where the tabs are
+    window.history.pushState(null, '', url)
+  } else {
+    window.history.replaceState(null, '', url)
+  }
 }
 
 const SAMPLE_DRIVERS = scheduleSample.drivers
@@ -90,7 +98,37 @@ export default function PreviewHost() {
   const chooseSource = (next: Source | null) => { if (next) { setSource(next); setParam('source', next === 'live' ? 'live' : null) } }
   const chooseView = (next: View | null) => { if (next) { setView(next); setParam('view', next === 'driver' ? 'driver' : null) } }
   const chooseDriver = (code: string) => { setDriverCode(code); setParam('driver', code) }
-  const choosePage = (next: Page | null) => { if (next) { setPage(next); setParam('page', next === 'modules' ? 'modules' : null) } }
+  const choosePage = (next: Page | null) => {
+    if (!next || next === page) return
+    setPage(next)
+    setParam('page', next === 'modules' ? 'modules' : null, { push: true })
+    window.scrollTo(0, 0) // a new page starts at its top
+  }
+
+  // Back and Forward between the two pages: read where the address now says.
+  useEffect(() => {
+    const onPop = () => {
+      setPage(param('page') === 'modules' ? 'modules' : 'host')
+      setTab(Math.max(0, TABS.findIndex((t) => t.key === param('tab'))))
+    }
+    window.addEventListener('popstate', onPop)
+    return () => window.removeEventListener('popstate', onPop)
+  }, [])
+
+  // The header stays at the top of the screen. Its height changes as it
+  // wraps, so it is measured and published as --preview-header, for whatever
+  // has to sit below it: the modules page's side list, and where a jump to
+  // a module stops.
+  const headerRef = useRef<HTMLDivElement | null>(null)
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el) return
+    const publish = () => document.documentElement.style.setProperty('--preview-header', `${el.offsetHeight}px`)
+    publish()
+    const watch = new ResizeObserver(publish)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [page]) // each page draws the header in its own place: measure the one on screen
   const chooseHours = (next: HoursModel | null) => { if (next) { setHours(next); setParam('hours', next === 'off' ? 'off' : null) } }
 
   const laptop = data === 'laptop'
@@ -99,8 +137,14 @@ export default function PreviewHost() {
   const drivers = laptop ? laptopList : SAMPLE_DRIVERS
 
   // Which page: the stand-in for the host's tabs, or the catalogue of modules.
+  // A header that stays put while the page scrolls, so the other page is one
+  // click away from anywhere -- full width, over the page's own padding.
   const header = (
-    <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center', mb: 1.5 }}>
+    <Box ref={headerRef} component="header" sx={{
+      position: 'sticky', top: 0, zIndex: 'appBar', bgcolor: 'background.default',
+      borderBottom: 1, borderColor: 'divider', mx: -2, mt: -1.5, px: 2, py: 1, mb: 1.5,
+      display: 'flex', flexWrap: 'wrap', gap: 2, alignItems: 'center',
+    }}>
       <ToggleButtonGroup size="small" exclusive value={page} onChange={(_, next: Page | null) => choosePage(next)} aria-label="Which page">
         <ToggleButton value="host">Host page</ToggleButton>
         <ToggleButton value="modules">Modules</ToggleButton>

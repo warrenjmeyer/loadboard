@@ -1,4 +1,5 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import type { MouseEvent } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Box, Button, Chip, Link, Paper, Stack, Typography } from '@mui/material'
 
@@ -137,15 +138,35 @@ const FEATURES: { key: string; title: string; folder: string; modules: typeof PL
   { key: 'driver-load-plans', title: 'Driver Load Plans', folder: 'src/features/driver-load-plans', modules: LOAD_PLAN_MODULES, wrap: (cards) => <PlanSync>{cards}</PlanSync> },
 ]
 
+// Below the preview's header, which stays at the top of the screen and
+// publishes its height (PreviewHost.tsx).
+const BELOW_HEADER = 'calc(var(--preview-header, 0px) + 16px)'
+
+// To a module's card, without a step in the browser's history: the address
+// says which module (so a link to one still works), but Back leaves the
+// modules page in one press rather than undoing every jump.
+function jumpTo(name: string, smooth = true) {
+  document.getElementById(name)?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' })
+  window.history.replaceState(window.history.state, '', `#${name}`)
+}
+const onJump = (name: string) => (e: MouseEvent) => { e.preventDefault(); jumpTo(name) }
+
 export default function ModulesPage() {
+  // Arriving at ?page=modules#LegChip: the browser looks for the card before
+  // React has drawn it, so go there once it is drawn.
+  useEffect(() => {
+    const name = decodeURIComponent(window.location.hash.slice(1))
+    if (name) requestAnimationFrame(() => jumpTo(name, false))
+  }, [])
+
   return (
     <Box sx={{ display: 'flex', gap: 3, alignItems: 'flex-start' }}>
-      <Box component="nav" aria-label="Modules" sx={{ position: 'sticky', top: 16, width: 220, flexShrink: 0, display: { xs: 'none', md: 'block' } }}>
+      <Box component="nav" aria-label="Modules" sx={{ position: 'sticky', top: BELOW_HEADER, width: 220, flexShrink: 0, display: { xs: 'none', md: 'block' } }}>
         {FEATURES.map((f) => (
           <Box key={f.key} sx={{ mb: 2 }}>
             <Typography variant="overline" sx={{ color: 'text.secondary' }}>{f.title}</Typography>
             {f.modules.map((m) => (
-              <Link key={m.name} href={`#${m.name}`} underline="hover" sx={{ display: 'block', typography: 'body2', py: 0.25 }}>{m.name}</Link>
+              <Link key={m.name} href={`#${m.name}`} onClick={onJump(m.name)} underline="hover" sx={{ display: 'block', typography: 'body2', py: 0.25 }}>{m.name}</Link>
             ))}
           </Box>
         ))}
@@ -154,10 +175,24 @@ export default function ModulesPage() {
       <Box sx={{ flex: 1, minWidth: 0 }}>
         <Typography variant="h5" component="h1">Modules</Typography>
         <Typography variant="body2" sx={{ color: 'text.secondary', mt: 0.5, mb: 3, maxWidth: 760 }}>
-          Every reusable module built for MyTechgacity. Each is a loading wrapper, which reads exactly what its
+          Every reusable module built for Techgacity. Each is a loading wrapper, which reads exactly what its
           screen shows through the adapter, around a piece that only draws. Both are exported, so a host can
           mount the wrapper or feed the piece its own data. Demos run on sample data; changes last until reload.
         </Typography>
+
+        {/* The same list, for a window too narrow for the side one. */}
+        <Box component="nav" aria-label="Modules" sx={{ display: { xs: 'block', md: 'none' }, mb: 3 }}>
+          {FEATURES.map((f) => (
+            <Box key={f.key} sx={{ mb: 1 }}>
+              <Typography variant="overline" sx={{ color: 'text.secondary' }}>{f.title}</Typography>
+              <Stack direction="row" sx={{ flexWrap: 'wrap', columnGap: 2, rowGap: 0.5 }}>
+                {f.modules.map((m) => (
+                  <Link key={m.name} href={`#${m.name}`} onClick={onJump(m.name)} underline="hover" sx={{ typography: 'body2' }}>{m.name}</Link>
+                ))}
+              </Stack>
+            </Box>
+          ))}
+        </Box>
 
         {FEATURES.map((f) => {
           const cards = f.modules.map((m) => <ModuleCard key={m.name} info={m} folder={f.folder} />)
@@ -176,7 +211,7 @@ export default function ModulesPage() {
 function ModuleCard({ info, folder }: { info: (typeof PLANNER_MODULES)[number]; folder: string }) {
   const demo = DEMOS[info.name]
   return (
-    <Paper variant="outlined" id={info.name} sx={{ p: 2, scrollMarginTop: 16 }}>
+    <Paper variant="outlined" id={info.name} sx={{ p: 2, scrollMarginTop: BELOW_HEADER }}>
       <Typography variant="subtitle1" component="h3" sx={{ fontWeight: 600 }}>{info.name}</Typography>
       <Typography variant="body2" sx={{ mb: 1.5 }}>{info.summary}</Typography>
 
