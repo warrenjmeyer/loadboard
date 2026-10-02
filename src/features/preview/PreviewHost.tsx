@@ -1,3 +1,4 @@
+/// <reference types="vite/client" />
 import { useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Alert, Box, Chip, Link, MenuItem, Tab, Tabs, TextField, ToggleButton, ToggleButtonGroup, Typography } from '@mui/material'
@@ -17,8 +18,15 @@ import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
 // ---------------------------------------------------------------------------
 // A stand-in for the host's component page -- the same three tabs in the same
-// order -- with the features built here mounted in them. Dev-only: served by
-// get-me-home.html, never built, never deployed.
+// order -- with the features built here mounted in them. Served by
+// get-me-home.html.
+//
+// DEPLOYED, ON SAMPLE DATA ONLY (decided 2026-10-02, so the stakeholder can
+// see the tabs): the load board's build includes this page, and on the
+// deployed site it offers the sample data and nothing else. The laptop
+// database and the planner's live data are dev-server options -- the one
+// needs this laptop, the other a load-board sign-in a stakeholder does not
+// have -- so they appear only under `npm run dev` (import.meta.env.DEV).
 //
 // Two kinds of data (?data=laptop):
 //
@@ -65,10 +73,13 @@ function setParam(name: string, value: string | null) {
 
 const SAMPLE_DRIVERS = scheduleSample.drivers
 
+// On the dev server: every kind of data. Deployed: the sample alone.
+const DEV = import.meta.env.DEV
+
 export default function PreviewHost() {
   const [tab, setTab] = useState(() => Math.max(0, TABS.findIndex((t) => t.key === param('tab'))))
-  const [data, setData] = useState<Data>(() => (param('data') === 'laptop' ? 'laptop' : 'sample'))
-  const [source, setSource] = useState<Source>(() => (param('source') === 'live' ? 'live' : 'sample'))
+  const [data, setData] = useState<Data>(() => (DEV && param('data') === 'laptop' ? 'laptop' : 'sample'))
+  const [source, setSource] = useState<Source>(() => (DEV && param('source') === 'live' ? 'live' : 'sample'))
   const [view, setView] = useState<View>(() => (param('view') === 'driver' ? 'driver' : 'dispatch'))
   const [driverCode, setDriverCode] = useState(() => param('driver') || 'TBOONE')
   const [page, setPage] = useState<Page>(() => (param('page') === 'modules' ? 'modules' : 'host'))
@@ -94,7 +105,7 @@ export default function PreviewHost() {
         <ToggleButton value="host">Host page</ToggleButton>
         <ToggleButton value="modules">Modules</ToggleButton>
       </ToggleButtonGroup>
-      {page === 'host' && (
+      {page === 'host' && DEV && (
         <ToggleButtonGroup size="small" exclusive value={data} onChange={(_, next: Data | null) => chooseData(next)} aria-label="Which data">
           <ToggleButton value="sample">Sample data</ToggleButton>
           <ToggleButton value="laptop">Laptop database</ToggleButton>
@@ -107,7 +118,9 @@ export default function PreviewHost() {
         <Chip size="small" color="warning" label="Not signed in: no GeoTab" component="a" href="/signin" clickable />
       ))}
       <Typography variant="caption" sx={{ color: 'text.secondary' }}>
-        Design preview. This page runs on the dev server only and is never deployed.
+        {DEV
+          ? 'Design preview, on the dev server.'
+          : 'Design preview of the MyTechgacity tabs, on made-up drivers, stays and loads. Try anything: nothing is saved, and reloading starts over.'}
       </Typography>
     </Box>
   )
@@ -142,12 +155,14 @@ export default function PreviewHost() {
         </>
       ) : (
         <>
-          <Bar>
-            <ToggleButtonGroup size="small" exclusive value={source} onChange={(_, next: Source | null) => chooseSource(next)} aria-label="Where the drivers come from">
-              <ToggleButton value="sample">Sample drivers</ToggleButton>
-              <ToggleButton value="live">Live: API and GeoTab</ToggleButton>
-            </ToggleButtonGroup>
-          </Bar>
+          {DEV && (
+            <Bar>
+              <ToggleButtonGroup size="small" exclusive value={source} onChange={(_, next: Source | null) => chooseSource(next)} aria-label="Where the drivers come from">
+                <ToggleButton value="sample">Sample drivers</ToggleButton>
+                <ToggleButton value="live">Live: API and GeoTab</ToggleButton>
+              </ToggleButtonGroup>
+            </Bar>
+          )}
           {source === 'sample' ? (
             <Alert severity="info" sx={{ mb: 2 }}>
               Nine made-up drivers, one for every status, on a fixed clock. Their home time comes from the

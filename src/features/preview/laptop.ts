@@ -25,7 +25,8 @@ import { homeTimeFor } from '../home-time-schedule/rules.ts'
 // Missing GeoTab data -- not signed in, a town with no zone -- is left
 // missing, and the tab says so where it shows. Nothing is guessed.
 //
-// Dev-only, like everything in preview/.
+// Dev-server only: the laptop database is offered under `npm run dev` alone,
+// never on the deployed preview.
 // ---------------------------------------------------------------------------
 
 // ---- The schedule --------------------------------------------------------

@@ -57,7 +57,7 @@ function adapterBody(folder: string, name: string): string {
 
 // Folders here that are not features, and why. Anything else is one.
 const NOT_FEATURES: Record<string, string> = {
-  preview: 'the dev-only page where features meet; not ported',
+  preview: 'the page where features meet, deployed on sample data; not ported',
   sql: 'scripts for the host database; no screens in it',
 }
 

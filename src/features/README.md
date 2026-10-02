@@ -10,7 +10,7 @@ JavaScript.
 | `get-me-home/` | The Get Me Home Planner |
 | `home-time-schedule/` | The Driver Home Time Schedule |
 | `driver-load-plans/` | The Driver Load Plans |
-| `preview/` | The dev-only preview page: a stand-in for the host's tabs, and the modules page. Not ported. |
+| `preview/` | The preview page: a stand-in for the host's tabs, and the modules page. Deployed on sample data only; not ported. |
 | `tsconfig.json` | Type-checks all of the above (`npm run typecheck`). Not ported; the host has its own. |
 | `modules.test.ts` | Enforces the module rule below. |
 | `sampleData.test.ts` | Checks the three tabs' sample data tell one story, and the hours join between the planner and the load plans. |
@@ -131,4 +131,9 @@ isn't reusable yet. `modules.test.ts` fails when any of these happens:
   decides the look.
 - **Times** are ISO 8601 with a zone on the wire, and shown in the reader's
   zone.
-- **The preview never ships.** `vite build` compiles `index.html` only.
+- **The preview ships on sample data only.** `vite build` compiles both
+  `index.html` and `get-me-home.html`, so the stakeholder can see the tabs on
+  the load board's site at `/get-me-home.html` (decided 2026-10-02). There it
+  offers the made-up data alone; the laptop database and the planner's live
+  data appear under `npm run dev` only (`import.meta.env.DEV` in
+  `preview/PreviewHost.tsx`). Real data must never reach the deployed page.

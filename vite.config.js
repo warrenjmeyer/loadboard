@@ -95,6 +95,21 @@ export default defineConfig({
   plugins: [react(), refuseDevWrites(), localDb()],
   base: '/',
 
+  // Two pages. index.html is the load board. get-me-home.html is the design
+  // preview of the MyTechgacity tabs (src/features/), deployed beside it from
+  // 2026-10-02 so a stakeholder can see them -- on sample data only: the
+  // page offers the laptop database and live data on the dev server alone.
+  // Its own entry, not a route, because it must not load src/styles.css
+  // (see the comment in get-me-home.html).
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        preview: 'get-me-home.html',
+      },
+    },
+  },
+
   // Dev-only. Vite serves the front end but has no /api of its own, so an
   // unproxied request falls through to the SPA fallback and returns
   // index.html -- with a 200, which is why it surfaces as a confusing JSON

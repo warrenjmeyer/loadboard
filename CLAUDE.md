@@ -65,4 +65,7 @@ demos -- and a line for the folder in `modules.test.ts`'s `FEATURES`.
 imports between feature folders or into the load board's `.js`/`.jsx` (the
 preview is where features meet); imports spell out `.ts`/`.tsx`; erasable
 syntax only, so pure files run under plain `node --test`; MUI styled through
-`sx` with palette names, never hex; the preview is dev-only and never built.
+`sx` with palette names, never hex. The preview (`get-me-home.html`) is
+deployed beside the load board on SAMPLE DATA ONLY, so the stakeholder can see
+the tabs (decided 2026-10-02); the laptop database and live data are offered
+on `npm run dev` alone. Never let real data reach the deployed preview.
