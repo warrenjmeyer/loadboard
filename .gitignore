@@ -28,3 +28,7 @@ here-tile-info.json
 
 # Written by tools/here-hos-probe.mjs -- one route asked three ways.
 here-hos-*.json
+
+# Editor and Claude Code launch settings: per-machine, not repo content.
+.vscode/
+.claude/
