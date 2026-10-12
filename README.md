@@ -1454,14 +1454,14 @@ api/package.json        the Function App's own dependencies (mssql)
 .github/workflows/      builds and deploys on push to main
 vite.config.js          dev server config — proxies /api, refuses dev writes
 swa-cli.config.json     for `swa start`; unused until Core Tools is installed
-loads_01_ddl.sql        how dbo.Loads is defined — columns and constraints
-loads_02_data.sql       its original 8 rows; re-runnable (MERGE, not INSERT)
-settlement_01_ddl.sql   Drivers / Settlements / Routes / Lines
-settlement_02_data.sql  sample settlements for the two GeoTab drivers
-settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
-settlement_04_fleet2.sql eight more, bringing the fleet to twenty
-settlement_05_link.sql  ties SettlementRoutes.load_id to dbo.Loads
-settlement_06_owner.sql owner/operators: driver_type, escrow, four contractors
+sql/loads_01_ddl.sql    how dbo.Loads is defined — columns and constraints
+sql/loads_02_data.sql   its original 8 rows; re-runnable (MERGE, not INSERT)
+sql/settlement_01_ddl.sql Drivers / Settlements / Routes / Lines
+sql/settlement_02_data.sql sample settlements for the two GeoTab drivers
+sql/settlement_03_fleet.sql the ten GeoTab drivers, two weeks of settlements each
+sql/settlement_04_fleet2.sql eight more, bringing the fleet to twenty
+sql/settlement_05_link.sql ties SettlementRoutes.load_id to dbo.Loads
+sql/settlement_06_owner.sql owner/operators: driver_type, escrow, four contractors
 tools/gen_owner_settlements.mjs   generates the file above — edit this, not it
 geotab-add-drivers.ps1  creates test drivers in MyGeotab (see below)
 geotab-add-vehicles.ps1 adds vehicles -- BLOCKED: Geotab must issue the serials
@@ -1472,8 +1472,8 @@ geotab-add-hos.ps1      seeds eight days of duty status logs so the HOS clocks h
 geotab-add-trailers.ps1 creates the 30 trailers from fleet_01_ddl.sql in GeoTab, by name, for the Drive app
 geotab-common.ps1       shared MyGeotab auth and transport
 set-geotab-secrets.ps1  puts the MyGeotab credential in the Function App settings
-documents_01_ddl.sql    LoadDocuments: the index of the paper; the bytes are in blob storage
-stops_02_refs.sql       seeds the order number on each load and the PU-/PO- number on each dock
+sql/documents_01_ddl.sql LoadDocuments: the index of the paper; the bytes are in blob storage
+sql/stops_02_refs.sql   seeds the order number on each load and the PU-/PO- number on each dock
 src/lib/invoicePaper.js the docks and the paper behind an invoice's lines; what prints and what does not
 api/src/here.js         HERE Routing v8 from the server: one request, one section per leg, key never in the browser
 api/src/etaRules.js     whether an ETA is worth asking for, and what the answer means against the window
@@ -1495,12 +1495,12 @@ api/src/storage.js      the blob container: upload, remove, and ten-minute view 
 api/src/documentRules.js          file kinds and sizes, who may attach and remove
 api/src/functions/documents.js    GET/POST /api/loads/{id}/documents, GET/DELETE /api/documents/{id}
 src/components/LoadDocuments.jsx  the list and the attach form (camera on a phone)
-stops_01_ddl.sql        LoadStops, the itinerary; seeds two per existing load
+sql/stops_01_ddl.sql    LoadStops, the itinerary; seeds two per existing load
 api/src/stopRules.js    valid lists, the summary columns, check-in order
 api/src/functions/stops.js        GET/PUT /api/loads/{id}/stops, POST /api/stops/{id}/checkin
 src/components/StopList.jsx       the itinerary, with check-in buttons on the current stop
 src/components/StopEditor.jsx     add, remove, reorder and fill in stops
-invoices_01_ddl.sql     Invoices / InvoiceLines, the two markers, and the seeded history
+sql/invoices_01_ddl.sql Invoices / InvoiceLines, the two markers, and the seeded history
 api/src/invoiceRules.js the run plan, aging buckets, and applying a payment
 api/src/functions/invoices.js     /api/invoicerun and /api/invoices
 src/pages/Billing.jsx   the invoice run (preview, then generate)

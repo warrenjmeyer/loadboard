@@ -2,8 +2,7 @@
 -- Adds authorization to the auth schema. Authentication is already there and
 -- is not touched.
 --
--- Run auth_00_inspect.sql first if you want to see the starting state. This
--- script replaces an earlier auth_01_ddl.sql that proposed a parallel set of
+-- This script replaces an earlier auth_01_ddl.sql that proposed a parallel set of
 -- tables; that was written before anyone had looked, and the schema it would
 -- have created already existed in better form.
 --

@@ -225,7 +225,7 @@ if ($FromLanes) {
     # shipper's address.
     $stopFiles = @()
     foreach ($glob in 'stops_0*.sql', 'loads_0*.sql') {
-        $stopFiles += Get-ChildItem -Path (Join-Path $PSScriptRoot $glob) -ErrorAction SilentlyContinue
+        $stopFiles += Get-ChildItem -Path (Join-Path (Join-Path $PSScriptRoot 'sql') $glob) -ErrorAction SilentlyContinue
     }
     if ($stopFiles) {
         $stopPattern = "'(?:Pickup|Delivery)',\s*N'([A-Za-z .]+, [A-Za-z]{2})'"

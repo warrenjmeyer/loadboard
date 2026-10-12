@@ -111,9 +111,9 @@ function Get-Lanes {
 
     $files = @()
     foreach ($glob in 'settlement_0*.sql', 'loads_0*.sql') {
-        $files += Get-ChildItem -Path (Join-Path $ScriptRoot $glob) -ErrorAction SilentlyContinue
+        $files += Get-ChildItem -Path (Join-Path (Join-Path $ScriptRoot 'sql') $glob) -ErrorAction SilentlyContinue
     }
-    if (-not $files) { throw "No settlement or load SQL found in $ScriptRoot." }
+    if (-not $files) { throw "No settlement or load SQL found in $ScriptRoot\sql." }
 
     $lanes = [ordered]@{}
 

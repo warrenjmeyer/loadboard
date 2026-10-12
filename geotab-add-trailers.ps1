@@ -69,8 +69,8 @@ if ($ListTrailers) {
 # One row per trailer in the MERGE seed:
 #   ('T-101', N'Dry Van', N'53'' Wabash DuraPlate', 'TR 1101', N'IA', 'Active', ...)
 # The description's doubled quote is SQL's escape for one quote.
-$seed = Join-Path $PSScriptRoot 'fleet_01_ddl.sql'
-if (-not (Test-Path $seed)) { throw "fleet_01_ddl.sql not found next to this script." }
+$seed = Join-Path $PSScriptRoot 'sql\fleet_01_ddl.sql'
+if (-not (Test-Path $seed)) { throw "sql\fleet_01_ddl.sql not found beside this script." }
 $pattern = "\('(T-\d{3})',\s*N'([^']+)',\s*N'((?:[^']|'')*)'"
 $wanted = @()
 foreach ($m in (Select-String -Path $seed -Pattern $pattern -AllMatches).Matches) {
