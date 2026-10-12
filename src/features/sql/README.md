@@ -13,7 +13,7 @@ through the app's interface; everything else is created here.
 | 1 | the app | `fk_Home_Time_Status` (REQUESTED … CANCELLED) and `fk_Home_Time_Source` (GEOTAB, DISPATCH): both done |
 | 2 | mvp-techgacity | `01_DRVR_Drivers.sql`: creates `DRVR.Drivers`. Once. |
 | 3 | **Millstream** | `drivers_to_drvr.sql`: *generates* the copy. Results to Grid, select the column, copy. |
-| 4 | mvp-techgacity | Paste the generated script and run it. Re-run steps 3 and 4 whenever drivers change; it is safe to repeat. |
+| 4 | mvp-techgacity | Paste the generated script and run it. Re-run steps 3 and 4 whenever drivers change; it is safe to repeat. **Once drivers are edited in the Driver Master tab, stop:** the copy puts Millstream's values back over those edits. |
 | 5 | mvp-techgacity | `02_DRVR_Home_Time_Stays.sql`: creates `DRVR.Home_Time_Stays`. Once. |
 | 5b | mvp-techgacity | `08_DRVR_Home_Time_Stay_History.sql`: creates `DRVR.Home_Time_Stay_History`, one row per move of a stay (who, when, from which status to which). Once. `07` writes to it, so run it before using `07` for real. |
 | – | mvp-techgacity | `03_scoped_reads.sql`: not setup. It holds the API's four reads, each with its "who" check, runnable here to try them. |
@@ -22,6 +22,8 @@ through the app's interface; everything else is created here.
 | 8 | mvp-techgacity | `load_plans_from_tms_loads.sql`: puts the Covered and In Transit loads `TMS.Loads` already has drivers for onto their plans. Safe to repeat. |
 | – | mvp-techgacity | `05_load_plan_reads.sql`: not setup. The load plans' four reads, each dispatch-only. Writes nothing. |
 | – | mvp-techgacity | `06_load_plan_writes.sql`: not setup. Assign and Take back. Trying it rolls back unless `@Keep = 1`. |
+| – | mvp-techgacity | `09_driver_reads.sql`: not setup. The Driver Master's two reads, for dispatch and admin; pay columns come back NULL for anyone but an admin. Writes nothing. |
+| – | mvp-techgacity | `10_driver_writes.sql`: not setup. Save, add and leave/return a driver, on the version read; pay and adding are admin's. Trying it rolls back unless `@Keep = 1`. |
 | – | mvp-techgacity | `07_stay_writes.sql`: not setup. The schedule's two writes: a driver's request, and storing a move the API worked out with `applyAction`. Trying it rolls back unless `@Keep = 1`. |
 
 Each setup script refuses to run twice and says what it needs if a step was

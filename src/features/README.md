@@ -10,6 +10,7 @@ JavaScript.
 | `get-me-home/` | The Get Me Home Planner |
 | `home-time-schedule/` | The Driver Home Time Schedule |
 | `driver-load-plans/` | The Driver Load Plans |
+| `driver-master/` | The Driver Master: keeping `DRVR.Drivers`, pay for admin only |
 | `preview/` | The preview page: a stand-in for the host's tabs, and the modules page. Deployed on sample data only; not ported. |
 | `tsconfig.json` | Type-checks all of the above (`npm run typecheck`). Not ported; the host has its own. |
 | `modules.test.ts` | Enforces the module rule below. |
@@ -26,7 +27,8 @@ JavaScript.
 between made-up data held in memory and the laptop's own `mvp-techgacity`
 (built by `sql/local_stand_in.sql`; see `sql/README.md`). On the laptop
 database the tabs read and write real rows **through the host's own SQL**:
-`03` and `07` for the schedule, `05` and `06` for the load plans. The dev
+`03` and `07` for the schedule, `05` and `06` for the load plans, `09` and `10`
+for the driver master. The dev
 server runs them (`tools/local-db/plugin.mjs`), filling in each script's
 "Try it" values, so what is tried here is the text the host will run, who-may
 checks included. The schedule's moves go through its rules first

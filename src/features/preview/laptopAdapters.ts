@@ -6,6 +6,7 @@ import { scopeOpenLoads, scopePlanBoard } from '../driver-load-plans/scope.ts'
 import type { LoadPlanAdapter, LoadPlanData, PlanLoad } from '../driver-load-plans/contract.ts'
 import { rosterOnLaptop, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
 import type { GeoTab, HomeStayRow, LoadRow, PlanDriverRow, ScheduleDriverRow, StayRow } from './laptop.ts'
+import type { DriverList, DriverMasterAdapter, DriverRecord } from '../driver-master/contract.ts'
 
 // ---------------------------------------------------------------------------
 // The tabs on the LAPTOP DATABASE: adapters over the dev server's
@@ -24,7 +25,7 @@ import type { GeoTab, HomeStayRow, LoadRow, PlanDriverRow, ScheduleDriverRow, St
 // trimmed here to the exact window with the tab's own scope functions.
 // ---------------------------------------------------------------------------
 
-type As = 'dispatch' | `driver:${string}`
+type As = 'dispatch' | 'admin' | `driver:${string}`
 
 async function local<T>(path: string, { method = 'GET', body, as = 'dispatch', signal }: {
   method?: 'GET' | 'POST'
@@ -162,6 +163,33 @@ export function laptopScheduleAdapterFor(driverCode: string): ScheduleAdapter {
 /** The laptop's drivers, for the preview's driver picker. */
 export async function laptopDrivers(): Promise<{ driverCode: string; name: string }[]> {
   return (await local<{ drivers: { driverCode: string; name: string }[] }>('drivers')).drivers
+}
+
+// ---- The driver master -----------------------------------------------------
+
+// The rows come over already shaped (the dev server folds pay in with
+// toDriverRecord, as the host's API must), so these only ask.
+function driverAdapterAs(as: 'dispatch' | 'admin'): DriverMasterAdapter {
+  const write = async (path: string, body: unknown): Promise<DriverRecord> =>
+    (await local<{ driver: DriverRecord }>(`driver-master/${path}`, { method: 'POST', as, body })).driver
+  return {
+    async loadDriverList({ includeInactive, signal }) {
+      return local<DriverList>(`driver-master/list?${q({ includeInactive: includeInactive ? '1' : '0' })}`, { as, signal })
+    },
+    async loadDriver({ driverCode, signal }) {
+      return (await local<{ driver: DriverRecord | null }>(`driver-master/driver?${q({ driverCode })}`, { as, signal })).driver
+    },
+    saveDriver: (driverCode, version, changes) => write('save', { driverCode, version, changes }),
+    addDriver: (driver) => write('add', { driver }),
+    setDriverActive: (driverCode, version, active) => write('active', { driverCode, version, active }),
+  }
+}
+
+/** The driver master on the laptop database, as dispatch (no pay) and as an
+ * admin -- the host's who-may checks decide what each gets. */
+export const laptopDriverAdapter: Record<'dispatch' | 'admin', DriverMasterAdapter> = {
+  dispatch: driverAdapterAs('dispatch'),
+  admin: driverAdapterAs('admin'),
 }
 
 // ---- The planner -----------------------------------------------------------

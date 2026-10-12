@@ -16,17 +16,23 @@
 //   POST /local-db/stays/request {driverCode, homeBy, backOut, note}   07_stay_writes.sql
 //   POST /local-db/stays/act     {id, action}
 //   GET  /local-db/drivers                        (for the preview's driver picker)
+//   GET  /local-db/driver-master/list?includeInactive   09_driver_reads.sql
+//   GET  /local-db/driver-master/driver?driverCode
+//   POST /local-db/driver-master/save   {driverCode, version, changes}   10_driver_writes.sql
+//   POST /local-db/driver-master/add    {driver}
+//   POST /local-db/driver-master/active {driverCode, version, active}
 //
 // IT RUNS THE HOST'S OWN SQL. Each endpoint reads the script in
 // src/features/sql/, keeps only the read it needs, and replaces the script's
 // "Try it" DECLARE values with the request's -- so what is tested here is
 // the text the host will run, WHO checks and all. The stays' moves go
 // through the schedule's own rules first (applyAction, checkNewStay), as the
-// host's API must.
+// host's API must, and so do the driver master's (applyChanges,
+// checkNewDriver).
 //
 // WHO. There are no sessions on the laptop, so a request says who it is
-// acting as, with the header X-Local-As: "dispatch" (the default) or
-// "driver:TBOONE". A driver is matched to a user by DRVR.Drivers.User_Uuid,
+// acting as, with the header X-Local-As: "dispatch" (the default), "admin",
+// or "driver:TBOONE". A driver is matched to a user by DRVR.Drivers.User_Uuid,
 // as on the host; local_test_users.sql gives the laptop's drivers one each.
 //
 // ONLY THIS MACHINE. The dev server listens on every address (host: true),
@@ -111,7 +117,7 @@ function section(text, name) {
 // Replace one "Try it" DECLARE's value. Exactly one must match: a script
 // that has changed shape stops the request rather than running half-filled.
 function setValue(text, name, literal) {
-  const re = new RegExp(`^(DECLARE @${name}\\s+[\\w()]+\\s*=\\s*)[^;]*;`, 'm')
+  const re = new RegExp(`^(DECLARE @${name}\\s+[\\w(),]+\\s*=\\s*)[^;]*;`, 'm')
   if (!re.test(text)) throw new Error(`the script has no "DECLARE @${name} ... = ...;" to fill in`)
   return text.replace(re, `$1${literal};`)
 }
@@ -142,6 +148,15 @@ const lit = {
     if (!Number.isInteger(n) || n < 0) throw new Refused(400, `${what} is not a number: ${JSON.stringify(v)}`)
     return String(n)
   },
+  // A driver's version, as 09 hands it out: Updated_At to the millisecond, or 'none'.
+  version(v) {
+    if (typeof v !== 'string' || !/^(\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}|none)$/.test(v)) throw new Refused(400, `version is not one 09_driver_reads.sql gave out: ${JSON.stringify(v)}`)
+    return `'${v}'`
+  },
+  rate(v, what) {
+    if (typeof v !== 'number' || !Number.isFinite(v) || v < 0 || v > 99999.9999) throw new Refused(400, `${what} is not a rate: ${JSON.stringify(v)}`)
+    return v.toFixed(4)
+  },
   word(v, allowed, what) {
     if (v === null || v === undefined) return 'NULL'
     if (!allowed.includes(v)) throw new Refused(400, `${what} must be one of ${allowed.join(', ')}`)
@@ -153,14 +168,15 @@ const lit = {
 
 async function caller(root, req) {
   const as = String(req.headers['x-local-as'] || 'dispatch')
-  if (as === 'dispatch') return { CallerUuid: 'NULL', CallerIsDispatch: '1', driverCode: null }
+  if (as === 'dispatch') return { CallerUuid: 'NULL', CallerIsDispatch: '1', admin: false, driverCode: null }
+  if (as === 'admin') return { CallerUuid: 'NULL', CallerIsDispatch: '1', admin: true, driverCode: null }
   const m = /^driver:(.+)$/.exec(as)
   if (!m) throw new Refused(400, 'X-Local-As must be "dispatch" or "driver:CODE".')
   const code = lit.code(m[1], 'the driver')
   const [rows] = await query(root, `SET NOCOUNT ON; SELECT CAST(User_Uuid AS varchar(36)) AS uuid FROM DRVR.Drivers WHERE Driver_Code = ${code};`)
   const uuid = rows[0]?.uuid
   if (!uuid) throw new Refused(403, `${m[1]} has no user on the laptop, so nothing can be read as them. Run src/features/sql/local_test_users.sql.`)
-  return { CallerUuid: `'${uuid}'`, CallerIsDispatch: '0', driverCode: m[1] }
+  return { CallerUuid: `'${uuid}'`, CallerIsDispatch: '0', admin: false, driverCode: m[1] }
 }
 
 // ---- The endpoints -------------------------------------------------------
@@ -262,6 +278,14 @@ async function handle(root, req, res) {
         const [drivers] = await query(root, `SET NOCOUNT ON; SELECT Driver_Code AS driverCode, CONCAT(First_Name, N' ', Last_Name) AS name, Unit_No AS unitNo FROM DRVR.Drivers WHERE ISNULL(IsActive, 1) = 1 ORDER BY First_Name, Last_Name;`)
         return send(res, 200, { drivers })
       }
+      // -- The driver master: 09 and 10 --
+      case 'GET driver-master/list':
+      case 'GET driver-master/driver':
+      case 'POST driver-master/save':
+      case 'POST driver-master/add':
+      case 'POST driver-master/active':
+        return send(res, 200, await driverMaster(root, route, { ...as, CallerIsAdmin: who.admin ? '1' : '0' }, who.admin, q, req))
+
       default:
         return send(res, 404, { error: `No such laptop-database request: ${route}` })
     }
@@ -280,10 +304,91 @@ async function readStays(root, read, as, q) {
   return { stays, drivers }
 }
 
+// ---- The driver master ----------------------------------------------------
+//
+// The reads are 09 as they stand. Each write is worked out first, as the
+// host's API must: the driver is read whole (as the server, which may), the
+// change runs through driver-master/rules.ts, and 10 stores the result --
+// every detail field, and pay only for an admin. 10 checks again what must
+// not be left to the API: who, the version, the code and pay.
+const DETAIL_FIELDS = {
+  FirstName: 'firstName', LastName: 'lastName', Address1: 'address1', Address2: 'address2', City: 'city', State: 'state',
+  PostalCode: 'postalCode', Country: 'country', Job: 'job', JobType: 'jobType', Location: 'location', Department: 'department',
+  UnitNo: 'unitNo', TruckDescription: 'truckDescription',
+}
+const NO_PAY = { DriverType: 'NULL', SsnLast4: 'NULL', PayRate: 'NULL', PayFrequency: 'NULL', PayBasis: 'NULL', PayGroup: 'NULL' }
+
+function driverValues(d, withPay) {
+  const values = {}
+  for (const [param, key] of Object.entries(DETAIL_FIELDS)) values[param] = lit.text(d[key])
+  if (!withPay) return { ...values, ...NO_PAY }
+  if (!/^\d{4}$/.test(String(d.pay.ssnLast4))) throw new Refused(400, 'The last four digits of their SSN: four digits, no more.')
+  return {
+    ...values,
+    DriverType: lit.word(d.driverType, ['COMPANY', 'OWNER'], 'driverType'),
+    SsnLast4: `'${d.pay.ssnLast4}'`,
+    PayRate: lit.rate(d.pay.payRate, 'payRate'),
+    PayFrequency: lit.word(d.pay.payFrequency, ['W', 'B', 'S', 'M'], 'payFrequency'),
+    PayBasis: lit.word(d.pay.payBasis ?? null, ['MILEAGE', 'PERCENTAGE'], 'payBasis'),
+    PayGroup: lit.text(d.pay.payGroup),
+  }
+}
+
+async function driverMaster(root, route, as, admin, q, req) {
+  const reads = sqlFile(root, '09_driver_reads.sql')
+  const { toDriverRecord, toDriverList } = await rows(root)
+  const readDriver = async (code, caller) => {
+    const [found = []] = await query(root, fill(section(reads, 'loadDriver'), { ...caller, DriverCode: code }))
+    return found[0] ? toDriverRecord(found[0]) : null
+  }
+  const store = async (values) => {
+    const sets = await query(root, fill(sqlFile(root, '10_driver_writes.sql'), { ...as, Keep: '1', ...values }))
+    const row = sets[sets.length - 1]?.[0]
+    return { driver: row ? toDriverRecord(row) : null }
+  }
+  // The server's own view, to work a change out against -- never sent back.
+  const server = { CallerUuid: 'NULL', CallerIsDispatch: '1', CallerIsAdmin: '1' }
+
+  if (route === 'GET driver-master/list') {
+    const [drivers = [], you = []] = await query(root, fill(section(reads, 'loadDriverList'), { ...as, IncludeInactive: q('includeInactive') === '1' ? '1' : '0' }))
+    return toDriverList({ drivers, you: you[0] })
+  }
+  if (route === 'GET driver-master/driver') {
+    return { driver: await readDriver(lit.code(q('driverCode'), 'driverCode'), as) }
+  }
+
+  const body = await readBody(req)
+  const { applyChanges, applyActive, checkNewDriver, normalizeCode, normalizeDetails, sentence } = await driverRules(root)
+  if (route === 'POST driver-master/add') {
+    if (!admin) throw new Refused(403, 'Only an admin adds drivers.')
+    const d = body.driver || {}
+    const [all = []] = await query(root, fill(section(reads, 'loadDriverList'), { ...server, IncludeInactive: '1' }))
+    const problems = checkNewDriver(d, all.map((r) => r.driverCode))
+    if (Object.keys(problems).length > 0) throw new Refused(409, sentence(problems))
+    const code = normalizeCode(d.driverCode)
+    const stored = { ...normalizeDetails(d), driverType: d.driverType, pay: { ...d.pay, ssnLast4: String(d.pay.ssnLast4).trim(), payGroup: String(d.pay.payGroup).trim() } }
+    return store({ Do: `'add'`, DriverCode: lit.code(code, 'driverCode'), Version: 'NULL', ...driverValues(stored, true) })
+  }
+
+  const code = lit.code(body.driverCode, 'driverCode')
+  const before = await readDriver(code, server)
+  if (!before) throw new Refused(404, `There is no driver ${body.driverCode}.`)
+  if (route === 'POST driver-master/save') {
+    const result = applyChanges(before, String(body.version), body.changes || {}, { canChangePay: admin })
+    if ('error' in result) throw new Refused(409, result.error)
+    return store({ Do: `'save'`, DriverCode: code, Version: lit.version(body.version), ...driverValues(result.record, admin) })
+  }
+  // active
+  const result = applyActive(before, String(body.version), Boolean(body.active))
+  if ('error' in result) throw new Refused(409, result.error)
+  return store({ Do: `'active'`, DriverCode: code, Version: lit.version(body.version), Active: body.active ? '1' : '0', ...driverValues(before, false) })
+}
+
 // The schedule's rules and the row translator are TypeScript; Node runs them
 // as they stand (type stripping), the same files the preview and tests use.
 const rules = (root) => import(pathToFileURL(join(root, 'src/features/home-time-schedule/rules.ts')).href)
 const rows = (root) => import(pathToFileURL(join(root, 'src/features/preview/laptop.ts')).href)
+const driverRules = (root) => import(pathToFileURL(join(root, 'src/features/driver-master/rules.ts')).href)
 
 function readBody(req) {
   return new Promise((resolve, reject) => {

@@ -1,0 +1,104 @@
+{
+  "about": "Made-up drivers: the same ten as the other tabs' samples, with the same homes and trucks, and one who has left. Addresses, SSNs and pay are invented.",
+  "drivers": [
+    {
+      "driverCode": "TBOONE", "firstName": "Terrell", "lastName": "Boone",
+      "address1": "1214 Lafayette Street", "address2": null, "city": "Waterloo", "state": "IA", "postalCode": "50703", "country": "USA",
+      "job": "OTR Driver", "jobType": "Company Driver", "location": "Waterloo, IA", "department": "Linehaul",
+      "unitNo": "Demo - 02", "truckDescription": "2022 Freightliner Cascadia",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "4127", "payRate": 0.62, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "HBARNETT", "firstName": "Hollis", "lastName": "Barnett",
+      "address1": "88 Wilson Avenue SW", "address2": "Apt 3", "city": "Cedar Rapids", "state": "IA", "postalCode": "52404", "country": "USA",
+      "job": "Regional Driver", "jobType": "Company Driver", "location": "Cedar Rapids, IA", "department": "Linehaul",
+      "unitNo": "Demo - 01", "truckDescription": "2021 Kenworth T680",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "9051", "payRate": 0.58, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "DFOSTER", "firstName": "Dale", "lastName": "Foster",
+      "address1": "305 Avenue B", "address2": null, "city": "Council Bluffs", "state": "IA", "postalCode": "51501", "country": "USA",
+      "job": "OTR Driver", "jobType": "Company Driver", "location": "Council Bluffs, IA", "department": "Linehaul",
+      "unitNo": "Demo - 05", "truckDescription": "2020 Peterbilt 579",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "6683", "payRate": 0.62, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "ACORTEZ", "firstName": "Alma", "lastName": "Cortez",
+      "address1": "742 Locust Street", "address2": null, "city": "Dubuque", "state": "IA", "postalCode": "52001", "country": "USA",
+      "job": "OTR Driver", "jobType": "Company Driver", "location": "Dubuque, IA", "department": "Linehaul",
+      "unitNo": "Demo - 03", "truckDescription": "2022 Volvo VNL 760",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "2290", "payRate": 0.62, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "RDELGADO", "firstName": "Rosa", "lastName": "Delgado",
+      "address1": "1530 Kimberly Road", "address2": null, "city": "Davenport", "state": "IA", "postalCode": "52806", "country": "USA",
+      "job": "Dedicated Owner Operator", "jobType": "Owner Operator", "location": "Davenport, IA", "department": "Linehaul",
+      "unitNo": "Demo - 04", "truckDescription": "2019 Kenworth W900",
+      "driverType": "OWNER", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "7714", "payRate": 0.7, "payFrequency": "W", "payBasis": "PERCENTAGE", "payGroup": "HMLOO" },
+      "version": "1"
+    },
+    {
+      "driverCode": "RVASQUEZ", "firstName": "Rey", "lastName": "Vasquez",
+      "address1": "418 Sycamore Street", "address2": null, "city": "Cedar Rapids", "state": "IA", "postalCode": "52401", "country": "USA",
+      "job": "OTR Owner Operator", "jobType": "Owner Operator", "location": "Cedar Rapids, IA", "department": "Linehaul",
+      "unitNo": "Demo - 21", "truckDescription": "2021 Freightliner Cascadia",
+      "driverType": "OWNER", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "3308", "payRate": 0.68, "payFrequency": "W", "payBasis": "PERCENTAGE", "payGroup": "HMLOO" },
+      "version": "1"
+    },
+    {
+      "driverCode": "LHARTMAN", "firstName": "Lena", "lastName": "Hartman",
+      "address1": "2601 Ingersoll Avenue", "address2": null, "city": "Des Moines", "state": "IA", "postalCode": "50312", "country": "USA",
+      "job": "Regional Driver", "jobType": "Company Driver", "location": "Des Moines, IA", "department": "Linehaul",
+      "unitNo": "Demo - 07", "truckDescription": "2023 International LT",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "5546", "payRate": 0.58, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "PRAMAN", "firstName": "Priya", "lastName": "Raman",
+      "address1": "61 Hill Street", "address2": null, "city": "Dubuque", "state": "IA", "postalCode": "52003", "country": "USA",
+      "job": "Dedicated Owner Operator", "jobType": "Owner Operator", "location": "Dubuque, IA", "department": "Linehaul",
+      "unitNo": "Demo - 13", "truckDescription": "2020 Freightliner Cascadia",
+      "driverType": "OWNER", "isActive": true, "hasLogin": false,
+      "pay": { "ssnLast4": "8832", "payRate": 1.72, "payFrequency": "W", "payBasis": "MILEAGE", "payGroup": "HMLOO" },
+      "version": "1"
+    },
+    {
+      "driverCode": "SOAKS", "firstName": "Sherman", "lastName": "Oaks",
+      "address1": "907 Third Avenue SE", "address2": null, "city": "Cedar Rapids", "state": "IA", "postalCode": "52403", "country": "USA",
+      "job": "Local Driver", "jobType": "Company Driver", "location": "Cedar Rapids, IA", "department": "City",
+      "unitNo": "Demo - 10", "truckDescription": "2018 Mack Anthem",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": true,
+      "pay": { "ssnLast4": "1179", "payRate": 0.55, "payFrequency": "B", "payBasis": null, "payGroup": "HMLLOC" },
+      "version": "1"
+    },
+    {
+      "driverCode": "MWEBB", "firstName": "Marcus", "lastName": "Webb",
+      "address1": "2214 Lincoln Way", "address2": null, "city": "Ames", "state": "IA", "postalCode": "50014", "country": "USA",
+      "job": "OTR Driver", "jobType": "Company Driver", "location": "Des Moines, IA", "department": "Linehaul",
+      "unitNo": "Demo - 18", "truckDescription": "2022 Freightliner Cascadia",
+      "driverType": "COMPANY", "isActive": true, "hasLogin": false,
+      "pay": { "ssnLast4": "6021", "payRate": 0.6, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    },
+    {
+      "driverCode": "KMILLER", "firstName": "Kurt", "lastName": "Miller",
+      "address1": "410 Church Street", "address2": null, "city": "Ottumwa", "state": "IA", "postalCode": "52501", "country": "USA",
+      "job": "OTR Driver", "jobType": "Company Driver", "location": "Waterloo, IA", "department": "Linehaul",
+      "unitNo": null, "truckDescription": null,
+      "driverType": "COMPANY", "isActive": false, "hasLogin": false,
+      "pay": { "ssnLast4": "4470", "payRate": 0.6, "payFrequency": "W", "payBasis": null, "payGroup": "HMLOTR" },
+      "version": "1"
+    }
+  ]
+}

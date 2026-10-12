@@ -9,15 +9,17 @@ import DriverHomeTime from '../home-time-schedule/DriverHomeTime.tsx'
 import { sampleScheduleAdapter } from '../home-time-schedule/adapters/sampleAdapter.ts'
 import scheduleSample from '../home-time-schedule/fixtures/schedule.json'
 import DriverLoadPlans from '../driver-load-plans/DriverLoadPlans.tsx'
+import DriverMaster from '../driver-master/DriverMaster.tsx'
+import { sampleDispatchDriverAdapter, sampleDriverAdapter } from '../driver-master/adapters/sampleAdapter.ts'
 import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
-import { laptopDrivers, laptopLoadPlanAdapter, laptopScheduleAdapter, laptopScheduleAdapterFor, plannerOnLaptop, signedIn } from './laptopAdapters.ts'
+import { laptopDriverAdapter, laptopDrivers, laptopLoadPlanAdapter, laptopScheduleAdapter, laptopScheduleAdapterFor, plannerOnLaptop, signedIn } from './laptopAdapters.ts'
 import { makeVerdictFor, verdictUnavailable } from './verdict.ts'
 import type { Stay, StayVerdict } from '../home-time-schedule/contract.ts'
 import ModulesPage from './ModulesPage.tsx'
 import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 
 // ---------------------------------------------------------------------------
-// A stand-in for the host's component page -- the same three tabs in the same
+// A stand-in for the host's component page -- the same tabs in the same
 // order -- with the features built here mounted in them. Served by
 // get-me-home.html.
 //
@@ -43,6 +45,8 @@ import { SAMPLE_NOW } from '../home-time-schedule/adapters/sampleAdapter.ts'
 //   Driver Home Time Schedule  as dispatch or as a driver
 //   Driver Load Plans          timed with or without the planner's hours
 //                              model (?hours=off)
+//   Driver Master              as dispatch or as an admin (?as=admin) --
+//                              pay appears for the admin only
 //
 // Which tab, which data and which view are kept in the address, so a reload
 // or a pasted link lands in the same place.
@@ -51,11 +55,13 @@ const TABS = [
   { key: 'planner', label: 'Get Me Home Planner' },
   { key: 'schedule', label: 'Driver Home Time Schedule' },
   { key: 'loads', label: 'Driver Load Plans' },
+  { key: 'drivers', label: 'Driver Master' },
 ] as const
 
 type Data = 'sample' | 'laptop'
 type Source = 'sample' | 'live'
 type View = 'dispatch' | 'driver'
+type Keeper = 'dispatch' | 'admin'
 type Page = 'host' | 'modules'
 type HoursModel = 'planner' | 'off'
 
@@ -92,6 +98,7 @@ export default function PreviewHost() {
   const [driverCode, setDriverCode] = useState(() => param('driver') || 'TBOONE')
   const [page, setPage] = useState<Page>(() => (param('page') === 'modules' ? 'modules' : 'host'))
   const [hours, setHours] = useState<HoursModel>(() => (param('hours') === 'off' ? 'off' : 'planner'))
+  const [keeper, setKeeper] = useState<Keeper>(() => (param('as') === 'admin' ? 'admin' : 'dispatch'))
 
   const chooseTab = (i: number) => { setTab(i); setParam('tab', i === 0 ? null : TABS[i]!.key) }
   const chooseData = (next: Data | null) => { if (next) { setData(next); setParam('data', next === 'laptop' ? 'laptop' : null) } }
@@ -130,6 +137,7 @@ export default function PreviewHost() {
     return () => watch.disconnect()
   }, [page]) // each page draws the header in its own place: measure the one on screen
   const chooseHours = (next: HoursModel | null) => { if (next) { setHours(next); setParam('hours', next === 'off' ? 'off' : null) } }
+  const chooseKeeper = (next: Keeper | null) => { if (next) { setKeeper(next); setParam('as', next === 'admin' ? 'admin' : null) } }
 
   const laptop = data === 'laptop'
   const { user, drivers: laptopList } = useLaptop(laptop)
@@ -285,6 +293,31 @@ export default function PreviewHost() {
           )}
           <DriverLoadPlans key={`${data}-${hours}`} adapter={laptop ? laptopLoadPlanAdapter : loadPlansOnSchedule} organizationId="preview"
             now={laptop ? null : SAMPLE_NOW} drive={hours === 'planner' ? driveFor : null} />
+        </>
+      )}
+
+      {tab === 3 && (
+        <>
+          <Bar>
+            <ToggleButtonGroup size="small" exclusive value={keeper} onChange={(_, next: Keeper | null) => chooseKeeper(next)} aria-label="Who is keeping the drivers">
+              <ToggleButton value="dispatch">Dispatch</ToggleButton>
+              <ToggleButton value="admin">Admin</ToggleButton>
+            </ToggleButtonGroup>
+          </Bar>
+          {laptop ? (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              DRVR.Drivers in the laptop's database, read and written through the host's own SQL (09 and 10) -- a save
+              here is a real row change, and the other tabs follow. Dispatch and Admin are the host's who-may checks:
+              the pay columns come back empty for dispatch, and adding a driver is refused to them.
+            </Alert>
+          ) : (
+            <Alert severity="info" sx={{ mb: 2 }}>
+              The other tabs' sample drivers, and one who has left. Switch to Admin to see pay and add a driver;
+              dispatch never receives pay. Changes last until the page is reloaded.
+            </Alert>
+          )}
+          <DriverMaster key={`${data}-${keeper}`} organizationId="preview"
+            adapter={laptop ? laptopDriverAdapter[keeper] : keeper === 'admin' ? sampleDriverAdapter : sampleDispatchDriverAdapter} />
         </>
       )}
     </Box>

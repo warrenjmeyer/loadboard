@@ -8,6 +8,9 @@ import { scheduleDrive } from './get-me-home/planHome.ts'
 import { planWithLegs } from './driver-load-plans/rules.ts'
 import type { DriveFn } from './driver-load-plans/rules.ts'
 import type { LoadPlanData } from './driver-load-plans/contract.ts'
+import { homeTimeRule } from './driver-master/rules.ts'
+import type { DriverRecord } from './driver-master/contract.ts'
+import { jobTypeOf } from './get-me-home/adapters/loadboardRoster.ts'
 
 // ---------------------------------------------------------------------------
 // The three tabs' sample data tell one story.
@@ -99,4 +102,32 @@ test('with the planner\'s hours model, Hollis is late for Omaha and Dale waits o
   const dale = planWithLegs(plans, 'DFOSTER', { now: plans.asOf!, drive: driveFor })[0]?.leg
   assert.equal(dale?.verdict, 'LATE')
   assert.ok((dale?.restSeconds ?? 0) >= 34 * 3600, 'a 34-hour restart before Ogden')
+})
+
+// The driver master is where the other tabs' drivers come from, so its
+// sample must be the same people: the same names, homes and trucks as the
+// load plans, and jobs that the planner counts as the job types its roster
+// gives them.
+const master = read<{ drivers: DriverRecord[] }>('./driver-master/fixtures/drivers.json').drivers
+
+test('the driver master\'s drivers are the other tabs\' drivers', () => {
+  const active = master.filter((d) => d.isActive)
+  assert.deepEqual(active.map((d) => d.driverCode).sort(), plans.drivers.map((d) => d.driverCode).sort())
+  for (const p of plans.drivers) {
+    const m = active.find((d) => d.driverCode === p.driverCode)!
+    assert.equal(`${m.firstName} ${m.lastName}`, p.name, p.driverCode)
+    assert.equal(`${m.city}, ${m.state}`, p.home.place, `${p.driverCode} home`)
+    assert.equal(m.unitNo, p.unitNo, `${p.driverCode} truck`)
+  }
+})
+
+test('each master job counts, for home time, as the planner\'s roster says -- by both copies of the rule', () => {
+  for (const r of roster.drivers) {
+    const m = master.find((d) => d.driverCode === r.driverCode)!
+    assert.equal(homeTimeRule(m.job), r.jobType, `${r.driverCode}: "${m.job}"`)
+  }
+  // The master's copy of jobTypeOf must say what the planner's says.
+  for (const job of [...master.map((d) => d.job), 'Owner Operator', 'Over-the-road', 'Local Yard', '', null]) {
+    assert.equal(homeTimeRule(job), jobTypeOf(job), JSON.stringify(job))
+  }
 })

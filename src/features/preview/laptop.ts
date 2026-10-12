@@ -4,6 +4,7 @@ import type { ApiHours, ApiPositions, ApiZones } from '../get-me-home/adapters/l
 import type { HomeStay, Hours, LoadPlanData, LoadStatus, Place, PlanDriver, PlanLoad } from '../driver-load-plans/contract.ts'
 import type { ScheduleData, ScheduleDriver, Stay, StaySource, StayStatus } from '../home-time-schedule/contract.ts'
 import type { Roster } from '../get-me-home/contract.ts'
+import type { DriverList, DriverPay, DriverRecord, DriverSummary, DriverType, PayBasis, PayFrequency } from '../driver-master/contract.ts'
 import { planFor } from '../driver-load-plans/rules.ts'
 import { homeTimeFor } from '../home-time-schedule/rules.ts'
 
@@ -13,7 +14,8 @@ import { homeTimeFor } from '../home-time-schedule/rules.ts'
 // do, written once here for the preview's "Laptop database" data.
 //
 // The rows are exactly what the host SQL returns (03_scoped_reads.sql,
-// 05_load_plan_reads.sql, 07_stay_writes.sql), handed over by the dev
+// 05_load_plan_reads.sql, 07_stay_writes.sql, 09_driver_reads.sql,
+// 10_driver_writes.sql), handed over by the dev
 // server (tools/local-db/plugin.mjs). What the database does not hold comes
 // from GeoTab, through the deployed API, as the planner's live data does:
 //
@@ -230,3 +232,37 @@ export function rosterOnLaptop(roster: Roster, { plans, schedule, now }: {
   }
 }
 
+
+// ---- The driver master -------------------------------------------------------
+
+/** One line as 09_driver_reads.sql's loadDriverList returns it. */
+export type DriverLineRow = DriverSummary
+
+/** One driver as 09's loadDriver and 10_driver_writes.sql return it: every
+ * column flat, pay NULL unless canSeePay. */
+export interface DriverRow extends Omit<DriverRecord, 'pay' | 'driverType'> {
+  driverType: string
+  canSeePay: boolean
+  ssnLast4: string | null
+  payRate: number | null
+  payFrequency: string | null
+  payBasis: string | null
+  payGroup: string | null
+}
+
+/** A driver row as the tab's DriverRecord: pay folded into `pay` for a
+ * caller who may see it, and null -- not an object of nulls -- for anyone
+ * else. canSeePay decides, because payBasis is NULL for every company
+ * driver and so cannot. */
+export function toDriverRecord(row: DriverRow): DriverRecord {
+  const { canSeePay, ssnLast4, payRate, payFrequency, payBasis, payGroup, ...rest } = row
+  const pay: DriverPay | null = canSeePay
+    ? { ssnLast4: ssnLast4 ?? '', payRate: payRate ?? 0, payFrequency: (payFrequency ?? 'W') as PayFrequency, payBasis: (payBasis ?? null) as PayBasis | null, payGroup: payGroup ?? '' }
+    : null
+  return { ...rest, driverType: rest.driverType as DriverType, pay }
+}
+
+/** loadDriverList's two result sets -- the lines, and what the caller may do. */
+export function toDriverList({ drivers, you }: { drivers: DriverLineRow[]; you: { canAdd: boolean; canSeePay: boolean } | undefined }): DriverList {
+  return { drivers, you: { canAdd: Boolean(you?.canAdd), canSeePay: Boolean(you?.canSeePay) } }
+}

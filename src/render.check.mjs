@@ -186,6 +186,17 @@ const loadPlansSample = JSON.parse(
 )
 const loadPlansNobody = { ...loadPlansSample, drivers: loadPlansSample.drivers.filter((d) => d.driverCode !== 'LHARTMAN') }
 
+// The driver master's sample drivers, as the two reads hand them over: a
+// line each for the list, and one driver whole -- with pay for an admin,
+// without for dispatch.
+const driverMasterSample = JSON.parse(
+  readFileSync(new URL('./features/driver-master/fixtures/drivers.json', import.meta.url), 'utf8')
+).drivers
+const driverLine = ({ driverCode, firstName, lastName, city, state, job, driverType, unitNo, isActive, hasLogin }) =>
+  ({ driverCode, firstName, lastName, city, state, job, driverType, unitNo, isActive, hasLogin })
+const driverList = (canAdd) => ({ drivers: driverMasterSample.map(driverLine), you: { canAdd, canSeePay: canAdd } })
+const driverOwner = driverMasterSample.find((d) => d.driverCode === 'RVASQUEZ')
+
 // Each entry is a state the component can actually be in. Rendering only the
 // happy path would miss the branches that exist precisely because something
 // went wrong -- which are the ones nobody looks at until they matter.
@@ -920,6 +931,22 @@ const cases = [
   }],
   ['LoadPlans timeline', '/src/features/driver-load-plans/PlanTimeline.tsx', { data: loadPlansSample, now: loadPlansSample.asOf }],
   ['LoadPlans no open', '/src/features/driver-load-plans/OpenLoadList.tsx', { loads: [], now: loadPlansSample.asOf }],
+
+  // The driver master: the tab from data, the two states before data, the
+  // list as dispatch and as admin, nobody yet, and the form as an admin (pay
+  // shown), as dispatch (pay withheld), for a driver who has left, and empty
+  // for a new driver.
+  ['Drivers tab', '/src/features/driver-master/DriverMasterView.tsx', { list: driverList(true), records: driverMasterSample }],
+  ['Drivers loading', '/src/features/driver-master/DriverMasterView.tsx', { list: null, loading: true }],
+  ['Drivers error', '/src/features/driver-master/DriverMasterView.tsx', { list: null, error: 'HTTP 403' }],
+  ['Drivers list dispatch', '/src/features/driver-master/DriverTable.tsx', { list: driverList(false), onOpen() {} }],
+  ['Drivers list empty', '/src/features/driver-master/DriverTable.tsx', { list: { drivers: [], you: { canAdd: true, canSeePay: true } }, onAdd() {} }],
+  ['Drivers form admin', '/src/features/driver-master/DriverForm.tsx', { record: driverOwner, onSave() {}, onSetActive() {}, onCancel() {} }],
+  ['Drivers form dispatch', '/src/features/driver-master/DriverForm.tsx', { record: { ...driverOwner, pay: null }, onSave() {} }],
+  ['Drivers form left', '/src/features/driver-master/DriverForm.tsx', {
+    record: driverMasterSample.find((d) => d.driverCode === 'KMILLER'), onSave() {}, onSetActive() {},
+  }],
+  ['Drivers form new', '/src/features/driver-master/DriverForm.tsx', { record: null, takenCodes: ['TBOONE'], onAdd() {}, onCancel() {} }],
 
   // The modules page, whole: every demo mounted at once. Under a server
   // renderer the wrappers show their loading state -- effects do not run --

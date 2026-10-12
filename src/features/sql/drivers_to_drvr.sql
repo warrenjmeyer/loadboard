@@ -23,6 +23,12 @@
 --   A driver who leaves the load board is NOT removed there: set IsActive = 0
 --   by hand, deliberately, since their stays still point at them.
 --
+-- ONCE THE DRIVER MASTER TAB IS IN USE, DO NOT RE-RUN THIS. That tab edits
+-- DRVR.Drivers directly (10_driver_writes.sql), and this MERGE updates
+-- every column it carries from Millstream -- so an address or pay rate
+-- corrected there is put back to Millstream's. From then on DRVR.Drivers is
+-- the master; add new drivers in the tab.
+--
 -- WHAT IT CARRIES: every column of dbo.Drivers, renamed into Title_Case.
 -- They are test drivers, so nothing is held back -- see 01_DRVR_Drivers.sql.
 --

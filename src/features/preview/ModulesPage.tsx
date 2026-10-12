@@ -57,6 +57,20 @@ import { scopeCandidates, scopeDriverPlan, scopeOpenLoads } from '../driver-load
 import plansJson from '../driver-load-plans/fixtures/plans.json'
 import type { LoadPlanData } from '../driver-load-plans/contract.ts'
 
+import { MODULES as DRIVER_MASTER_MODULES } from '../driver-master/modules.ts'
+import DriverMaster from '../driver-master/DriverMaster.tsx'
+import DriverDirectory from '../driver-master/DriverDirectory.tsx'
+import DriverEditor from '../driver-master/DriverEditor.tsx'
+import { DriverSync } from '../driver-master/sync.tsx'
+import { sampleDispatchDriverAdapter, sampleDriverAdapter } from '../driver-master/adapters/sampleAdapter.ts'
+
+import DriverMasterView from '../driver-master/DriverMasterView.tsx'
+import DriverTable from '../driver-master/DriverTable.tsx'
+import DriverForm from '../driver-master/DriverForm.tsx'
+import { scopeDriver as scopeDriverRecord, scopeDriverList } from '../driver-master/scope.ts'
+import driversJson from '../driver-master/fixtures/drivers.json'
+import type { DriverRecord } from '../driver-master/contract.ts'
+
 import { driveFor, loadPlansOnSchedule, plannerOnSchedule, verdictFor } from './wiring.ts'
 
 // ---------------------------------------------------------------------------
@@ -96,6 +110,9 @@ const DEMOS: Record<string, () => ReactNode> = {
   LoadPlanBoard: () => <LoadPlanBoard adapter={loadPlansOnSchedule} now={LOADS_NOW} drive={driveFor} />,
   DriverLoadPlan: () => <Box sx={{ maxWidth: 560 }}><DriverLoadPlan adapter={loadPlansOnSchedule} driverCode="PRAMAN" now={LOADS_NOW} drive={driveFor} /></Box>,
   LegChip: () => <LegChipDemo />,
+  DriverMaster: () => <DriverMaster adapter={sampleDriverAdapter} />,
+  DriverDirectory: () => <DriverDirectoryDemo />,
+  DriverEditor: () => <DriverEditorDemo />,
 }
 
 // ---------------------------------------------------------------------------
@@ -113,6 +130,7 @@ const SCHEDULE = scheduleJson as ScheduleData
 const SCHEDULE_NOW = SCHEDULE.asOf || SAMPLE_NOW
 const PLANS = plansJson as LoadPlanData
 const PLANS_NOW = PLANS.asOf || LOADS_NOW
+const DRIVERS = (driversJson as { drivers: DriverRecord[] }).drivers
 
 const PIECE_DEMOS: Record<string, () => ReactNode> = {
   PlannerView: () => <PlannerView roster={ROSTER} />,
@@ -129,6 +147,9 @@ const PIECE_DEMOS: Record<string, () => ReactNode> = {
   CandidateList: () => <CandidateListPiece />,
   PlanTimeline: () => <PlanTimelinePiece />,
   PlanList: () => <PlanListPiece />,
+  DriverMasterView: () => <DriverMasterViewPiece />,
+  DriverTable: () => <DriverTablePiece />,
+  DriverForm: () => <DriverFormPiece />,
 }
 
 // Each feature's demos, wrapped the way a host page would wrap them.
@@ -136,6 +157,7 @@ const FEATURES: { key: string; title: string; folder: string; modules: typeof PL
   { key: 'get-me-home', title: 'Get Me Home Planner', folder: 'src/features/get-me-home', modules: PLANNER_MODULES, wrap: (cards) => cards },
   { key: 'home-time-schedule', title: 'Driver Home Time Schedule', folder: 'src/features/home-time-schedule', modules: SCHEDULE_MODULES, wrap: (cards) => <ScheduleSync>{cards}</ScheduleSync> },
   { key: 'driver-load-plans', title: 'Driver Load Plans', folder: 'src/features/driver-load-plans', modules: LOAD_PLAN_MODULES, wrap: (cards) => <PlanSync>{cards}</PlanSync> },
+  { key: 'driver-master', title: 'Driver Master', folder: 'src/features/driver-master', modules: DRIVER_MASTER_MODULES, wrap: (cards) => <DriverSync>{cards}</DriverSync> },
 ]
 
 // Below the preview's header, which stays at the top of the screen and
@@ -462,5 +484,97 @@ function LegChipDemo() {
       <LegChip leg={legs[2] ?? null} compact />
       <LegChip leg={null} />
     </Stack>
+  )
+}
+
+// ---------------------------------------------------------------------------
+// Driver Master: the same drivers as an admin sees them and as dispatch does
+// -- pay comes or does not, from the adapter's answer, and the screen follows.
+// ---------------------------------------------------------------------------
+type Who = 'admin' | 'dispatch'
+
+function WhoSwitch({ who, onChange }: { who: Who; onChange: (who: Who) => void }) {
+  return (
+    <Stack direction="row" spacing={1} sx={{ mb: 1.5 }}>
+      <Button size="small" variant={who === 'admin' ? 'contained' : 'outlined'} onClick={() => onChange('admin')}>As an admin</Button>
+      <Button size="small" variant={who === 'dispatch' ? 'contained' : 'outlined'} onClick={() => onChange('dispatch')}>As dispatch</Button>
+    </Stack>
+  )
+}
+
+function DriverDirectoryDemo() {
+  const [who, setWho] = useState<Who>('dispatch')
+  const [line, say] = useSaid()
+  return (
+    <>
+      <WhoSwitch who={who} onChange={setWho} />
+      <DriverDirectory key={who} adapter={who === 'admin' ? sampleDriverAdapter : sampleDispatchDriverAdapter}
+        onOpen={(code) => say(`onOpen("${code}") -- a host would open DriverEditor here.`)} onAdd={() => say('onAdd()')} />
+      {line}
+    </>
+  )
+}
+
+function DriverEditorDemo() {
+  const [who, setWho] = useState<Who>('admin')
+  const [code, setCode] = useState<string | null | undefined>(undefined)
+  const [line, say] = useSaid()
+  return (
+    <>
+      <WhoSwitch who={who} onChange={setWho} />
+      <Stack direction="row" sx={{ flexWrap: 'wrap', gap: 1, mb: 2 }}>
+        <Button variant="outlined" size="small" onClick={() => setCode('TBOONE')}>Open TBOONE</Button>
+        <Button variant="outlined" size="small" onClick={() => setCode('RVASQUEZ')}>Open RVASQUEZ (owner)</Button>
+        <Button variant="outlined" size="small" onClick={() => setCode('KMILLER')}>Open KMILLER (has left)</Button>
+        <Button variant="outlined" size="small" onClick={() => setCode(null)}>A new driver</Button>
+      </Stack>
+      {code !== undefined && (
+        <Box sx={{ maxWidth: 720 }}>
+          <DriverEditor key={`${who}-${code}`} adapter={who === 'admin' ? sampleDriverAdapter : sampleDispatchDriverAdapter} driverCode={code}
+            takenCodes={DRIVERS.map((d) => d.driverCode)}
+            onSaved={(d) => say(`onSaved(${d.driverCode}, version ${d.version})`)} onClose={() => setCode(undefined)} />
+        </Box>
+      )}
+      {line}
+    </>
+  )
+}
+
+function DriverMasterViewPiece() {
+  const [line, say] = useSaid()
+  return (
+    <>
+      <DriverMasterView list={scopeDriverList(DRIVERS, { includeInactive: false, caller: 'admin' })} records={DRIVERS}
+        onShowInactive={(show) => say(`onShowInactive(${show})`)}
+        onSave={async (code, version, changes) => { say(`onSave("${code}", "${version}", ${JSON.stringify(changes)})`) }}
+        onAdd={async (d) => { say(`onAdd(${JSON.stringify({ driverCode: d.driverCode, lastName: d.lastName })}...)`) }}
+        onSetActive={async (code, version, active) => { say(`onSetActive("${code}", "${version}", ${active})`) }} />
+      {line}
+    </>
+  )
+}
+
+function DriverTablePiece() {
+  const [line, say] = useSaid()
+  return (
+    <>
+      <DriverTable list={scopeDriverList(DRIVERS, { includeInactive: true, caller: 'dispatch' })} showInactive
+        onOpen={(code) => say(`onOpen("${code}")`)} />
+      {line}
+    </>
+  )
+}
+
+function DriverFormPiece() {
+  const [who, setWho] = useState<Who>('admin')
+  const [line, say] = useSaid()
+  return (
+    <Box sx={{ maxWidth: 720 }}>
+      <WhoSwitch who={who} onChange={setWho} />
+      <DriverForm key={who} record={scopeDriverRecord(DRIVERS, 'RVASQUEZ', { caller: who })}
+        onSave={(changes) => say(`onSave(${JSON.stringify(changes)})`)} onSetActive={(a) => say(`onSetActive(${a})`)}
+        onCancel={() => say('onCancel()')} />
+      {line}
+    </Box>
   )
 }

@@ -1,8 +1,9 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { dockMoment, placeFrom, rosterOnLaptop, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
-import type { LoadRow, StayRow } from './laptop.ts'
+import { dockMoment, placeFrom, rosterOnLaptop, toDriverList, toDriverRecord, toLoad, toLoadPlanData, toScheduleData, toStay } from './laptop.ts'
+import type { DriverRow, LoadRow, StayRow } from './laptop.ts'
+import { checkDriverList, checkDriverRecord } from '../driver-master/contract.ts'
 import { checkLoadPlans } from '../driver-load-plans/contract.ts'
 import { checkSchedule } from '../home-time-schedule/contract.ts'
 import type { ScheduleData } from '../home-time-schedule/contract.ts'
@@ -152,3 +153,38 @@ test("positions and hours stay GeoTab's", () => {
   assert.deepEqual(driver(r, 'HBARNETT').hours, driver(roster, 'HBARNETT').hours)
 })
 
+
+// ---- The driver master: rows as 09 and 10 return them (the laptop's
+// RVASQUEZ, 2026-10-12), as admin and as dispatch.
+const driverRow = (canSeePay: boolean): DriverRow => ({
+  driverCode: 'RVASQUEZ', firstName: 'Rey', lastName: 'Vasquez', address1: '418 Sycamore Street', address2: null,
+  city: 'Cedar Rapids', state: 'IA', postalCode: '52401', country: 'USA', job: 'Owner Operator', jobType: 'Owner Operator',
+  location: 'Cedar Rapids, IA', department: 'Linehaul', unitNo: 'Demo - 21', truckDescription: '2021 Freightliner Cascadia',
+  driverType: 'OWNER', isActive: true, hasLogin: true, version: '2026-09-30 11:27:24.950', canSeePay,
+  ssnLast4: canSeePay ? '3308' : null, payRate: canSeePay ? 1.88 : null, payFrequency: canSeePay ? 'W' : null,
+  payBasis: canSeePay ? 'MILEAGE' : null, payGroup: canSeePay ? 'HMLOO' : null,
+})
+
+test('a driver row: pay folded in for an admin, null for dispatch, and nothing extra either way', () => {
+  const admin = toDriverRecord(driverRow(true))
+  assert.deepEqual(checkDriverRecord(admin), [])
+  assert.deepEqual(admin.pay, { ssnLast4: '3308', payRate: 1.88, payFrequency: 'W', payBasis: 'MILEAGE', payGroup: 'HMLOO' })
+  const dispatch = toDriverRecord(driverRow(false))
+  assert.deepEqual(checkDriverRecord(dispatch), [])
+  assert.equal(dispatch.pay, null)
+  for (const k of ['canSeePay', 'ssnLast4', 'payRate', 'payFrequency', 'payBasis', 'payGroup']) assert.ok(!(k in dispatch), `${k} left over`)
+})
+
+test('a company driver as an admin sees them: pay, with no basis', () => {
+  const company = toDriverRecord({ ...driverRow(true), driverType: 'COMPANY', payBasis: null })
+  assert.equal(company.pay?.payBasis, null)
+  assert.deepEqual(checkDriverRecord(company), [])
+})
+
+test('the driver list: lines and what the caller may do', () => {
+  const { pay: _p, ...line } = { ...toDriverRecord(driverRow(false)) }
+  const summary = { driverCode: line.driverCode, firstName: line.firstName, lastName: line.lastName, city: line.city, state: line.state,
+    job: line.job, driverType: line.driverType, unitNo: line.unitNo, isActive: line.isActive, hasLogin: line.hasLogin }
+  assert.deepEqual(checkDriverList(toDriverList({ drivers: [summary], you: { canAdd: false, canSeePay: false } })), [])
+  assert.deepEqual(toDriverList({ drivers: [], you: undefined }).you, { canAdd: false, canSeePay: false })
+})
